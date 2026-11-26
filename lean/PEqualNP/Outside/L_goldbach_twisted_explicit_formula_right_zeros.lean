@@ -3,8 +3,9 @@ import Mathlib
 /-!
 Finite explicit formula for an additively twisted Dirichlet character sum.
 No hypothesis on the real parts of the zeros is used. The formula keeps the
-signed multiplicities of the enclosed zeros and the truncated left edge.
-The right tail and both horizontal integrals have uniform quantitative bounds.
+signed multiplicities of the enclosed zeros. An average over contour abscissae
+bounds the left edge using local zero counts and an integrable product kernel.
+At polynomial height the entire error is bounded at the oscillatory window scale.
 
 The analytic growth, Jensen disk, logarithmic derivative and rectangle
 residue estimates are adapted from DNZJSJ, goldbach-proofs PR #2486,
@@ -12,6 +13,8 @@ commit f3613cf846dfb3e7fe7d04fe6ce51c6ee25e7d4f (Apache-2.0).
 The Mellin window and inversion use the same integer endpoints as the
 conditional three-quarters proof. The right-half count, shared edge
 selection and two-sided truncation estimate below do not use Dirichlet GRH.
+The per-ordinate oscillatory bounds are from 34245621, PR #2511, at
+cba708bd00210b8e17a7f7f9d5e48b74599f48c5.
 -/
 
 section
@@ -2035,6 +2038,459 @@ end
 end
 
 section
+open Set MeasureTheory
+
+namespace GoldbachOscillation
+
+/-- The multiplier R(y) = y/(L²+y²) stays finite as the phase slope crosses zero. -/
+private noncomputable def D (L y : ℝ) := L^2+y^2
+private noncomputable def R (L y : ℝ) := y / D L y
+private noncomputable def R' (L y : ℝ) := (L^2-y^2) / (D L y)^2
+private noncomputable def J (L y : ℝ) := Real.arctan (y/L) / L
+private noncomputable def wave (y : ℝ) := Complex.exp ((y:ℂ)*Complex.I)
+
+private theorem D_pos {L : ℝ} (hL : 0 < L) (y : ℝ) : 0 < D L y := by unfold D; positivity
+
+private theorem R_deriv {L : ℝ} (hL : 0 < L) (y : ℝ) : HasDerivAt (R L) (R' L y) y := by
+  have h := (hasDerivAt_id y).div ((hasDerivAt_const y (L^2)).add ((hasDerivAt_id y).pow 2))
+    (D_pos hL y).ne'
+  convert h using 1
+  · rfl
+  unfold R' D
+  simp
+  ring
+
+private theorem J_deriv {L : ℝ} (hL : 0 < L) (y : ℝ) : HasDerivAt (J L) (1 / D L y) y := by
+  have h := ((Real.hasDerivAt_arctan (y/L)).comp y ((hasDerivAt_id y).div_const L)).div_const L
+  convert h using 1
+  · rfl
+  unfold D
+  field_simp [hL.ne']
+
+private theorem wave_deriv (y : ℝ) :
+    HasDerivAt wave (wave y * Complex.I) y := by
+  simpa [wave] using! (((hasDerivAt_id (y:ℂ)).mul_const Complex.I).cexp).comp_ofReal
+
+private theorem wave_norm (y : ℝ) : ‖wave y‖ = 1 := Complex.norm_exp_ofReal_mul_I _
+
+private theorem R_bound {L : ℝ} (hL : 0 < L) (y : ℝ) : |R L y| ≤ 1/L := by
+  rw [R, abs_div, abs_of_pos (D_pos hL y)]
+  apply (div_le_div_iff₀ (D_pos hL y) hL).mpr
+  unfold D
+  nlinarith only [sq_nonneg (L-|y|), sq_abs y, mul_nonneg hL.le (abs_nonneg y)]
+
+private theorem R'_bound {L : ℝ} (hL : 0 < L) (y : ℝ) : |R' L y| ≤ 1 / D L y := by
+  have hp := D_pos hL y
+  rw [R', abs_div, abs_of_pos (sq_pos_of_pos hp)]
+  have hab : |L^2-y^2| ≤ D L y := abs_le.mpr ⟨by dsimp [D]; nlinarith [sq_nonneg L],
+    by dsimp [D]; nlinarith [sq_nonneg y]⟩
+  apply (div_le_div_iff₀ (sq_pos_of_pos hp) hp).mpr
+  nlinarith only [mul_le_mul_of_nonneg_right hab hp.le]
+
+private theorem remainder {L : ℝ} (hL : 0 < L) (y : ℝ) :
+    1-y*R L y = L^2 / D L y := by
+  unfold R
+  field_simp [(D_pos hL y).ne']
+  unfold D
+  ring
+
+private noncomputable def mainTerm (w f : ℝ → ℝ) (x : ℝ) : ℂ := (w x:ℂ)*wave (f x)
+private noncomputable def primitive (L : ℝ) (w f p : ℝ → ℝ) (x : ℝ) : ℂ :=
+  -Complex.I*((w x * R L (p x) : ℝ):ℂ)*wave (f x)
+private noncomputable def errorTerm (L : ℝ) (w dw f p dp : ℝ → ℝ) (x : ℝ) : ℂ :=
+  wave (f x) * (((w x * (1-p x*R L (p x)) : ℝ):ℂ) +
+    Complex.I * ((dw x*R L (p x)+w x*R' L (p x)*dp x : ℝ):ℂ))
+
+private theorem primitive_deriv {L x : ℝ} (hL : 0 < L) {w dw f p dp : ℝ → ℝ}
+    (hw : HasDerivAt w (dw x) x) (hf : HasDerivAt f (p x) x) (hp : HasDerivAt p (dp x) x) :
+    HasDerivAt (primitive L w f p) (mainTerm w f x - errorTerm L w dw f p dp x) x := by
+  have hr := (R_deriv hL (p x)).comp x hp
+  have hd := (((hw.mul hr).ofReal_comp.const_mul (-Complex.I)).mul ((wave_deriv (f x)).scomp x hf))
+  convert hd using 1
+  · rfl
+  dsimp [mainTerm, errorTerm]
+  push_cast
+  ring_nf
+  simp [Complex.I_sq]
+
+private theorem primitive_bound {L x : ℝ} (hL : 0 < L) (w f p : ℝ → ℝ)
+    (hw : |w x| ≤ 1) : ‖primitive L w f p x‖ ≤ 1/L := by
+  simp only [primitive, norm_mul, norm_neg, Complex.norm_I, one_mul, wave_norm,
+    mul_one, Complex.norm_real, Real.norm_eq_abs]
+  simpa using mul_le_mul hw (R_bound hL (p x)) (abs_nonneg _) zero_le_one
+
+private theorem error_bound {L x : ℝ} (hL : 0 < L) (w dw f p dp : ℝ → ℝ)
+    (hw : |w x| ≤ 1) (hdw : |dw x| ≤ 1) (hcurv : L^2 ≤ 4*dp x) :
+    ‖errorTerm L w dw f p dp x‖ ≤ 1/L + 5 * (dp x / D L (p x)) := by
+  have hd := D_pos hL (p x)
+  have hp : 0 ≤ dp x := by nlinarith only [sq_nonneg L,hcurv]
+  rw [errorTerm, norm_mul, wave_norm, one_mul]
+  apply (norm_add_le ..).trans
+  simp only [norm_mul, Complex.norm_I, one_mul, Complex.norm_real, Real.norm_eq_abs,
+    remainder hL, abs_of_nonneg (div_nonneg (sq_nonneg L) hd.le)]
+  have hfirst := mul_le_of_le_one_left (div_nonneg (sq_nonneg L) hd.le) hw
+  have hsecond : |dw x*R L (p x)| ≤ 1/L := by
+    rw [abs_mul]
+    simpa using mul_le_mul hdw (R_bound hL _) (abs_nonneg _) zero_le_one
+  have hthird : |w x*R' L (p x)*dp x| ≤ dp x/D L (p x) := by
+    simp only [abs_mul, abs_of_nonneg hp]
+    have hs : |w x| * |R' L (p x)| ≤ 1/D L (p x) := by
+      simpa using mul_le_mul hw (R'_bound hL _) (abs_nonneg _) zero_le_one
+    simpa [div_eq_mul_inv, mul_comm] using mul_le_mul_of_nonneg_right hs hp
+  have hscale := div_le_div_of_nonneg_right hcurv hd.le
+  rw [mul_div_assoc] at hscale
+  have htriangle := abs_add_le (dw x*R L (p x)) (w x*R' L (p x)*dp x)
+  linarith
+
+/-- A regularized integration by parts works across a possible stationary point.
+The arctangent controls the total variation of the multiplier. -/
+private theorem regularized {a b L : ℝ} (hab : a ≤ b) (hlen : b-a ≤ 1) (hL : 0 < L)
+    (w dw f p dp : ℝ → ℝ)
+    (hw : ∀ x ∈ Icc a b, HasDerivAt w (dw x) x)
+    (hf : ∀ x ∈ Icc a b, HasDerivAt f (p x) x)
+    (hp : ∀ x ∈ Icc a b, HasDerivAt p (dp x) x)
+    (hcw : ContinuousOn dw (Icc a b)) (hcp : ContinuousOn dp (Icc a b))
+    (hw1 : ∀ x ∈ Icc a b, |w x| ≤ 1) (hdw1 : ∀ x ∈ Icc a b, |dw x| ≤ 1)
+    (hcurv : ∀ x ∈ Icc a b, L^2 ≤ 4*dp x) :
+    ‖∫ x in a..b, mainTerm w f x‖ ≤ (3+5*Real.pi)/L := by
+  have cw := HasDerivAt.continuousOn hw
+  have cf := HasDerivAt.continuousOn hf
+  have cp := HasDerivAt.continuousOn hp
+  have cR : Continuous (R L) := continuous_iff_continuousAt.mpr fun y => (R_deriv hL y).continuousAt
+  have cD : Continuous (D L) := by unfold D; fun_prop
+  have cR' : Continuous (R' L) := by
+    unfold R'
+    exact (continuous_const.sub (continuous_id.pow 2)).div (cD.pow 2) (fun y => (sq_pos_of_pos (D_pos hL y)).ne')
+  have cWave : Continuous wave := continuous_iff_continuousAt.mpr fun y => (wave_deriv y).continuousAt
+  have cwav := cWave.comp_continuousOn cf
+  have cr := cR.comp_continuousOn cp
+  have cr' := cR'.comp_continuousOn cp
+  have mainC : ContinuousOn (mainTerm w f) (Icc a b) := by unfold mainTerm; fun_prop
+  have errC : ContinuousOn (errorTerm L w dw f p dp) (Icc a b) := by unfold errorTerm; fun_prop
+  have mainI := mainC.intervalIntegrable_of_Icc (μ := volume) hab
+  have errI := errC.intervalIntegrable_of_Icc (μ := volume) hab
+  have identity := intervalIntegral.integral_eq_sub_of_hasDerivAt
+    (f := primitive L w f p) (f' := fun x => mainTerm w f x - errorTerm L w dw f p dp x)
+    (fun x hx => by rw [uIcc_of_le hab] at hx; exact primitive_deriv hL (hw x hx) (hf x hx) (hp x hx))
+    (mainI.sub errI)
+  rw [intervalIntegral.integral_sub mainI errI] at identity
+  let density := fun x => dp x / D L (p x)
+  have denC : ContinuousOn density (Icc a b) :=
+    hcp.div (cD.comp_continuousOn cp) (fun x _ => (D_pos hL (p x)).ne')
+  have di := denC.intervalIntegrable_of_Icc (μ := volume) hab
+  have jd := intervalIntegral.integral_eq_sub_of_hasDerivAt
+    (f := J L ∘ p) (f' := density) (fun x hx => by
+      rw [uIcc_of_le hab] at hx
+      convert (J_deriv hL (p x)).comp x (hp x hx) using 1
+      dsimp [density]; ring) di
+  -- Integrating the positive density only costs the range of arctan, divided by L.
+  have jbound : (∫ x in a..b, density x) ≤ Real.pi/L := by
+    rw [jd]
+    dsimp [J]
+    rw [← sub_div]
+    apply div_le_div_of_nonneg_right _ hL.le
+    linarith only [Real.arctan_lt_pi_div_two (p b/L), Real.neg_pi_div_two_lt_arctan (p a/L)]
+  have errBound := intervalIntegral.norm_integral_le_of_norm_le hab
+    (g := fun x => 1/L + 5 * density x) (Filter.Eventually.of_forall fun x hx =>
+      error_bound hL w dw f p dp (hw1 x ⟨hx.1.le,hx.2⟩) (hdw1 x ⟨hx.1.le,hx.2⟩) (hcurv x ⟨hx.1.le,hx.2⟩))
+    (intervalIntegrable_const.add (di.const_mul 5))
+  rw [intervalIntegral.integral_add intervalIntegrable_const (di.const_mul 5),
+    intervalIntegral.integral_const, intervalIntegral.integral_const_mul, smul_eq_mul] at errBound
+  have lhs : (∫ x in a..b, mainTerm w f x) =
+      (primitive L w f p b - primitive L w f p a) + ∫ x in a..b, errorTerm L w dw f p dp x :=
+    sub_eq_iff_eq_add.mp identity
+  rw [lhs]
+  apply (norm_add_le ..).trans
+  have nd := norm_sub_le (primitive L w f p b) (primitive L w f p a)
+  have ba := primitive_bound hL w f p (hw1 a (left_mem_Icc.mpr hab))
+  have bb := primitive_bound hL w f p (hw1 b (right_mem_Icc.mpr hab))
+  have length := mul_le_mul_of_nonneg_right hlen (one_div_nonneg.mpr hL.le)
+  rw [add_div, mul_div_assoc]
+  rw [show 3/L = 3*(1/L) by ring]
+  linarith only [ba,bb,nd,errBound,length,jbound]
+
+private noncomputable def kernel (σ β γ x : ℝ) : ℂ :=
+  ((x^(σ-1):ℝ):ℂ) * wave (β*x + γ*Real.log x)
+
+private theorem dyadic_minus {a b γ σ : ℝ} (ha : 1 ≤ a) (hab : a ≤ b) (hb : b ≤ 2)
+    (hγ : 0 < γ) (hσ : 0 ≤ σ) (hσ' : σ ≤ 1) (β : ℝ) :
+    ‖∫ x in a..b, kernel σ β (-γ) x‖ ≤ (3+5*Real.pi)/Real.sqrt γ := by
+  let w := fun x : ℝ => x^(σ-1)
+  let dw := fun x : ℝ => (σ-1)*x^(σ-1-1)
+  let f := fun x : ℝ => β*x+(-γ)*Real.log x
+  let p := fun x : ℝ => β-γ/x
+  let dp := fun x : ℝ => γ/x^2
+  have hx {x : ℝ} (h : x ∈ Icc a b) : 1 ≤ x := ha.trans h.1
+  have hxp {x : ℝ} (h : x ∈ Icc a b) : 0 < x := zero_lt_one.trans_le (hx h)
+  apply regularized hab (by linarith) (Real.sqrt_pos.mpr hγ) w dw f p dp
+  · intro x h
+    exact Real.hasDerivAt_rpow_const (Or.inl (hxp h).ne')
+  · intro x h
+    have h' := ((hasDerivAt_id x).const_mul β).add ((Real.hasDerivAt_log (hxp h).ne').const_mul (-γ))
+    convert h' using 1
+    · rfl
+    dsimp [p]; ring
+  · intro x h
+    have h' := (hasDerivAt_const x β).sub ((hasDerivAt_const x γ).div (hasDerivAt_id x) (hxp h).ne')
+    convert h' using 1
+    · rfl
+    dsimp [dp]; ring
+  · unfold dw; fun_prop (disch := solve_by_elim [ne_of_gt, hxp])
+  · change ContinuousOn (fun x : ℝ => γ/x^2) (Icc a b)
+    fun_prop (disch := intro x hx; exact pow_ne_zero 2 (hxp hx).ne')
+  · intro x h
+    dsimp [w]
+    rw [abs_of_nonneg (Real.rpow_nonneg (hxp h).le _)]
+    exact Real.rpow_le_one_of_one_le_of_nonpos (hx h) (by linarith)
+  · intro x h
+    dsimp [dw]
+    rw [abs_mul, abs_of_nonpos (sub_nonpos.mpr hσ'), abs_of_nonneg (Real.rpow_nonneg (hxp h).le _)]
+    have h1 : -(σ-1) ≤ 1 := by linarith
+    have h2 := Real.rpow_le_one_of_one_le_of_nonpos (hx h) (show σ-1-1 ≤ 0 by linarith)
+    simpa using mul_le_mul h1 h2 (Real.rpow_nonneg (hxp h).le _) zero_le_one
+  · intro x h
+    rw [Real.sq_sqrt hγ.le]
+    change γ ≤ 4*(γ/x^2)
+    rw [← mul_div_assoc]
+    apply (le_div_iff₀ (sq_pos_of_pos (hxp h))).mpr
+    have h2 := pow_le_pow_left₀ (hxp h).le (h.2.trans hb) 2
+    nlinarith only [mul_le_mul_of_nonneg_left h2 hγ.le]
+
+open scoped ComplexConjugate
+
+private theorem wave_add (u v : ℝ) : wave (u+v) = wave u * wave v := by
+  unfold wave
+  rw [← Complex.exp_add]
+  congr 1
+  push_cast
+  ring
+
+private theorem conjugate_kernel (σ β γ x : ℝ) :
+    conj (kernel σ (-β) (-γ) x) = kernel σ β γ x := by
+  unfold kernel wave
+  rw [map_mul, Complex.conj_ofReal, ← Complex.exp_conj]
+  congr 2
+  simp
+  ring
+
+private theorem dyadic {a b γ σ : ℝ} (ha : 1 ≤ a) (hab : a ≤ b) (hb : b ≤ 2)
+    (hγ : γ ≠ 0) (hσ : 0 ≤ σ) (hσ' : σ ≤ 1) (β : ℝ) :
+    ‖∫ x in a..b, kernel σ β γ x‖ ≤ min 1 ((3+5*Real.pi)/Real.sqrt |γ|) := by
+  apply le_min
+  · have h := intervalIntegral.norm_integral_le_of_norm_le_const (a := a) (b := b)
+      (f := kernel σ β γ) (C := 1) (fun x hx => by
+        rw [uIoc_of_le hab] at hx
+        have h1 := ha.trans hx.1.le
+        rw [kernel, norm_mul, wave_norm, mul_one, Complex.norm_real, Real.norm_eq_abs,
+          abs_of_nonneg (Real.rpow_nonneg (zero_le_one.trans h1) _)]
+        exact Real.rpow_le_one_of_one_le_of_nonpos h1 (by linarith))
+    rw [abs_of_nonneg (sub_nonneg.mpr hab), one_mul] at h
+    exact h.trans (by linarith)
+  · rcases lt_or_gt_of_ne hγ with hn | hpos
+    · simpa [abs_of_neg hn] using dyadic_minus ha hab hb (neg_pos.mpr hn) hσ hσ' β
+    · have id : (∫ x in a..b, kernel σ β γ x) = conj (∫ x in a..b, kernel σ (-β) (-γ) x) := by
+        rw [← intervalIntegral.intervalIntegral_conj]
+        exact intervalIntegral.integral_congr fun x _ => (conjugate_kernel σ β γ x).symm
+      rw [id, Complex.norm_conj, abs_of_pos hpos]
+      exact dyadic_minus ha hab hb hpos hσ hσ' (-β)
+
+private theorem rescale {Y x : ℝ} (hY : 0 < Y) (hx : 0 < x) (σ β γ : ℝ) :
+    kernel σ β γ (Y*x) = (((Y^(σ-1):ℝ):ℂ)*wave (γ*Real.log Y)) * kernel σ (β*Y) γ x := by
+  unfold kernel
+  rw [Real.mul_rpow hY.le hx.le, Real.log_mul hY.ne' hx.ne',
+    show β*(Y*x)+γ*(Real.log Y+Real.log x) = γ*Real.log Y + ((β*Y)*x+γ*Real.log x) by ring, wave_add]
+  push_cast
+  ring
+
+/- Away from a stationary point, integrate with the reciprocal of βx+γ.
+Its fixed-sign derivative gives a total variation bound from the endpoints. -/
+set_option maxHeartbeats 600000 in
+private theorem separated {a b σ γ β H : ℝ} (ha : 0 < a) (hab : a ≤ b) (hσ : 0 ≤ σ)
+    (hH : 0 < H) (hsep : ∀ x ∈ Icc a b, H ≤ |β*x+γ|) :
+    ‖∫ x in a..b, kernel σ β γ x‖ ≤ 5*b^σ/H := by
+  let F := fun x : ℝ => β*x + γ*Real.log x
+  let p := fun x : ℝ => β+γ/x
+  let W := fun x : ℝ => x^σ
+  let dW := fun x : ℝ => σ*x^(σ-1)
+  let z := fun x : ℝ => 1/(β*x+γ)
+  let dz := fun x : ℝ => -β/(β*x+γ)^2
+  let B := fun x : ℝ => -Complex.I*((W x*z x : ℝ):ℂ)*wave (F x)
+  let er := fun x : ℝ => Complex.I*((dW x*z x+W x*dz x : ℝ):ℂ)*wave (F x)
+  have pos {x : ℝ} (hx : x ∈ Icc a b) : 0 < x := ha.trans_le hx.1
+  have nz {x : ℝ} (hx : x ∈ Icc a b) : β*x+γ ≠ 0 := abs_pos.mp (hH.trans_le (hsep x hx))
+  have zd (x : ℝ) (hx : x ∈ Icc a b) : HasDerivAt z (dz x) x := by
+    have h := (hasDerivAt_const x (1:ℝ)).div (((hasDerivAt_id x).const_mul β).add_const γ) (nz hx)
+    convert h using 1 <;> first | rfl | (dsimp [dz]; ring)
+  have wd (x : ℝ) (hx : x ∈ Icc a b) : HasDerivAt W (dW x) x :=
+    Real.hasDerivAt_rpow_const (Or.inl (pos hx).ne')
+  have fd (x : ℝ) (hx : x ∈ Icc a b) : HasDerivAt F (p x) x := by
+    have h := ((hasDerivAt_id x).const_mul β).add ((Real.hasDerivAt_log (pos hx).ne').const_mul γ)
+    convert h using 1 <;> first | rfl | (dsimp [p]; ring)
+  have hB (x : ℝ) (hx : x ∈ Icc a b) : HasDerivAt B (kernel σ β γ x - er x) x := by
+    have hv := ((((wd x hx).mul (zd x hx)).ofReal_comp.const_mul (-Complex.I)).mul
+      ((wave_deriv (F x)).scomp x (fd x hx)))
+    have unit : W x*z x*p x = x^(σ-1) := by
+      dsimp [W,z,p]
+      rw [Real.rpow_sub_one (pos hx).ne']
+      field_simp [(nz hx),(pos hx).ne']
+    have hu : (W x:ℂ)*(z x:ℂ)*(p x:ℂ) = ((x^(σ-1):ℝ):ℂ) := by exact_mod_cast unit
+    convert hv using 1
+    · rfl
+    change ((x^(σ-1):ℝ):ℂ)*wave (F x) - er x = _
+    dsimp only [er, Pi.mul_apply, Function.comp_apply]
+    push_cast
+    rw [← hu]
+    simp only [Complex.real_smul]
+    linear_combination ((W x:ℂ)*(z x:ℂ)*(p x:ℂ)*wave (F x)) * Complex.I_sq
+  have cw := HasDerivAt.continuousOn wd
+  have cz := HasDerivAt.continuousOn zd
+  have cf := HasDerivAt.continuousOn fd
+  have cdw : ContinuousOn dW (Icc a b) := by unfold dW; fun_prop (disch := solve_by_elim [ne_of_gt,pos])
+  have cdz : ContinuousOn dz (Icc a b) := by unfold dz; fun_prop (disch := intro x hx; exact pow_ne_zero _ (nz hx))
+  have cwave : Continuous wave := continuous_iff_continuousAt.mpr fun y => (wave_deriv y).continuousAt
+  have cwF := cwave.comp_continuousOn cf
+  have ce : ContinuousOn er (Icc a b) := by unfold er; fun_prop
+  have ck : ContinuousOn (kernel σ β γ) (Icc a b) := by
+    change ContinuousOn (fun x : ℝ => ((x^(σ-1):ℝ):ℂ)*wave (F x)) _
+    have hc : ContinuousOn (fun x : ℝ => x^(σ-1)) (Icc a b) :=
+      continuousOn_id.rpow_const fun _ hx => Or.inl (pos hx).ne'
+    exact (Complex.continuous_ofReal.comp_continuousOn hc).mul cwF
+  have ei := ce.intervalIntegrable_of_Icc (μ := volume) hab
+  have ki := ck.intervalIntegrable_of_Icc (μ := volume) hab
+  have fi := intervalIntegral.integral_eq_sub_of_hasDerivAt (f := B)
+    (f' := fun x => kernel σ β γ x - er x)
+    (fun x hx => hB x ((uIcc_of_le hab) ▸ hx)) (ki.sub ei)
+  rw [intervalIntegral.integral_sub ki ei] at fi
+  have zi := cdz.intervalIntegrable_of_Icc (μ := volume) hab
+  have wi := cdw.intervalIntegrable_of_Icc (μ := volume) hab
+  have wint := intervalIntegral.integral_eq_sub_of_hasDerivAt (f := W) (f' := dW)
+    (fun x hx => wd x ((uIcc_of_le hab) ▸ hx)) wi
+  have zint := intervalIntegral.integral_eq_sub_of_hasDerivAt (f := z) (f' := dz)
+    (fun x hx => zd x ((uIcc_of_le hab) ▸ hx)) zi
+  have zmax (x : ℝ) (hx : x ∈ Icc a b) : |z x| ≤ 1/H := by
+    simp only [z, abs_div, abs_one]
+    exact one_div_le_one_div_of_le hH (hsep x hx)
+  have Wmax (x : ℝ) (hx : x ∈ Icc a b) : |W x| ≤ b^σ := by
+    rw [abs_of_nonneg (Real.rpow_nonneg (pos hx).le _)]
+    exact Real.rpow_le_rpow (pos hx).le hx.2 hσ
+  have Bmax (x : ℝ) (hx : x ∈ Icc a b) : ‖B x‖ ≤ b^σ/H := by
+    simp only [B, norm_mul, norm_neg, Complex.norm_I, wave_norm, one_mul, mul_one,
+      Complex.norm_real, Real.norm_eq_abs]
+    simpa [div_eq_mul_inv] using mul_le_mul (Wmax x hx) (zmax x hx) (abs_nonneg _) (Real.rpow_nonneg (ha.trans_le hab).le _)
+  -- The sign of β determines the monotonicity of the reciprocal on this interval.
+  have zvar : (∫ x in a..b, |dz x|) ≤ 2/H := by
+    have sign {x : ℝ} : 0 ≤ (β*x+γ)^2 := sq_nonneg _
+    have za := abs_le.mp (zmax a (left_mem_Icc.mpr hab))
+    have zb := abs_le.mp (zmax b (right_mem_Icc.mpr hab))
+    rcases le_total 0 β with hp | hn
+    · have he : (∫ x in a..b, |dz x|) = -(z b-z a) := by
+        rw [← zint, ← intervalIntegral.integral_neg]
+        exact intervalIntegral.integral_congr fun x _ => abs_of_nonpos (div_nonpos_of_nonpos_of_nonneg (neg_nonpos.mpr hp) sign)
+      rw [he,show 2/H = 2*(1/H) by ring]; linarith
+    · have he : (∫ x in a..b, |dz x|) = z b-z a := by
+        rw [← zint]
+        exact intervalIntegral.integral_congr fun x _ => abs_of_nonneg (div_nonneg (neg_nonneg.mpr hn) sign)
+      rw [he,show 2/H = 2*(1/H) by ring]; linarith
+  have eBound (x : ℝ) (hx : x ∈ Icc a b) : ‖er x‖ ≤ dW x*(1/H) + b^σ*|dz x| := by
+    simp only [er, norm_mul, Complex.norm_I, one_mul, wave_norm, mul_one, Complex.norm_real, Real.norm_eq_abs]
+    apply (abs_add_le ..).trans
+    rw [abs_mul (dW x) (z x), abs_mul (W x) (dz x), abs_of_nonneg (show 0 ≤ dW x from mul_nonneg hσ (Real.rpow_nonneg (pos hx).le _))]
+    exact add_le_add (mul_le_mul_of_nonneg_left (zmax x hx) (mul_nonneg hσ (Real.rpow_nonneg (pos hx).le _)))
+      (mul_le_mul_of_nonneg_right (Wmax x hx) (abs_nonneg _))
+  have ai := cdz.abs.intervalIntegrable_of_Icc (μ := volume) hab
+  have eint := intervalIntegral.norm_integral_le_of_norm_le hab
+    (Filter.Eventually.of_forall fun x hx => eBound x ⟨hx.1.le,hx.2⟩)
+    ((wi.mul_const (1/H)).add (ai.const_mul (b^σ)))
+  rw [intervalIntegral.integral_add (wi.mul_const (1/H)) (ai.const_mul (b^σ)),
+    intervalIntegral.integral_mul_const (1/H) dW, intervalIntegral.integral_const_mul (b^σ) (fun x => |dz x|), wint] at eint
+  rw [sub_eq_iff_eq_add.mp fi]
+  apply (norm_add_le ..).trans
+  have bd := norm_sub_le (B b) (B a)
+  have bl := Bmax a (left_mem_Icc.mpr hab)
+  have br := Bmax b (right_mem_Icc.mpr hab)
+  have vb := mul_le_mul_of_nonneg_left zvar (Real.rpow_nonneg (ha.trans_le hab).le σ)
+  have wa : 0 ≤ W a := Real.rpow_nonneg ha.le _
+  have wb := mul_le_mul_of_nonneg_right (show W b-W a ≤ b^σ from sub_le_self _ wa) (one_div_nonneg.mpr hH.le)
+  simp only [div_eq_mul_inv,one_mul] at bl br vb eint wb ⊢
+  linarith only [bd,bl,br,vb,eint,wb]
+
+/-- The bound holds through a stationary point and is uniform in the additive
+frequency. The factor X^σ comes from scaling the dyadic interval. -/
+private theorem uniform_bound :
+    ∀ (X a b σ γ β : ℝ), 0 < X → X ≤ a → a ≤ b → b ≤ 2*X →
+      0 ≤ σ → σ ≤ 1 → γ ≠ 0 →
+      ‖∫ x in a..b, ((x^(σ-1):ℝ):ℂ) *
+        Complex.exp (((β*x+γ*Real.log x:ℝ):ℂ)*Complex.I)‖ ≤
+        X^σ * min 1 ((3+5*Real.pi)/Real.sqrt |γ|) := by
+  intro X a b σ γ β hX ha hab hb hσ hσ' hγ
+  let l := a/X
+  let r := b/X
+  have h1 : 1 ≤ l := (one_le_div hX).mpr ha
+  have hlr : l ≤ r := div_le_div_of_nonneg_right hab hX.le
+  have h2 : r ≤ 2 := (div_le_iff₀ hX).mpr hb
+  let z : ℂ := ((X^(σ-1):ℝ):ℂ)*wave (γ*Real.log X)
+  have hz : ‖z‖ = X^(σ-1) := by
+    simp only [z, norm_mul, wave_norm, mul_one, Complex.norm_real, Real.norm_eq_abs,
+      abs_of_nonneg (Real.rpow_nonneg hX.le _)]
+  have eqn : (∫ x in l..r, kernel σ β γ (X*x)) = z * (∫ x in l..r, kernel σ (β*X) γ x) := by
+    rw [← intervalIntegral.integral_const_mul]
+    apply intervalIntegral.integral_congr
+    intro x hx
+    rw [uIcc_of_le hlr] at hx
+    exact rescale hX (zero_lt_one.trans_le (h1.trans hx.1)) σ β γ
+  have sub := intervalIntegral.integral_comp_mul_left (kernel σ β γ) (a := l) (b := r) hX.ne'
+  have hx1 : X*l = a := by dsimp [l]; field_simp
+  have hx2 : X*r = b := by dsimp [r]; field_simp
+  rw [sub,hx1,hx2] at eqn
+  have eqnorm := congrArg norm eqn
+  simp only [norm_smul, Real.norm_eq_abs, abs_of_pos (inv_pos.mpr hX), norm_mul, hz] at eqnorm
+  have hxpow : X * X^(σ-1) = X^σ := by
+    calc
+      _ = X^(1:ℝ) * X^(σ-1) := by rw [Real.rpow_one]
+      _ = X^(1+(σ-1)) := (Real.rpow_add hX _ _).symm
+      _ = _ := by rw [show (1:ℝ)+(σ-1)=σ by ring]
+  change ‖∫ x in a..b, kernel σ β γ x‖ ≤ _
+  calc
+    _ = X*(X^(σ-1) * ‖∫ x in l..r, kernel σ (β*X) γ x‖) := by
+      rw [← eqnorm, ← mul_assoc, mul_inv_cancel₀ hX.ne', one_mul]
+    _ ≤ X^σ * min 1 ((3+5*Real.pi)/Real.sqrt |γ|) := by
+      rw [← mul_assoc, hxpow]
+      exact mul_le_mul_of_nonneg_left (dyadic h1 hlr h2 hγ hσ hσ' (β*X)) (Real.rpow_nonneg hX.le _)
+
+
+
+/-- A dyadic piece of the additively twisted zero kernel. The curvature bound is
+uniform in the frequency, and a lower bound on the absolute phase slope gives
+stronger decay when the interval misses the stationary point. -/
+theorem per_ordinate :
+    ∀ (X a b σ γ β : ℝ), 0 < X → X ≤ a → a ≤ b → b ≤ 2*X → 0 ≤ σ → σ ≤ 1 →
+      let K := ∫ x in a..b, ((x^(σ-1):ℝ):ℂ) *
+        Complex.exp (((β*x+γ*Real.log x:ℝ):ℂ)*Complex.I)
+      ‖K‖ ≤ X^σ ∧
+      (γ ≠ 0 → ‖K‖ ≤ X^σ * ((3+5*Real.pi)/Real.sqrt |γ|)) ∧
+      ∀ H : ℝ, 0 < H → (∀ x ∈ Set.Icc a b, H ≤ |β*x+γ|) → ‖K‖ ≤ 5*b^σ/H := by
+  intro X a b σ γ β hX ha hab hb hσ hσ' K
+  refine ⟨?_, ?_, fun H hH hsep => separated (hX.trans_le ha) hab hσ hH hsep⟩
+  · have h := intervalIntegral.norm_integral_le_of_norm_le_const (f := kernel σ β γ)
+      (C := X^(σ-1)) (a := a) (b := b) (fun x hx => by
+        rw [uIoc_of_le hab] at hx
+        have hxx := ha.trans hx.1.le
+        rw [kernel,norm_mul,wave_norm,mul_one,Complex.norm_real,Real.norm_eq_abs,
+          abs_of_nonneg (Real.rpow_nonneg (hX.le.trans hxx) _)]
+        exact Real.rpow_le_rpow_of_nonpos hX hxx (sub_nonpos.mpr hσ'))
+    rw [abs_of_nonneg (sub_nonneg.mpr hab)] at h
+    have hb' : b-a ≤ X := by linarith
+    apply h.trans
+    calc
+      _ ≤ X^(σ-1)*X := mul_le_mul_of_nonneg_left hb' (Real.rpow_nonneg hX.le _)
+      _ = _ := by rw [Real.rpow_sub_one hX.ne', div_mul_cancel₀ _ hX.ne']
+  · intro hγ
+    exact (uniform_bound X a b σ γ β hX ha hab hb hσ hσ' hγ).trans
+      (mul_le_mul_of_nonneg_left (min_le_right ..) (Real.rpow_nonneg hX.le _))
+end GoldbachOscillation
+end
+
+section
 open Set Filter MeasureTheory Complex
 open scoped Topology Interval
 
@@ -2267,6 +2723,41 @@ theorem norm_transform_le {X a b D : ℝ} (hX : 0 < X) (ha : X ≤ a) (hab : a+1
       exact hd _ _ (by linarith [hu.1]) (by linarith) (by linarith [hu.2]))
   simpa using h
 
+theorem norm_window_modes {X a b : ℝ} (hX : 0 < X) (ha : X ≤ a) (hab : a+1 ≤ b)
+    (hb : b+1 ≤ 2*X) (β : ℝ) (s : ℂ) (hσ : 0 ≤ s.re) (hσ' : s.re ≤ 1) :
+    ‖transform a b β s‖ ≤ X^s.re ∧
+      (s.im ≠ 0 → ‖transform a b β s‖ ≤ X^s.re*((3+5*Real.pi)/Real.sqrt |s.im|)) ∧
+      (0 < |s.im| → 4*|β| * X ≤ |s.im| →
+        ‖transform a b β s‖ ≤ 20*X^s.re/|s.im|) := by
+  have bounds (l r : ℝ) (hl : X ≤ l) (hlr : l ≤ r) (hr : r ≤ 2*X) :
+      let K := ∫ x in l..r, density β s x
+      ‖K‖ ≤ X^s.re ∧ (s.im ≠ 0 → ‖K‖ ≤ X^s.re*((3+5*Real.pi)/Real.sqrt |s.im|)) ∧
+        ∀ H : ℝ, 0 < H → (∀ x ∈ Icc l r, H ≤ |β*x+s.im|) → ‖K‖ ≤ 5*r^s.re/H := by
+    have he := intervalIntegral.integral_congr (μ := volume) (f := density β s)
+      (a := l) (b := r) (fun x hx => density_eq ((hX.trans_le hl).trans_le (((uIcc_of_le hlr) ▸ hx).1)) β s)
+    dsimp only
+    rw [he]
+    exact GoldbachOscillation.per_ordinate X l r s.re s.im β hX hl hlr hr hσ hσ'
+  refine ⟨norm_transform_le hX ha hab hb β s (fun l r hl hm hr => (bounds l r hl hm hr).1),?_,?_⟩
+  · intro ht
+    exact norm_transform_le hX ha hab hb β s (fun l r hl hm hr => (bounds l r hl hm hr).2.1 ht)
+  · intro ht hcut
+    apply norm_transform_le hX ha hab hb β s
+    intro l r hl hlr hr
+    have hsep (x : ℝ) (hx : x ∈ Icc l r) : |s.im|/2 ≤ |β*x+s.im| := by
+      have h := abs_add_le (β*x+s.im) (-(β*x))
+      rw [show β*x+s.im+ -(β*x) = s.im by ring,abs_neg,abs_mul,abs_of_nonneg (hX.le.trans (hl.trans hx.1))] at h
+      have hj := mul_le_mul_of_nonneg_left (hx.2.trans hr) (abs_nonneg β)
+      linarith only [h,hcut,hj]
+    have hpow : r^s.re ≤ 2*X^s.re := calc
+      _ ≤ (2*X)^s.re := Real.rpow_le_rpow (hX.le.trans (hl.trans hlr)) hr hσ
+      _ = (2:ℝ)^s.re * X^s.re := Real.mul_rpow (by norm_num) hX.le
+      _ ≤ _ := mul_le_mul_of_nonneg_right (by
+        simpa using Real.rpow_le_rpow_of_exponent_le (show (1:ℝ) ≤ 2 by norm_num) hσ')
+        (Real.rpow_nonneg hX.le _)
+    apply ((bounds l r hl hlr hr).2.2 _ (half_pos ht) hsep).trans
+    rw [div_div_eq_mul_div]
+    exact (div_le_div_iff_of_pos_right ht).mpr (by linarith only [hpow])
 
 end GoldbachTwistedMellin
 end
@@ -2576,6 +3067,12 @@ def line (σ t : ℝ) : ℂ := (σ:ℂ)+(t:ℂ)*I
 
 theorem continuous_line (σ : ℝ) : Continuous (line σ) :=
   continuous_const.add (continuous_ofReal.mul continuous_const)
+
+theorem left_pole_dist {σ : ℝ} (hs : σ ≤ 3/4) (t : ℝ) : 1/4 ≤ ‖line σ t-1‖ := by
+  have h := neg_le_abs (line σ t-1).re
+  have h' := abs_re_le_norm (line σ t-1)
+  simp only [sub_re,re_line,one_re] at h h'
+  linarith
 
 theorem horizontal_pole_dist {t : ℝ} (ht : 1 ≤ |t|) (σ : ℝ) : 1/4 ≤ ‖line σ t-1‖ := by
   have h := abs_im_le_norm (line σ t-1)
@@ -3160,33 +3657,879 @@ end GoldbachTwistedMellin
 end
 end
 
-open Set Complex Goldbach GoldbachTwistedMellin
+section
+open Set Filter MeasureTheory Complex
 open scoped Topology Interval
 
-theorem PEqualNP.Outside.L_goldbach_twisted_explicit_formula_right_zeros :
-    let W := fun (a b : ℕ) (β : ℝ) (s : ℂ) =>
-      mellin (fun x : ℝ => ((max 0 (min (x - (a:ℝ)) (min 1 ((b:ℝ)+1-x))) : ℝ) : ℂ) *
-        Complex.exp (((β*x:ℝ):ℂ)*Complex.I)) s
-    let line := fun x t : ℝ => (x:ℂ)+(t:ℂ)*Complex.I
-    ∀ d : ℝ, 0 < d → d ≤ 1/8 → ∃ C : ℝ, 0 < C ∧
-      ∀ (q : ℕ) [NeZero q] (χ : DirichletCharacter ℂ q) (B : ℝ), 2 ≤ B →
-      let f := @ite (ℂ → ℂ) (χ = 1) (Classical.propDecidable _) (DirichletCharacter.LFunctionTrivChar₁ q) (DirichletCharacter.LFunction χ)
-      let p := @ite ℂ (χ = 1) (Classical.propDecidable _) 1 0
-      ∃ T ∈ Set.Icc B (B+1), ∃ σ ∈ Set.Ioo (1/2+d) (1/2+2*d), ∃ Z : Finset ℂ,
-        (∀ z : ℂ, z ∈ Z ↔ (σ ≤ z.re ∧ z.re ≤ 2) ∧ (-T ≤ z.im ∧ z.im ≤ T) ∧ f z = 0) ∧
-        ∀ (a b : ℕ) (X β : ℝ), 1 ≤ X → X ≤ (a:ℝ) → (a:ℝ)+1 ≤ b → (b:ℝ)+1 ≤ 2*X → |β| ≤ 1 →
-        ‖(∑ n ∈ Finset.Ioc a b, χ (n:ZMod q) * (ArithmeticFunction.vonMangoldt n:ℂ) *
-            Complex.exp (((β*(n:ℝ):ℝ):ℂ)*Complex.I)) -
-          (p*W a b β 1 - (∑ z ∈ Z, (analyticOrderNatAt f z:ℂ)*W a b β z) +
-            (1/(2*Real.pi):ℝ) • ∫ t : ℝ in (-T)..T,
-              (-logDeriv f (line σ t) + p/(line σ t-1))*W a b β (line σ t))‖ ≤
-          C*X^4*(T⁻¹+(Real.log (2*(q:ℝ)*(2+|B+1|)))^2/T^2) := by
+noncomputable section
+namespace GoldbachTwistedMellin
+
+def heightCut (X : ℝ) : ℝ := (2*X)^8
+def logBudget (q : ℕ) (X : ℝ) : ℝ := 1+Goldbach.logHeight q (heightCut X)
+
+theorem heightCut_ge {X : ℝ} (hX : 1 ≤ X) : 1+4*X ≤ heightCut X := by
+  have hpow : X ≤ X^8 := by simpa using pow_le_pow_right₀ hX (show 1 ≤ 8 by decide)
+  dsimp [heightCut]
+  rw [mul_pow]
+  norm_num
+  linarith
+
+
+end GoldbachTwistedMellin
+end
+end
+
+section
+open Set MeasureTheory
+open scoped Interval Topology
+noncomputable section
+namespace GoldbachTwistedMellin
+
+def rootKernel (x : ℝ) := |x|^(-(1/2):ℝ)
+
+theorem rootKernel_nonneg (x : ℝ) : 0 ≤ rootKernel x := Real.rpow_nonneg (abs_nonneg _) _
+
+theorem integrable_rootKernel (a b r : ℝ) : IntervalIntegrable (fun x => rootKernel (x-r)) volume a b := by
+  have hpow (u v : ℝ) : IntervalIntegrable (fun x : ℝ => x^(-(1/2):ℝ)) volume u v :=
+    intervalIntegral.intervalIntegrable_rpow' (by norm_num)
+  have hpos : IntervalIntegrable (fun x : ℝ => (x-r)^(-(1/2):ℝ)) volume a b :=
+    by simpa using (hpow (a-r) (b-r)).comp_sub_right r
+  have hneg : IntervalIntegrable (fun x : ℝ => (r-x)^(-(1/2):ℝ)) volume a b :=
+    by simpa using (hpow (r-a) (r-b)).comp_sub_left r
+  rw [intervalIntegrable_iff] at hpos hneg ⊢
+  have h := Integrable.piecewise (μ:=volume.restrict (Ι a b)) (s:=Iio r) measurableSet_Iio.nullMeasurableSet
+    (Integrable.integrableOn hneg) (Integrable.integrableOn hpos)
+  apply h.congr
+  filter_upwards with x
+  by_cases hx : x < r
+  · simp [Set.piecewise,hx,rootKernel,abs_of_neg (sub_neg.mpr hx),neg_sub]
+  · simp [Set.piecewise,hx,rootKernel,abs_of_nonneg (sub_nonneg.mpr (le_of_not_gt hx))]
+
+theorem integral_rootKernel_right {a b r : ℝ} (ha : r ≤ a) (hab : a ≤ b) :
+    (∫ x in a..b, rootKernel (x-r)) = 2*(Real.sqrt (b-r)-Real.sqrt (a-r)) := by
+  have h : (∫ x in a..b, rootKernel (x-r)) = ∫ x in a..b, (x-r)^(-(1/2):ℝ) := by
+    apply intervalIntegral.integral_congr
+    intro x hx
+    rw [uIcc_of_le hab] at hx
+    simp [rootKernel,abs_of_nonneg (sub_nonneg.mpr (ha.trans hx.1))]
+  rw [h,intervalIntegral.integral_comp_sub_right (fun x : ℝ => x^(-(1/2):ℝ)) r,
+    integral_rpow (Or.inl (by norm_num))]
+  norm_num [← Real.sqrt_eq_rpow]
+  ring
+
+theorem integral_rootKernel_left {a b r : ℝ} (hb : b ≤ r) (hab : a ≤ b) :
+    (∫ x in a..b, rootKernel (x-r)) = 2*(Real.sqrt (r-a)-Real.sqrt (r-b)) := by
+  have h : (∫ x in a..b, rootKernel (x-r)) = ∫ x in a..b, (r-x)^(-(1/2):ℝ) := by
+    apply intervalIntegral.integral_congr
+    intro x hx
+    rw [uIcc_of_le hab] at hx
+    simp [rootKernel,abs_of_nonpos (sub_nonpos.mpr (hx.2.trans hb)),neg_sub]
+  rw [h,intervalIntegral.integral_comp_sub_left (fun x : ℝ => x^(-(1/2):ℝ)) r,
+    integral_rpow (Or.inl (by norm_num))]
+  norm_num [← Real.sqrt_eq_rpow]
+  ring
+
+theorem integral_rootKernel_le {a b : ℝ} (hab : a ≤ b) (r : ℝ) :
+    (∫ x in a..b, rootKernel (x-r)) ≤ 4*Real.sqrt (b-a) := by
+  have diffBound (x y : ℝ) (hx : 0 ≤ x) (hy : 0 ≤ y) :
+      Real.sqrt (x+y)-Real.sqrt x ≤ Real.sqrt y := by
+    apply sub_le_iff_le_add.mpr
+    apply (sq_le_sq₀ (Real.sqrt_nonneg _) (add_nonneg (Real.sqrt_nonneg _) (Real.sqrt_nonneg _))).mp
+    nlinarith only [Real.sq_sqrt (add_nonneg hx hy),Real.sq_sqrt hx,Real.sq_sqrt hy,
+      mul_nonneg (Real.sqrt_nonneg x) (Real.sqrt_nonneg y)]
+  rcases le_total r a with h|h
+  · rw [integral_rootKernel_right h hab]
+    have he : b-r = a-r+(b-a) := by ring
+    rw [he]
+    linarith [diffBound (a-r) (b-a) (by linarith) (by linarith),Real.sqrt_nonneg (b-a)]
+  rcases le_total b r with h'|h'
+  · rw [integral_rootKernel_left h' hab]
+    have he : r-a = r-b+(b-a) := by ring
+    rw [he]
+    linarith [diffBound (r-b) (b-a) (by linarith) (by linarith),Real.sqrt_nonneg (b-a)]
+  rw [← intervalIntegral.integral_add_adjacent_intervals (integrable_rootKernel a r r) (integrable_rootKernel r b r),
+    integral_rootKernel_left (le_refl r) h,integral_rootKernel_right (le_refl r) h',sub_self,Real.sqrt_zero]
+  linarith [Real.sqrt_le_sqrt (by linarith : r-a ≤ b-a),Real.sqrt_le_sqrt (by linarith : b-r ≤ b-a)]
+
+end GoldbachTwistedMellin
+end
+end
+
+section
+open Set MeasureTheory
+open scoped Interval Topology
+noncomputable section
+namespace GoldbachTwistedMellin
+
+/-- A vertical side avoiding any prescribed finite set can be chosen with
+controlled total square-root singularity at all real coordinates. -/
+theorem exists_weighted_rootKernel_bound {ι : Type*} (S : Finset ι) (w y : ι → ℝ)
+    (hw : ∀ i ∈ S, 0 ≤ w i) (bad : Finset ℝ) {a b : ℝ} (hab : a < b) :
+    ∃ x ∈ Ioo a b, x ∉ bad ∧
+      (∑ i ∈ S, w i*rootKernel (x-y i)) ≤ (4/Real.sqrt (b-a))*(∑ i ∈ S,w i) := by
   classical
-  intro W ℓ d hd hd'
-  obtain ⟨C,hC,h⟩ := finite_formula_left_vertical hd hd'
+  let I := Ioc a b
+  let μ := volume.restrict I
+  have len : 0 < b-a := sub_pos.mpr hab
+  have hreal : μ.real univ = b-a := by
+    simp [μ,I,Measure.real,Real.volume_Ioc,ENNReal.toReal_ofReal len.le]
+  have hn : μ ≠ 0 := by
+    intro h
+    have hp : 0 < μ.real univ := hreal.symm ▸ len
+    simp [h] at hp
+  let : IsFiniteMeasure μ := ⟨by simp [μ,I,Real.volume_Ioc]⟩
+  let g := fun x : ℝ => ∑ i ∈ S, w i*rootKernel (x-y i)
+  have int (i : ι) : Integrable (fun x => w i*rootKernel (x-y i)) μ :=
+    ((integrable_rootKernel a b (y i)).1.const_mul (w i))
+  have hi : Integrable g μ := integrable_finsetSum S (fun i _ => int i)
+  have avg : (⨍ x, g x ∂μ) ≤ (4/Real.sqrt (b-a))*(∑ i ∈ S,w i) := by
+    rw [average_eq,hreal,smul_eq_mul]
+    have hi' : (∫ x, g x ∂μ) ≤ 4*Real.sqrt (b-a)*(∑ i ∈ S,w i) := by
+      unfold g
+      rw [integral_finsetSum S (fun i _ => int i),Finset.mul_sum]
+      apply Finset.sum_le_sum
+      intro i hi
+      rw [integral_const_mul]
+      have hbound := integral_rootKernel_le hab.le (y i)
+      rw [intervalIntegral.integral_of_le hab.le] at hbound
+      exact (mul_le_mul_of_nonneg_left hbound (hw i hi)).trans_eq (by ring)
+    apply (mul_le_mul_of_nonneg_left hi' (inv_nonneg.mpr len.le)).trans_eq
+    have hs := Real.sq_sqrt len.le
+    have hp := Real.sqrt_pos.mpr len
+    field_simp
+    rw [hs]
+  let N : Set ℝ := Iᶜ ∪ (↑(insert b bad) : Set ℝ)
+  have hN : μ N = 0 := by
+    apply measure_union_null
+    · simp [μ,I,Measure.restrict_apply,measurableSet_Ioc.compl]
+    · exact (insert b bad).measure_zero μ
+  obtain ⟨x,hx,hgx⟩ := exists_notMem_null_le_average hn hi hN
+  have h' : x ∈ I := by by_contra hh;exact hx (Or.inl hh)
+  have hbad : x ∉ insert b bad := fun h => hx (Or.inr h)
+  exact ⟨x,⟨h'.1,lt_of_le_of_ne h'.2 (fun h => hbad (Finset.mem_insert.mpr (.inl h)))⟩,
+    fun h => hbad (Finset.mem_insert.mpr (.inr h)),hgx.trans avg⟩
+
+end GoldbachTwistedMellin
+end
+end
+
+section
+open Set Filter MeasureTheory Complex Goldbach DirichletCharacter
+open scoped Topology Interval
+noncomputable section
+namespace GoldbachTwistedMellin
+
+theorem inv_distance_le_root_product (s z : ℂ) (hx : s.re ≠ z.re) (hy : s.im ≠ z.im) :
+    ‖s-z‖⁻¹ ≤ rootKernel (s.re-z.re)*rootKernel (s.im-z.im) := by
+  let x := |s.re-z.re|
+  let y := |s.im-z.im|
+  have hxp : 0 < x := abs_pos.mpr (sub_ne_zero.mpr hx)
+  have hyp : 0 < y := abs_pos.mpr (sub_ne_zero.mpr hy)
+  have h1 : x ≤ ‖s-z‖ := abs_re_le_norm _
+  have h2 : y ≤ ‖s-z‖ := abs_im_le_norm _
+  have hsq : Real.sqrt x*Real.sqrt y ≤ ‖s-z‖ := by
+    rw [← Real.sqrt_mul hxp.le]
+    exact (Real.sqrt_le_iff).mpr ⟨norm_nonneg _,by simpa only [pow_two] using mul_le_mul h1 h2 hyp.le (norm_nonneg _)⟩
+  change _ ≤ x^(-(1/2):ℝ)*y^(-(1/2):ℝ)
+  rw [Real.rpow_neg hxp.le,Real.rpow_neg hyp.le,←Real.sqrt_eq_rpow,←Real.sqrt_eq_rpow,← mul_inv]
+  exact inv_anti₀ (mul_pos (Real.sqrt_pos.mpr hxp) (Real.sqrt_pos.mpr hyp)) hsq
+
+/-- Only zeros within one vertical unit and to the right of one half may
+contribute a singular term. A product of two locally integrable kernels
+majorizes each such term at almost every height. -/
+noncomputable def localZeroPotential (Z : Finset ℂ) (σ t : ℝ) : ℝ :=
+  ∑ z ∈ Z, if |t-z.im| ≤ 1 then rootKernel (σ-z.re)*rootKernel (t-z.im) else 0
+
+theorem localPotential_nonneg (Z : Finset ℂ) (σ t : ℝ) : 0 ≤ localZeroPotential Z σ t :=
+  Finset.sum_nonneg fun z _ => by split <;> first | exact mul_nonneg (rootKernel_nonneg _) (rootKernel_nonneg _) | exact le_rfl
+
+theorem localPotential_term {Z : Finset ℂ} {z : ℂ} (hz : z ∈ Z) (σ t : ℝ) (h : |t-z.im| ≤ 1) :
+    rootKernel (σ-z.re)*rootKernel (t-z.im) ≤ localZeroPotential Z σ t := by
+  classical
+  let w := fun z : ℂ => if |t-z.im| ≤ 1 then rootKernel (σ-z.re)*rootKernel (t-z.im) else 0
+  have hn (z : ℂ) (_ : z ∈ Z) : 0 ≤ w z := by dsimp [w];split <;> first | exact mul_nonneg (rootKernel_nonneg _) (rootKernel_nonneg _) | exact le_rfl
+  simpa only [w,localZeroPotential,ite_eq_left h] using Finset.single_le_sum hn hz
+
+theorem log_control_via_potential {d : ℝ} (hd : 0 < d) :
+    ∃ A : ℝ, 0 < A ∧ ∀ (q : ℕ) [NeZero q] (χ : DirichletCharacter ℂ q) (σ t T : ℝ),
+      1/2+d ≤ σ → σ ≤ 3/4 → |t| ≤ T →
+      let Z := boxZeros χ (1/2) 2 (-T-1) (T+1)
+      (∀ z ∈ Z, σ ≠ z.re) → (∀ z ∈ Z, t ≠ z.im) →
+      ‖contourLog χ (line σ t)‖ ≤ A*logHeight q t*(1+localZeroPotential Z σ t) := by
+  obtain ⟨C,hC,bound⟩ := uniform_dirichlet_log_control
+  refine ⟨C*(2+d⁻¹)+4,by positivity,?_⟩
+  intro q _ χ σ t T hs hs' ht Z xr yi
+  let P := localZeroPotential Z σ t
+  have hP : 0 ≤ P := localPotential_nonneg _ _ _
+  let D := 1+d⁻¹+P
+  have hD : 0 < D := by dsimp [D];positivity
+  have sep (z : ℂ) (_ : 0 < z.re) (hz : regularizedL χ z = 0) : D⁻¹ ≤ ‖line σ t-z‖ := by
+    by_cases hreal : z.re < 1/2
+    · have hsep : d ≤ ‖line σ t-z‖ := (show d ≤ (line σ t-z).re by simp only [sub_re,re_line];linarith).trans (re_le_norm _)
+      exact (show D⁻¹ ≤ d by simpa using inv_anti₀ (inv_pos.mpr hd) (by dsimp [D];linarith : d⁻¹ ≤ D)).trans hsep
+    by_cases him : |t-z.im| ≤ 1
+    · have hZ : z ∈ Z := by
+        apply (mem_boxZeros χ _ _ _ _ z).mpr
+        have hright : z.re ≤ 2 := by by_contra! h;exact regularizedL_ne_zero_right χ (by linarith) hz
+        have htt := abs_le.mp ht
+        have hii := abs_le.mp him
+        exact ⟨mem_reProdIm.mpr ⟨⟨le_of_not_gt hreal,hright⟩,⟨by linarith [htt.1,hii.2],by linarith [htt.2,hii.1]⟩⟩,hz⟩
+      have hdis := inv_distance_le_root_product (line σ t) z (by simpa using xr z hZ) (by simpa using yi z hZ)
+      simp only [re_line,im_line] at hdis
+      have hle := hdis.trans (localPotential_term hZ σ t him)
+      have hp : 0 < ‖line σ t-z‖ := norm_pos_iff.mpr (sub_ne_zero.mpr (fun he => xr z hZ (by simpa using congrArg Complex.re he)))
+      exact (inv_le_comm₀ hD hp).mpr (by dsimp [D];linarith only [hle,inv_pos.mpr hd])
+    · have hi : 1 ≤ ‖line σ t-z‖ := (le_of_not_ge him).trans (by simpa using abs_im_le_norm (line σ t-z))
+      exact (show D⁻¹ ≤ 1 by simpa using inv_anti₀ zero_lt_one (by dsimp [D];linarith only [hP,inv_pos.mpr hd] : 1 ≤ D)).trans hi
+  have raw := bound q χ σ t D⁻¹ ⟨by linarith,by linarith⟩ (inv_pos.mpr hD) sep
+  rw [inv_inv] at raw
+  have hL := logHeight_ge_one q t
+  have hp := left_pole_dist hs' t
+  have hf : ‖principalFlag χ‖ ≤ 1 := by by_cases h : χ=1 <;> simp [principalFlag,h]
+  have hflag : ‖principalFlag χ/(line σ t-1)‖ ≤ 4 := by
+    rw [norm_div];apply (div_le_iff₀ (by linarith : 0<‖line σ t-1‖)).mpr;linarith
+  calc
+    ‖contourLog χ (line σ t)‖ ≤ ‖logDeriv (regularizedL χ) (line σ t)‖ + ‖principalFlag χ/(line σ t-1)‖ := by
+      simpa only [contourLog,norm_neg] using norm_add_le (-logDeriv (regularizedL χ) (line σ t)) (principalFlag χ/(line σ t-1))
+    _ ≤ (C*(2+d⁻¹)+4)*logHeight q t*(1+P) := by
+      change ‖logDeriv (regularizedL χ) (line σ t)‖ ≤ C*logHeight q t*(1+D) at raw
+      have hfac : 1+D ≤ (2+d⁻¹)*(1+P) := by dsimp [D];nlinarith only [hP,mul_nonneg (inv_pos.mpr hd).le hP]
+      have hh := mul_le_mul_of_nonneg_left hfac (mul_nonneg hC.le (by linarith : 0≤logHeight q t))
+      nlinarith only [raw.trans hh,hflag,hL,mul_nonneg (by linarith : 0≤logHeight q t) hP]
+
+end GoldbachTwistedMellin
+end
+end
+
+section
+open Set MeasureTheory
+open scoped Interval Topology
+noncomputable section
+namespace GoldbachTwistedMellin
+
+theorem exists_cluster_average {ι : Type*} (I : Finset ι) (Z : ι → Finset ℂ) (w : ι → ℝ)
+    (hw : ∀ i ∈ I, 0 ≤ w i) (bad : Finset ℝ) {a b M : ℝ} (hab : a < b)
+    (hM : ∀ i ∈ I, ((Z i).card:ℝ) ≤ M) :
+    ∃ σ ∈ Ioo a b, σ ∉ bad ∧
+      (∑ i ∈ I, w i*(1+4*∑ z ∈ Z i,rootKernel (σ-z.re))) ≤
+        (1+16*M/Real.sqrt (b-a))*(∑ i ∈ I,w i) := by
+  classical
+  let S := I.sigma Z
+  let weight := fun p : Σ _ : ι, ℂ => w p.1
+  obtain ⟨x,hx,hbad,avg⟩ := exists_weighted_rootKernel_bound S weight (fun p => p.2.re)
+    (fun p hp => hw p.1 (Finset.mem_sigma.mp hp).1) bad hab
+  simp only [S,weight,Finset.sum_sigma] at avg
+  refine ⟨x,hx,hbad,?_⟩
+  have sumWeight : (∑ i ∈ I,∑ _ ∈ Z i,w i) ≤ M*∑ i ∈ I,w i := by
+    rw [Finset.mul_sum]
+    exact Finset.sum_le_sum fun i hi => by
+      simpa only [Finset.sum_const,nsmul_eq_mul] using mul_le_mul_of_nonneg_right (hM i hi) (hw i hi)
+  have hg := avg.trans (mul_le_mul_of_nonneg_left sumWeight (by positivity))
+  have eq : (∑ i ∈ I,w i*(1+4*∑ z ∈ Z i,rootKernel (x-z.re))) =
+      (∑ i ∈ I,w i)+4*(∑ i ∈ I,∑ z ∈ Z i,w i*rootKernel (x-z.re)) := by
+    simp only [Finset.mul_sum,Finset.sum_add_distrib,mul_add,mul_one]
+    simp only [mul_left_comm (w _)]
+  rw [eq]
+  calc
+    _ ≤ (∑ i ∈ I,w i) + 4*((4/Real.sqrt (b-a))*(M*∑ i ∈ I,w i)) := by gcongr
+    _ = (1+16*M/Real.sqrt (b-a))*(∑ i ∈ I,w i) := by ring
+
+end GoldbachTwistedMellin
+end
+end
+
+section
+open Set Filter MeasureTheory Complex Goldbach DirichletCharacter
+open scoped Topology Interval
+noncomputable section
+namespace GoldbachTwistedMellin
+
+theorem potential_localize {Z S : Finset ℂ} (σ t : ℝ)
+    (hs : ∀ z ∈ Z, |t-z.im| ≤ 1 → z ∈ S) :
+    localZeroPotential Z σ t ≤ ∑ z ∈ S, rootKernel (σ-z.re)*rootKernel (t-z.im) := by
+  classical
+  rw [localZeroPotential,← Finset.sum_filter]
+  exact Finset.sum_le_sum_of_subset_of_nonneg (fun z hz => hs z (Finset.mem_filter.mp hz).1 (Finset.mem_filter.mp hz).2)
+    (fun z _ _ => mul_nonneg (rootKernel_nonneg _) (rootKernel_nonneg _))
+
+theorem band_integral_majorant (S : Finset ℂ) (σ l H : ℝ) (hH : 0 ≤ H)
+    (f : ℝ → ℝ) (hi : IntervalIntegrable f volume l (l+1))
+    (hf : ∀ᵐ t ∂volume.restrict (Icc l (l+1)), f t ≤
+      H*(1+∑ z ∈ S,rootKernel (σ-z.re)*rootKernel (t-z.im))) :
+    (∫ t in l..l+1, f t) ≤ H*(1+4*∑ z ∈ S,rootKernel (σ-z.re)) := by
+  let g (z : ℂ) (t : ℝ) := rootKernel (σ-z.re)*rootKernel (t-z.im)
+  have ig (z : ℂ) : IntervalIntegrable (g z) volume l (l+1) :=
+    (integrable_rootKernel l (l+1) z.im).const_mul _
+  have isum : IntervalIntegrable (fun t => ∑ z ∈ S,g z t) volume l (l+1) :=
+    ⟨integrable_finsetSum S (fun z _ => (ig z).1),integrable_finsetSum S (fun z _ => (ig z).2)⟩
+  have hb := intervalIntegral.integral_mono_ae_restrict (by linarith : l ≤ l+1) hi
+    ((intervalIntegrable_const.add isum).const_mul H) hf
+  apply hb.trans
+  rw [intervalIntegral.integral_const_mul,intervalIntegral.integral_add intervalIntegrable_const isum,
+    intervalIntegral.integral_const,intervalIntegral.integral_finsetSum (fun z _ => ig z),Finset.mul_sum]
+  simp only [add_sub_cancel_left,one_smul]
+  apply mul_le_mul_of_nonneg_left _ hH
+  apply add_le_add_right
+  apply Finset.sum_le_sum
+  intro z hz
+  rw [show (∫ t in l..l+1, g z t) = rootKernel (σ-z.re) * (∫ t in l..l+1,rootKernel (t-z.im)) from
+    intervalIntegral.integral_const_mul ..]
+  have hk := integral_rootKernel_le (by linarith : l ≤ l+1) z.im
+  simp only [add_sub_cancel_left,Real.sqrt_one,mul_one] at hk
+  exact (mul_le_mul_of_nonneg_left hk (rootKernel_nonneg _)).trans_eq (mul_comm ..)
+
+theorem integrable_box_line {q : ℕ} [NeZero q] (χ : DirichletCharacter ℂ q) {σ M : ℝ}
+    (hs : 1/2 ≤ σ) (hs' : σ ≤ 3/4) {a b β : ℝ} (ha : 0 < a)
+    (avoid : ∀ z ∈ boxZeros χ (1/2) 2 (-M-1) (M+1), σ ≠ z.re) :
+    ContinuousOn (fun t : ℝ => integrand χ a b β (line σ t)) (Icc (-M) M) := by
+  intro t ht
+  let z := line σ t
+  have hz : regularizedL χ z ≠ 0 := by
+    intro hz
+    have hm : z ∈ boxZeros χ (1/2) 2 (-M-1) (M+1) := by
+      apply (mem_boxZeros χ _ _ _ _ z).mpr
+      exact ⟨mem_reProdIm.mpr ⟨⟨by simpa [z] using hs,by dsimp [z];simp;linarith⟩,⟨by dsimp [z];simp;linarith [ht.1],by dsimp [z];simp;linarith [ht.2]⟩⟩,hz⟩
+    exact avoid z hm (by simp [z])
+  have hF := analytic_regularizedL χ z (mem_univ _)
+  have hlog : AnalyticAt ℂ (logDeriv (regularizedL χ)) z := by
+    simpa only [logDeriv,Pi.div_apply] using hF.deriv.div hF hz
+  have hz1 : z-1 ≠ 0 := sub_ne_zero.mpr fun h => (by have he := congrArg Complex.re h; simp [z] at he;linarith)
+  have hden : AnalyticAt ℂ (fun w : ℂ => w-1) z := analyticAt_id.sub analyticAt_const
+  have hflag : AnalyticAt ℂ (fun _ : ℂ => principalFlag χ) z := analyticAt_const
+  have hc : AnalyticAt ℂ (contourLog χ) z := hlog.neg.add (hflag.div hden hz1)
+  have hi : AnalyticAt ℂ (integrand χ a b β) z := hc.mul ((analytic_transform ha b β).analyticAt z)
+  exact (ContinuousAt.comp (f := line σ) (g := integrand χ a b β) (x := t) hi.continuousAt
+    (continuous_line σ).continuousAt).continuousWithinAt
+
+end GoldbachTwistedMellin
+end
+end
+
+section
+open Set Filter MeasureTheory Complex Goldbach DirichletCharacter
+open scoped Topology Interval
+noncomputable section
+namespace GoldbachTwistedMellin
+
+/-- The three-unit interval contains all zeros within vertical distance one
+of a point of the integration interval [l,l+1]. -/
+noncomputable def bandZeros {q : ℕ} [NeZero q] (χ : DirichletCharacter ℂ q) (l : ℝ) :=
+  boxZeros χ (1/2) 2 (l-1) (l+2)
+
+theorem bandZeros_card :
+    ∃ C : ℝ, 0 < C ∧ ∀ (q : ℕ) [NeZero q] (χ : DirichletCharacter ℂ q) (l M : ℝ),
+      |l| ≤ M → ((bandZeros χ l).card:ℝ) ≤ C*logHeight q (M+2) := by
+  obtain ⟨C,hC,bound⟩ := right_box_card
+  refine ⟨2*C,by positivity,?_⟩
+  intro q _ χ l M hm
+  let P := boxZeros χ (1/2) 2 (l-1) (l+1)
+  let N := boxZeros χ (1/2) 2 ((l+1)-1) ((l+1)+1)
+  have hsub : bandZeros χ l ⊆ P ∪ N := by
+    intro z hz
+    obtain ⟨hb,hz0⟩ := (mem_boxZeros χ _ _ _ _ z).mp hz
+    have h := mem_reProdIm.mp hb
+    by_cases h' : z.im ≤ l+1
+    · exact Finset.mem_union_left _ ((mem_boxZeros χ _ _ _ _ z).mpr ⟨mem_reProdIm.mpr ⟨h.1,h.2.1,h'⟩,hz0⟩)
+    · exact Finset.mem_union_right _ ((mem_boxZeros χ _ _ _ _ z).mpr ⟨mem_reProdIm.mpr ⟨h.1,by linarith,by linarith [h.2.2]⟩,hz0⟩)
+  have hn : (0:ℝ) ≤ M := (abs_nonneg _).trans hm
+  have hp := (bound q χ l).trans (mul_le_mul_of_nonneg_left
+    (logHeight_mono_abs q (by rw [abs_of_nonneg (by linarith : 0 ≤ M+2)];linarith : |l| ≤ |M+2|)) hC.le)
+  have hh : |l+1| ≤ |M+2| := by
+    rw [abs_of_nonneg (by linarith : 0 ≤ M+2)]
+    linarith [abs_add_le l 1,abs_one (α:=ℝ)]
+  have hN := (bound q χ (l+1)).trans (mul_le_mul_of_nonneg_left (logHeight_mono_abs q hh) hC.le)
+  exact (show ((bandZeros χ l).card:ℝ) ≤ (P.card:ℝ)+(N.card:ℝ) by
+    exact_mod_cast (Finset.card_le_card hsub).trans (Finset.card_union_le P N)).trans ((add_le_add hp hN).trans_eq (by ring))
+
+theorem near_zero_in_band {q : ℕ} [NeZero q] (χ : DirichletCharacter ℂ q) (l t M : ℝ)
+    (ht : t ∈ Icc l (l+1)) {z : ℂ} (hz : z ∈ boxZeros χ (1/2) 2 (-M-1) (M+1))
+    (h : |t-z.im|≤1) : z ∈ bandZeros χ l := by
+  obtain ⟨hb,hz0⟩ := (mem_boxZeros χ _ _ _ _ z).mp hz
+  have hi := abs_le.mp h
+  exact (mem_boxZeros χ _ _ _ _ z).mpr ⟨mem_reProdIm.mpr ⟨(mem_reProdIm.mp hb).1,
+    by linarith [ht.1,hi.2],by linarith [ht.2,hi.1]⟩,hz0⟩
+
+end GoldbachTwistedMellin
+end
+end
+
+section
+open Set MeasureTheory Finset
+open scoped Interval Topology
+noncomputable section
+namespace GoldbachTwistedMellin
+
+def grid (M : ℕ) : Finset (Bool × ℕ) := Finset.univ ×ˢ Finset.range M
+
+def gridStart (p : Bool × ℕ) : ℝ := if p.1 then (p.2:ℝ) else -((p.2:ℝ)+1)
+
+theorem grid_geometry {M : ℕ} {p : Bool × ℕ} (hp : p ∈ grid M) :
+    |gridStart p| ≤ M ∧ ∀ t ∈ Icc (gridStart p) (gridStart p+1), (p.2:ℝ) ≤ |t| ∧ |t| ≤ M := by
+  have hj := Finset.mem_range.mp (Finset.mem_product.mp hp).2
+  have hle : (p.2:ℝ)+1 ≤ M := by exact_mod_cast hj
+  have hn : (0:ℝ) ≤ p.2 := by positivity
+  cases he : p.1 <;> simp only [gridStart,he,Bool.false_eq_true,ite_false,ite_true,abs_neg,
+    abs_of_nonneg hn,abs_of_nonneg (by linarith : 0≤(p.2:ℝ)+1)]
+  · refine ⟨hle,?_⟩; intro t ht
+    rw [abs_of_nonpos (by linarith [ht.2])]
+    constructor <;> linarith [ht.1,ht.2]
+  · refine ⟨by linarith,?_⟩;intro t ht
+    rw [abs_of_nonneg (by linarith [ht.1])]
+    exact ⟨ht.1,ht.2.trans hle⟩
+
+theorem sum_grid_weight (M : ℕ) (w : ℕ → ℝ) :
+    (∑ p ∈ grid M, w p.2) = 2*∑ j ∈ Finset.range M,w j := by
+  simp [grid,Finset.sum_product,two_mul]
+
+theorem sum_grid_integrals {M : ℕ} (f : ℝ → ℝ)
+    (hi : ∀ p ∈ grid M, IntervalIntegrable f volume (gridStart p) (gridStart p+1)) :
+    (∫ t in -(M:ℝ)..(M:ℝ), f t) = ∑ p ∈ grid M, ∫ t in gridStart p..gridStart p+1, f t := by
+  have ip (j : ℕ) (hj : j < M) : IntervalIntegrable f volume (j:ℝ) ((j+1:ℕ):ℝ) := by
+    simpa [gridStart,Nat.cast_add] using hi (true,j) (by simp [grid,hj])
+  have im (j : ℕ) (hj : j < M) : IntervalIntegrable f volume (-(j:ℝ)) (-((j+1:ℕ):ℝ)) := by
+    have h := (hi (false,j) (by simp [grid,hj])).symm
+    simpa [gridStart,Nat.cast_add,neg_add_rev] using h
+  have hp := intervalIntegral.sum_integral_adjacent_intervals (a:=fun k : ℕ => (k:ℝ)) ip
+  have hm := intervalIntegral.sum_integral_adjacent_intervals (a:=fun k : ℕ => -(k:ℝ)) im
+  have hip := IntervalIntegrable.trans_iterate ip
+  have him := IntervalIntegrable.trans_iterate im
+  simp only [Nat.cast_zero,neg_zero] at hp hm hip him
+  have hneg := congrArg Neg.neg hm
+  rw [← Finset.sum_neg_distrib,←intervalIntegral.integral_symm] at hneg
+  simp_rw [← intervalIntegral.integral_symm] at hneg
+  rw [← intervalIntegral.integral_add_adjacent_intervals him.symm hip,←hneg,←hp]
+  simp [grid,gridStart,Finset.sum_product,Nat.cast_add,neg_add_rev,add_comm]
+
+end GoldbachTwistedMellin
+end
+end
+
+section
+open Set Filter MeasureTheory Complex Finset
+open scoped Topology
+noncomputable section
+namespace GoldbachTwistedMellin
+
+/-- Average the dyadic window over unit height intervals using the oscillatory
+estimates of the earlier zero-integral proof. -/
+
+noncomputable def profile (J j : ℕ) : ℝ :=
+  if j = 0 then 1 else if j ≤ J then (3+5*Real.pi)/Real.sqrt j else 20/j
+
+theorem profile_nonneg (J j : ℕ) : 0 ≤ profile J j := by
+  unfold profile
+  split_ifs <;> positivity
+
+private theorem sqrt_step (j : ℕ) :
+    1 / Real.sqrt (j+1:ℝ) ≤ 2*(Real.sqrt (j+1:ℝ)-Real.sqrt j) := by
+  have hp : 0 < Real.sqrt (j+1:ℝ) := by positivity
+  have hle := Real.sqrt_le_sqrt (show (j:ℝ) ≤ j+1 by linarith)
+  have hs1 := Real.sq_sqrt (show 0 ≤ (j+1:ℝ) by positivity)
+  have hs0 := Real.sq_sqrt (show 0 ≤ (j:ℝ) by positivity)
+  apply (div_le_iff₀ hp).mpr
+  nlinarith only [sq_nonneg (Real.sqrt (j+1:ℝ)-Real.sqrt j), hs1, hs0]
+
+theorem profile_sum (J N : ℕ) :
+    (∑ j ∈ Finset.range (N+1), profile J j) ≤
+      1+2*(3+5*Real.pi)*Real.sqrt J + 20*(1+Real.log (N+1:ℝ)) := by
+  have bound (n : ℕ) :
+      (∑ j ∈ Finset.range (n+1), profile J j) ≤
+        1+2*(3+5*Real.pi)*Real.sqrt (min n J) + 20*(harmonic n:ℝ) := by
+    induction n with
+    | zero => simp [profile, harmonic]
+    | succ n ih =>
+      rw [Finset.sum_range_succ]
+      rw [show profile J (n+1) = (if n+1 ≤ J then (3+5*Real.pi)/Real.sqrt (n+1:ℝ) else 20/(n+1:ℝ)) by simp [profile]]
+      rw [harmonic_succ]
+      push_cast
+      split_ifs with h
+      · rw [min_eq_left (show (n:ℝ)+1 ≤ J by exact_mod_cast h)]
+        rw [min_eq_left (show (n:ℝ) ≤ J by exact_mod_cast Nat.le_trans (Nat.le_succ n) h)] at ih
+        have hs := mul_le_mul_of_nonneg_left (sqrt_step n) (show 0 ≤ 3+5*Real.pi by positivity)
+        have hr : 0 ≤ ((n:ℝ)+1)⁻¹ := by positivity
+        simp only [div_eq_mul_inv, one_mul] at hs ⊢
+        linarith only [ih,hs,hr]
+      · have hn : J ≤ n := by omega
+        rw [min_eq_right (show (J:ℝ) ≤ n by exact_mod_cast hn)] at ih
+        rw [min_eq_right (show (J:ℝ) ≤ n+1 by exact_mod_cast hn.trans (Nat.le_succ _))]
+        simp only [div_eq_mul_inv]
+        linarith only [ih]
+  have hs := Real.sqrt_le_sqrt (show min (N:ℝ) J ≤ J by exact min_le_right _ _)
+  have hs' := mul_le_mul_of_nonneg_left hs (show 0 ≤ 2*(3+5*Real.pi) by positivity)
+  have hn := harmonic_le_one_add_log (N+1)
+  have hh : (harmonic N : ℝ) ≤ harmonic (N+1) := by
+    rw [harmonic_succ]
+    push_cast
+    have h : 0 ≤ ((N:ℝ)+1)⁻¹ := by positivity
+    linarith
+  push_cast at hn
+  linarith only [bound N,hs',hn,hh]
+
+theorem window_bin_bound {X a b β V σ t : ℝ} (hX : 1 ≤ X) (ha : X ≤ a) (hab : a+1 ≤ b)
+    (hb : b+1 ≤ 2*X) (hs : 0 ≤ σ) (hs' : σ ≤ 1) (hV : σ ≤ V) {j J : ℕ}
+    (ht : (j:ℝ) ≤ |t|) (hJ : 4 * |β| * X ≤ (J:ℝ)) :
+    ‖transform a b β (line σ t)‖ ≤ X^V * profile J j := by
+  obtain ⟨triv,curv,far⟩ := norm_window_modes (zero_lt_one.trans_le hX) ha hab hb β (line σ t)
+    (by simpa using hs) (by simpa using hs')
+  simp only [re_line,im_line] at triv curv far
+  have hpow := Real.rpow_le_rpow_of_exponent_le hX hV
+  apply le_trans _ (mul_le_mul_of_nonneg_right hpow (profile_nonneg J j))
+  by_cases h0 : j=0
+  · simpa [profile,h0] using triv
+  have hj : 0 < (j:ℝ) := by exact_mod_cast Nat.pos_of_ne_zero h0
+  have htpos := hj.trans_le ht
+  by_cases hjJ : j ≤ J
+  · rw [profile,ite_eq_right h0,ite_eq_left hjJ]
+    apply (curv (abs_pos.mp htpos)).trans
+    exact mul_le_mul_of_nonneg_left (div_le_div_of_nonneg_left (by positivity) (Real.sqrt_pos.mpr hj)
+      (Real.sqrt_le_sqrt ht)) (Real.rpow_nonneg (by linarith) _)
+  · rw [profile,ite_eq_right h0,ite_eq_right hjJ]
+    have hfar := far htpos (hJ.trans ((by exact_mod_cast (Nat.le_of_not_ge hjJ) : (J:ℝ) ≤ j).trans ht))
+    exact hfar.trans ((div_le_div_of_nonneg_left (by positivity) hj ht).trans_eq (by ring))
+
+end GoldbachTwistedMellin
+end
+end
+
+section
+open Set Filter MeasureTheory Complex Goldbach DirichletCharacter
+open scoped Topology Interval
+noncomputable section
+namespace GoldbachTwistedMellin
+
+theorem local_band_norm {d A X a b β V σ M l : ℝ} {q : ℕ} [NeZero q]
+    (χ : DirichletCharacter ℂ q) (j J : ℕ) (hd : 0 < d) (hA : 0 ≤ A)
+    (hX : 1 ≤ X) (ha : X ≤ a) (hab : a+1 ≤ b) (hb : b+1 ≤ 2*X)
+    (hs : 1/2+d ≤ σ) (hs' : σ ≤ 3/4) (hV : σ ≤ V) (hJ : 4 * |β| * X ≤ (J:ℝ))
+    (hgrid : ∀ t ∈ Icc l (l+1), (j:ℝ) ≤ |t| ∧ |t| ≤ M)
+    (avoid : ∀ z ∈ boxZeros χ (1/2) 2 (-M-1) (M+1), σ ≠ z.re)
+    (hlog : ∀ t : ℝ, |t| ≤ M → (∀ z ∈ boxZeros χ (1/2) 2 (-M-1) (M+1), t ≠ z.im) →
+      ‖contourLog χ (line σ t)‖ ≤ A*logHeight q t*(1+localZeroPotential (boxZeros χ (1/2) 2 (-M-1) (M+1)) σ t)) :
+    (∫ t in l..l+1, ‖integrand χ a b β (line σ t)‖) ≤
+      (A*logHeight q (M+2)*X^V)*profile J j *
+      (1+4*∑ z ∈ bandZeros χ l,rootKernel (σ-z.re)) := by
+  classical
+  let Z := boxZeros χ (1/2) 2 (-M-1) (M+1)
+  let S := bandZeros χ l
+  let G (t : ℝ) := integrand χ a b β (line σ t)
+  have hM : 0 ≤ M := (abs_nonneg _).trans (hgrid l ⟨le_rfl,by linarith⟩).2
+  have hL := logHeight_ge_one q (M+2)
+  have hpow : 0 ≤ X^V := Real.rpow_nonneg (by linarith) _
+  have hprof := profile_nonneg J j
+  have H : 0 ≤ (A*logHeight q (M+2)*X^V)*profile J j := by positivity
+  have hc := integrable_box_line (a:=a) (b:=b) (β:=β) χ (by linarith : 1/2 ≤ σ) hs' (zero_lt_one.trans_le (hX.trans ha)) avoid
+  have hcont : ContinuousOn G (Icc l (l+1)) := hc.mono (fun t ht => abs_le.mp (hgrid t ht).2)
+  have hi : IntervalIntegrable (fun t => ‖G t‖) volume l (l+1) :=
+    hcont.norm.intervalIntegrable_of_Icc (by linarith)
+  apply band_integral_majorant S σ l _ H _ hi
+  let μ := volume.restrict (Icc l (l+1))
+  have hnull : μ (↑(Z.image Complex.im):Set ℝ) = 0 := (Z.image Complex.im).measure_zero μ
+  filter_upwards [ae_restrict_mem measurableSet_Icc,measure_eq_zero_iff_ae_notMem.mp hnull] with t ht him
+  have yt : ∀ z ∈ Z, t ≠ z.im := fun z hz e => him (Finset.mem_image.mpr ⟨z,hz,e.symm⟩)
+  have hh := hlog t (hgrid t ht).2 yt
+  have hl : logHeight q t ≤ logHeight q (M+2) := by
+    apply logHeight_mono_abs
+    rw [abs_of_nonneg (by linarith : 0 ≤ M+2)]
+    linarith [(hgrid t ht).2]
+  have hloc := potential_localize (Z:=Z) (S:=S) σ t (fun z hz h => near_zero_in_band χ l t M ht hz h)
+  have hw := window_bin_bound hX ha hab hb (by linarith : 0 ≤ σ) (by linarith : σ ≤ 1) hV (hgrid t ht).1 hJ
+  have hsum := localPotential_nonneg Z σ t
+  have h1 := (mul_le_mul (mul_le_mul_of_nonneg_left hl hA) (add_le_add_right hloc 1)
+    (by linarith : 0 ≤ 1+localZeroPotential Z σ t) (by positivity)).trans' hh
+  change ‖contourLog χ (line σ t)*transform a b β (line σ t)‖ ≤ _
+  rw [norm_mul]
+  have wn : 0 ≤ ∑ z ∈ S,rootKernel (σ-z.re)*rootKernel (t-z.im) :=
+    Finset.sum_nonneg fun z _ => mul_nonneg (rootKernel_nonneg _) (rootKernel_nonneg _)
+  exact (mul_le_mul h1 hw (norm_nonneg _) (by positivity)).trans_eq (by ring)
+
+end GoldbachTwistedMellin
+end
+end
+
+section
+open Set Filter MeasureTheory Complex Goldbach DirichletCharacter Finset
+open scoped Topology Interval
+noncomputable section
+namespace GoldbachTwistedMellin
+
+theorem averaged_vertical {d : ℝ} (hd : 0 < d) (hd' : d ≤ 1/8) :
+    ∃ C : ℝ, 0 < C ∧ ∀ (q : ℕ) [NeZero q] (χ : DirichletCharacter ℂ q) (M J : ℕ)
+      (a b X β : ℝ), 1 ≤ X → X ≤ a → a+1 ≤ b → b+1 ≤ 2*X → 4 * |β| * X ≤ J →
+      ∃ σ ∈ Ioo (1/2+d) (1/2+2*d), (∀ z ∈ boxZeros χ (1/2) 2 (-(M:ℝ)-1) ((M:ℝ)+1), σ ≠ z.re) ∧
+        (∫ t : ℝ in -(M:ℝ)..(M:ℝ), ‖integrand χ a b β (line σ t)‖) ≤
+          C*X^(1/2+2*d)*(logHeight q ((M:ℝ)+2))^2*
+            (1+2*(3+5*Real.pi)*Real.sqrt J+20*(1+Real.log (M+1:ℝ))) := by
+  classical
+  obtain ⟨A,hA,logbound⟩ := log_control_via_potential hd
+  obtain ⟨K,hK,cardbound⟩ := bandZeros_card
+  let D := Real.sqrt d
+  have hD : 0 < D := Real.sqrt_pos.mpr hd
+  let C := 2*A*(1+16*K/D)
+  have hC : 0 < C := by dsimp [C];positivity
   refine ⟨C,hC,?_⟩
-  intro q _ χ B hB f p
-  obtain ⟨T,hT,σ,hσ,bound⟩ := h q χ B hB
+  intro q _ χ M J a b X β hX ha hab hb hJ
+  let u : ℝ := 1/2+d
+  let v : ℝ := 1/2+2*d
+  let L := logHeight q ((M:ℝ)+2)
+  have hL : 1 ≤ L := logHeight_ge_one q _
+  let Z := boxZeros χ (1/2) 2 (-(M:ℝ)-1) ((M:ℝ)+1)
+  let S := fun p : Bool × ℕ => bandZeros χ (gridStart p)
+  let w := fun p : Bool × ℕ => profile J p.2
+  have hw (p : Bool × ℕ) (_ : p ∈ grid M) : 0 ≤ w p := profile_nonneg _ _
+  have card (p : Bool × ℕ) (hp : p ∈ grid M) : ((S p).card:ℝ) ≤ K*L :=
+    cardbound q χ (gridStart p) M (grid_geometry hp).1
+  obtain ⟨σ,hσ,bad,avg⟩ := exists_cluster_average (grid M) S w hw (Z.image Complex.re)
+    (by dsimp [u,v];linarith : u<v) card
+  have hdiff : v-u=d := by dsimp [u,v];ring
+  rw [hdiff] at avg
+  have avoid (z : ℂ) (hz : z ∈ Z) : σ ≠ z.re := fun he => bad (Finset.mem_image.mpr ⟨z,hz,he.symm⟩)
+  refine ⟨σ,hσ,avoid,?_⟩
+  let V (t : ℝ) := ‖integrand χ a b β (line σ t)‖
+  have hlo : 1/2+d ≤ σ := hσ.1.le
+  have hup : σ ≤ 3/4 := by dsimp [v] at hσ;linarith [hσ.2]
+  have cont := (integrable_box_line (a:=a) (b:=b) (β:=β) χ (by linarith : 1/2 ≤ σ) hup
+    (zero_lt_one.trans_le (hX.trans ha)) avoid).norm
+  have int (p : Bool × ℕ) (hp : p ∈ grid M) : IntervalIntegrable V volume (gridStart p) (gridStart p+1) :=
+    (cont.mono fun t ht => abs_le.mp ((grid_geometry hp).2 t ht).2).intervalIntegrable_of_Icc (by linarith)
+  have hlocal (p : Bool × ℕ) (hp : p ∈ grid M) :
+      (∫ t in gridStart p..gridStart p+1,V t) ≤ (A*L*X^v)*
+        (w p*(1+4*∑ z ∈ S p,rootKernel (σ-z.re))) := by
+    have h := local_band_norm χ p.2 J hd hA.le hX ha hab hb hlo hup hσ.2.le hJ (grid_geometry hp).2
+      avoid (fun t ht yt => logbound q χ σ t M hlo hup ht avoid yt)
+    exact h.trans_eq (by dsimp [w,L,S];ring)
+  have profileBound := profile_sum J M
+  have prof : (∑ j ∈ range M,profile J j) ≤ 1+2*(3+5*Real.pi)*Real.sqrt J+20*(1+Real.log (M+1:ℝ)) :=
+    (sum_le_sum_of_subset_of_nonneg (range_mono (Nat.le_succ M)) (fun i _ _ => profile_nonneg _ _)).trans profileBound
+  have wsum : (∑ p ∈ grid M,w p) = 2*∑ j ∈ range M,profile J j := sum_grid_weight M (profile J)
+  rw [wsum] at avg
+  have hn := Finset.sum_nonneg (s:=range M) (fun i _ => profile_nonneg J i)
+  have hvX : 0 ≤ X^v := Real.rpow_nonneg (by linarith) _
+  have factor : 1+16*(K*L)/Real.sqrt d ≤ (1+16*K/D)*L := by dsimp [D]; simp only [div_eq_mul_inv]; nlinarith only [hL]
+  have bound' := avg.trans (mul_le_mul factor (mul_le_mul_of_nonneg_left prof (by norm_num : (0:ℝ)≤2))
+    (by positivity) (by positivity))
+  change (∫ t in -(M:ℝ)..(M:ℝ), V t) ≤ _
+  rw [sum_grid_integrals V int]
+  have total := Finset.sum_le_sum hlocal
+  rw [←Finset.mul_sum] at total
+  exact (total.trans (mul_le_mul_of_nonneg_left bound' (by positivity))).trans_eq (by dsimp [C,v,L];ring)
+
+end GoldbachTwistedMellin
+end
+end
+
+section
+open Set Filter MeasureTheory Complex Goldbach DirichletCharacter GoldbachSmoothing
+open scoped Topology Interval
+noncomputable section
+namespace GoldbachTwistedMellin
+
+/-- With a suitable contour the signed zero residues account for every term larger
+than the square-root window error and the finite-height truncation error. -/
+theorem unconditional_zero_model {d : ℝ} (hd : 0 < d) (hd' : d ≤ 1/8) :
+    ∃ C : ℝ, 0 < C ∧ ∀ (q : ℕ) [NeZero q] (χ : DirichletCharacter ℂ q) (B : ℝ)
+      (M J a b : ℕ) (X β : ℝ), 2 ≤ B → B+1 ≤ (M:ℝ) →
+      1 ≤ X → X ≤ (a:ℝ) → (a:ℝ)+1 ≤ b → (b:ℝ)+1 ≤ 2*X → |β| ≤ 1 → 4*|β| *X ≤ J →
+      ∃ T ∈ Icc B (B+1), ∃ σ ∈ Ioo (1/2+d) (1/2+2*d),
+        ‖(∑ n ∈ Finset.Ioc a b, twistedCoefficient χ n * phase β n) -
+          (principalFlag χ*transform a b β 1 - zeroContribution χ a b β σ T)‖ ≤
+        C*(X^(1/2+2*d)*(logHeight q ((M:ℝ)+2))^2*
+           (1+2*(3+5*Real.pi)*Real.sqrt J+20*(1+Real.log (M+1:ℝ))) +
+           X^4*(T⁻¹ + (logHeight q ((M:ℝ)+2))^2/T^2)) := by
+  classical
+  obtain ⟨A,hA,horiz⟩ := unconditional_horizontal_log hd
+  obtain ⟨K,hK,tail⟩ := truncation_bound
+  obtain ⟨D,hD,vertical⟩ := averaged_vertical hd hd'
+  let c : ℝ := 1/(2*Real.pi)
+  have hc : 0 < c := by dsimp [c];positivity
+  let C := max (c*D) (max K (c*(2*(2*A*96))))
+  have cv : c*D ≤ C := le_max_left ..
+  have ct : K ≤ C := (le_max_left ..).trans (le_max_right ..)
+  have ch : c*(2*(2*A*96)) ≤ C := (le_max_right ..).trans (le_max_right ..)
+  refine ⟨C,hK.trans_le ct,?_⟩
+  intro q _ χ B M J a b X β hB hBM hX ha hab hb hβ hJ
+  obtain ⟨T,hTB,avoid,hlog⟩ := horiz q χ B hB
+  obtain ⟨σ,hσ,avoidR,hV⟩ := vertical q χ M J a b X β hX ha hab hb hJ
+  have hT : 0 < T := by linarith [hTB.1]
+  have hTM : T ≤ (M:ℝ) := hTB.2.trans hBM
+  have hs : σ < 1 := by linarith [hσ.2]
+  have inner (z : ℂ) (hz : z ∈ boxZeros χ σ 2 (-T) T) : σ < z.re ∧ z.re < 2 ∧ -T < z.im ∧ z.im < T := by
+    obtain ⟨h,z0⟩ := (mem_boxZeros χ _ _ _ _ z).mp hz
+    obtain ⟨⟨hr,hr'⟩,hi,hi'⟩ := mem_reProdIm.mp h
+    have hzZ : z ∈ boxZeros χ (1/2) 2 (-(M:ℝ)-1) ((M:ℝ)+1) := (mem_boxZeros χ _ _ _ _ z).mpr
+      ⟨mem_reProdIm.mpr ⟨⟨by linarith [hσ.1],hr'⟩,by constructor <;> linarith⟩,z0⟩
+    have him := avoid z (by linarith [hσ.1]) z0
+    refine ⟨lt_of_le_of_ne hr (avoidR z hzZ),lt_of_le_of_ne hr' ?_,lt_of_le_of_ne hi ?_,lt_of_le_of_ne hi' ?_⟩
+    · intro e;exact regularizedL_ne_zero_right χ (by rw [e];norm_num) z0
+    · intro e;exact him (by rw [←e,abs_neg,abs_of_pos hT])
+    · intro e;exact him (by rw [e,abs_of_pos hT])
+  refine ⟨T,hTB,σ,hσ,?_⟩
+  let F := integrand χ a b β
+  let H (t : ℝ) := ∫ x : ℝ in σ..2, F (line x t)
+  let V := ∫ t : ℝ in (-T)..T, F (line σ t)
+  let R := truncationRemainder χ a b β T
+  let L := logHeight q ((M:ℝ)+2)
+  let P := 1+2*(3+5*Real.pi)*Real.sqrt J+20*(1+Real.log (M+1:ℝ))
+  let U := X^(1/2+2*d)*L^2*P
+  have logpos : 0 ≤ Real.log (M+1:ℝ) := Real.log_nonneg (by linarith [Nat.cast_nonneg (α:=ℝ) M])
+  have hU : 0 ≤ U := by dsimp [U,P];positivity
+  have hcomp : logHeight q (B+1) ≤ L := by
+    apply logHeight_mono_abs
+    rw [abs_of_nonneg (by linarith : 0≤B+1),abs_of_nonneg (by positivity : 0≤(M:ℝ)+2)]
+    linarith
+  have hH := @horizontal_edge_bound d σ T B A X β q _ χ a b hX ha hab hb hβ hd hσ.1.le hs hT hA.le hlog
+  have ho (t : ℝ) (ht : |t|=T) : ‖H t‖ ≤ (2*A*96)*X^4*L^2/T^2 := by
+    apply (hH ht).trans
+    gcongr
+    exact (zero_le_one.trans (logHeight_ge_one q (B+1)))
+  have hlo := ho (-T) (by simp [abs_of_pos hT])
+  have hhi := ho T (abs_of_pos hT)
+  have hR := tail q χ a b X β T hX ha hab hb hβ hT
+  have hi := (integrable_box_line (a:=(a:ℝ)) (b:=(b:ℝ)) (β:=β) χ (by linarith [hσ.1] : 1/2 ≤ σ)
+    (by linarith [hσ.2] : σ ≤ 3/4) (zero_lt_one.trans_le (hX.trans ha)) avoidR).norm
+  have hsmall : ‖V‖ ≤ ∫ t in (-T)..T, ‖F (line σ t)‖ := by
+    dsimp only [V]
+    rw [intervalIntegral.integral_of_le (by linarith : -T≤T),intervalIntegral.integral_of_le (by linarith : -T≤T)]
+    exact norm_integral_le_integral_norm _
+  have hlarge : (∫ t in (-T)..T, ‖F (line σ t)‖) ≤ ∫ t in -(M:ℝ)..(M:ℝ), ‖F (line σ t)‖ := intervalIntegral.integral_mono_interval (neg_le_neg hTM) (by linarith : -T≤T) hTM
+    (ae_of_all _ (fun t => norm_nonneg (F (line σ t)))) (hi.intervalIntegrable_of_Icc (by linarith))
+  have hvert : c*‖V‖ ≤ C*U := by
+    calc
+      _ ≤ c*(D*U) := mul_le_mul_of_nonneg_left ((hsmall.trans hlarge).trans (hV.trans_eq (by dsimp [U,P,L];ring))) hc.le
+      _ ≤ C*U := by rw [←mul_assoc];exact mul_le_mul_of_nonneg_right cv hU
+  have hedge : c*‖H (-T)-H T‖ ≤ C*(X^4*(L^2/T^2)) := by
+    calc
+      _ ≤ c*(((2*A*96)*X^4*L^2/T^2)+((2*A*96)*X^4*L^2/T^2)) :=
+        mul_le_mul_of_nonneg_left ((norm_sub_le ..).trans (add_le_add hlo hhi)) hc.le
+      _ = (c*(2*(2*A*96)))*(X^4*(L^2/T^2)) := by ring
+      _ ≤ _ := mul_le_mul_of_nonneg_right ch (by positivity)
+  have htrunc : ‖R‖ ≤ C*(X^4*T⁻¹) := by
+    apply hR.trans
+    calc
+      _ = K*(X^4*T⁻¹) := by ring
+      _ ≤ _ := mul_le_mul_of_nonneg_right ct (by positivity)
+  rw [exact_twisted_box χ hX ha hab hb hβ hs hT inner]
+  unfold contourRemainder
+  change ‖_ + c • (V + I*(H (-T) - H T)) + R - _‖ ≤ _
+  have cancel (p l r : ℂ) : p+l+r-p=l+r := by abel
+  rw [cancel,smul_add]
+  apply (norm_add_le _ _).trans
+  apply (add_le_add_left (norm_add_le _ _) _).trans
+  rw [norm_smul,norm_smul,norm_mul,norm_I,one_mul,Real.norm_eq_abs,abs_of_pos hc]
+  exact (add_le_add (add_le_add hvert hedge) htrunc).trans_eq (by dsimp [U,P,L];ring)
+end GoldbachTwistedMellin
+end
+end
+
+section
+open Set Complex Goldbach DirichletCharacter GoldbachSmoothing
+noncomputable section
+namespace GoldbachTwistedMellin
+
+/-- At a polynomial height the two tails are absorbed by the oscillatory window bound. -/
+theorem dyadic_zero_model {d : ℝ} (hd : 0 < d) (hd' : d ≤ 1/8) :
+    ∃ C : ℝ, 0 < C ∧ ∀ (q : ℕ) [NeZero q] (χ : DirichletCharacter ℂ q)
+      (a b : ℕ) (X β : ℝ), 1 ≤ X → X ≤ (a:ℝ) → (a:ℝ)+1 ≤ b → (b:ℝ)+1 ≤ 2*X → |β| ≤ 1 →
+      ∃ T ∈ Icc (heightCut X) (heightCut X+1), ∃ σ ∈ Ioo (1/2+d) (1/2+2*d),
+        ‖(∑ n ∈ Finset.Ioc a b, twistedCoefficient χ n * phase β n) -
+          (principalFlag χ*transform a b β 1 - zeroContribution χ a b β σ T)‖ ≤
+        C*X^(1/2+2*d)*(logBudget q X)^2*
+           (1+Real.sqrt (1+4*|β| *X)+Real.log (heightCut X)) := by
+  obtain ⟨C,hC,model⟩ := unconditional_zero_model hd hd'
+  refine ⟨1000*C,by positivity,?_⟩
+  intro q _ χ a b X β hX ha hab hb hβ
+  let B := heightCut X
+  let M := ⌈B+1⌉₊
+  let J := ⌈4*|β| *X⌉₊
+  have hB : 2 ≤ B := by dsimp [B];linarith [heightCut_ge hX]
+  have hB0 : 0 < B := by linarith
+  have hM : B+1 ≤ (M:ℝ) := Nat.le_ceil _
+  have hJ : 4*|β| *X ≤ (J:ℝ) := Nat.le_ceil _
+  have hM' : (M:ℝ) < B+1+1 := Nat.ceil_lt_add_one (by linarith)
+  have hJ' : (J:ℝ) < 4*|β| *X+1 := Nat.ceil_lt_add_one (by positivity)
+  obtain ⟨T,hT,σ,hσ,err⟩ := model q χ B M J a b X β hB hM hX ha hab hb hβ hJ
+  refine ⟨T,hT,σ,hσ,err.trans ?_⟩
+  let L := logBudget q X
+  let W := 1+Real.sqrt (1+4*|β| *X)+Real.log B
+  let S := X^(1/2+2*d)
+  have hS : 1 ≤ S := Real.one_le_rpow hX (by linarith)
+  have hL : 1 ≤ L := by dsimp [L,logBudget];linarith [logHeight_ge_one q (heightCut X)]
+  have hln := Real.log_nonneg (by linarith : 1≤B)
+  have hW : 1 ≤ W := by dsimp [W];linarith [Real.sqrt_nonneg (1+4*|β| *X)]
+  have hq : 0 < (q:ℝ) := by exact_mod_cast NeZero.pos q
+  have h3 := Real.log_le_sub_one_of_pos (by norm_num : 0<(3:ℝ))
+  have hlogM : Real.log (M+1:ℝ) ≤ 2+Real.log B := by
+    have h := Real.log_le_log (by positivity : 0 < (M:ℝ)+1) (by linarith : (M:ℝ)+1 ≤ 3*B)
+    rw [Real.log_mul (by norm_num) hB0.ne'] at h
+    linarith
+  have hlogL : logHeight q ((M:ℝ)+2) ≤ 3*L := by
+    have h : Real.log (2*(q:ℝ)*(2+((M:ℝ)+2))) ≤ Real.log (3*(2*(q:ℝ)*(2+B))) :=
+      Real.log_le_log (by positivity) (by nlinarith only [mul_le_mul_of_nonneg_left (by linarith : 2+((M:ℝ)+2) ≤ 3*(2+B)) (by positivity : 0 ≤ 2*(q:ℝ))])
+    rw [Real.log_mul (by norm_num : (3:ℝ)≠0) (by positivity)] at h
+    change Real.log (2*(q:ℝ)*(2+|(M:ℝ)+2|)) ≤ 3*(1+Real.log (2*(q:ℝ)*(2+|B|)))
+    rw [abs_of_nonneg (by positivity : 0≤(M:ℝ)+2),abs_of_pos hB0]
+    have hl := logHeight_ge_one q B
+    change 1 ≤ Real.log (2*(q:ℝ)*(2+|B|)) at hl
+    rw [abs_of_pos hB0] at hl
+    linarith
+  have hlsq : (logHeight q ((M:ℝ)+2))^2 ≤ 9*L^2 :=
+    (pow_le_pow_left₀ (zero_le_one.trans (logHeight_ge_one q _)) hlogL 2).trans_eq (by ring)
+  have hroot : Real.sqrt J ≤ Real.sqrt (1+4*|β| *X) := Real.sqrt_le_sqrt (by linarith)
+  have hp : (1+2*(3+5*Real.pi)*Real.sqrt J+20*(1+Real.log (M+1:ℝ))) ≤ 100*W := by
+    dsimp [W]
+    nlinarith only [hlogM,hln,hroot,Real.sqrt_nonneg (1+4*|β| *X),
+      mul_le_mul_of_nonneg_right Real.pi_lt_four.le (Real.sqrt_nonneg (J:ℝ))]
+  have hp0 : 0 ≤ 1+2*(3+5*Real.pi)*Real.sqrt J+20*(1+Real.log (M+1:ℝ)) := by
+    have := Real.log_nonneg (show 1≤(M:ℝ)+1 by linarith [Nat.cast_nonneg (α:=ℝ) M])
+    positivity
+  have hvert := mul_le_mul (mul_le_mul_of_nonneg_left hlsq (zero_le_one.trans hS)) hp hp0 (by positivity : 0 ≤ S*(9*L^2))
+  have hXT : X^4 ≤ T := by
+    have hx := pow_le_pow_right₀ hX (show 4 ≤ 8 by decide)
+    have h : X^8 ≤ B := by dsimp [B,heightCut];rw [mul_pow];norm_num;linarith [pow_nonneg (by linarith : 0≤X) 8]
+    exact hx.trans (h.trans hT.1)
+  have hT1 : 1 ≤ T := by linarith [hT.1]
+  have hT0 : 0 < T := by linarith
+  have ht₁ : X^4*T⁻¹ ≤ 1 := by rw [←div_eq_mul_inv];exact (div_le_one hT0).mpr hXT
+  have ht₂ : X^4/T^2 ≤ 1 := (div_le_one (sq_pos_of_pos hT0)).mpr (hXT.trans (le_self_pow₀ hT1 (by decide)))
+  have htail : X^4*(T⁻¹+(logHeight q ((M:ℝ)+2))^2/T^2) ≤ 1+9*L^2 := by
+    calc
+      _ = X^4*T⁻¹+(X^4/T^2)*(logHeight q ((M:ℝ)+2))^2 := by ring
+      _ ≤ 1+1*(9*L^2) := add_le_add ht₁ (mul_le_mul ht₂ hlsq (sq_nonneg _) zero_le_one)
+      _ = _ := by ring
+  have hL₂ : 1 ≤ L^2 := one_le_pow₀ hL
+  have hprod : L^2 ≤ S*L^2*W := (le_mul_of_one_le_left (sq_nonneg L) hS).trans
+    (le_mul_of_one_le_right (by positivity) hW)
+  have hall : S*(logHeight q ((M:ℝ)+2))^2*(1+2*(3+5*Real.pi)*Real.sqrt J+20*(1+Real.log (M+1:ℝ)))+
+      X^4*(T⁻¹+(logHeight q ((M:ℝ)+2))^2/T^2) ≤ 1000*(S*L^2*W) := by
+    nlinarith only [hvert,htail,hL₂,hprod]
+  exact (mul_le_mul_of_nonneg_left hall hC.le).trans_eq (by dsimp [S,L,W,B];ring)
+end GoldbachTwistedMellin
+end
+end
+
+open Set Complex Goldbach GoldbachTwistedMellin
+theorem PEqualNP.Outside.L_goldbach_twisted_explicit_formula_right_zeros :
+let W := fun (a b : ℕ) (β : ℝ) (s : ℂ) =>
+  mellin (fun x : ℝ => ((max 0 (min (x - (a:ℝ)) (min 1 ((b:ℝ)+1-x))) : ℝ) : ℂ) *
+    Complex.exp (((β*x:ℝ):ℂ)*Complex.I)) s
+∀ d : ℝ, 0 < d → d ≤ 1/8 → ∃ C : ℝ, 0 < C ∧
+  ∀ (q : ℕ) [NeZero q] (χ : DirichletCharacter ℂ q) (a b : ℕ) (X β : ℝ),
+    1 ≤ X → X ≤ (a:ℝ) → (a:ℝ)+1 ≤ b → (b:ℝ)+1 ≤ 2*X → |β| ≤ 1 →
+    let B := (2*X)^8
+    let f := @ite (ℂ → ℂ) (χ = 1) (Classical.propDecidable _) (DirichletCharacter.LFunctionTrivChar₁ q) (DirichletCharacter.LFunction χ)
+    let p := @ite ℂ (χ = 1) (Classical.propDecidable _) 1 0
+    ∃ T ∈ Set.Icc B (B+1), ∃ σ ∈ Set.Ioo (1/2+d) (1/2+2*d), ∃ Z : Finset ℂ,
+      (∀ z : ℂ, z ∈ Z ↔ (σ ≤ z.re ∧ z.re ≤ 2) ∧ (-T ≤ z.im ∧ z.im ≤ T) ∧ f z = 0) ∧
+      ‖(∑ k ∈ Finset.Ioc a b, χ (k:ZMod q) * (ArithmeticFunction.vonMangoldt k:ℂ) *
+        Complex.exp (((β*(k:ℝ):ℝ):ℂ)*Complex.I)) -
+        (p*W a b β 1 - ∑ z ∈ Z, (analyticOrderNatAt f z:ℂ)*W a b β z)‖ ≤
+      C*X^(1/2+2*d)*(1+Real.log (2*(q:ℝ)*(2+|B|)))^2*
+        (1+Real.sqrt (1+4*|β| *X)+Real.log B) := by
+  classical
+  intro W d hd hd'
+  obtain ⟨C,hC,model⟩ := dyadic_zero_model hd hd'
+  refine ⟨C,hC,?_⟩
+  intro q _ χ a b X β hX ha hab hb hβ B f p
+  obtain ⟨T,hT,σ,hσ,bound⟩ := model q χ a b X β hX ha hab hb hβ
   let Z := boxZeros χ σ 2 (-T) T
   have hf : f = regularizedL χ := by
     by_cases hχ : χ = 1 <;> simp [f,regularizedL,hχ]
@@ -3201,6 +4544,5 @@ theorem PEqualNP.Outside.L_goldbach_twisted_explicit_formula_right_zeros :
       exact ⟨hh.1,hh.2,hz⟩
     · rintro ⟨hre,him,hz⟩
       exact ⟨mem_reProdIm.mpr ⟨hre,him⟩,hz⟩
-  · intro a b X β hX ha hab hb hβ
-    rw [hf,hp]
-    exact bound a b X β hX ha hab hb hβ
+  · rw [hf,hp]
+    exact bound
