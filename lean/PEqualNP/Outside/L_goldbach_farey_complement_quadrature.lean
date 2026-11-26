@@ -360,9 +360,13 @@ private theorem integrate_gaps {Q : ℕ} (hQ : 0 < Q) {δ : ℝ} (hδ : 0 ≤ δ
   rw [← gap_union hQ δ hδ] at hem
   exact hem.2
 
+end GoldbachFarey
+
+open GoldbachFarey
+
 /-- The complement of the project's reduced-rational arcs has an exact measure and
 a disjoint integration formula, even when the original arcs overlap. -/
-theorem _root_.PEqualNP.Outside.L_goldbach_farey_complement_quadrature :
+theorem PEqualNP.Outside.L_goldbach_farey_complement_quadrature :
     ∀ (Q : ℕ) (δ : ℝ), 0 < Q → 0 ≤ δ →
       let A := {x : ℝ | ∃ d c : ℕ, 1 ≤ d ∧ d ≤ Q ∧ c ≤ d ∧ c.Coprime d ∧ |x-(c:ℝ)/d| ≤ δ/d}
       let D := ((Finset.Icc 1 Q) ×ˢ (Finset.Icc 1 Q)).filter (fun p => Q < p.1+p.2 ∧ p.1.Coprime p.2)
@@ -381,5 +385,3 @@ theorem _root_.PEqualNP.Outside.L_goldbach_farey_complement_quadrature :
     exact points_valid hq hs hc
   · intro f h
     exact integrate_gaps hQ hδ f h
-
-end GoldbachFarey
