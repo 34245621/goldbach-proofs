@@ -1,4 +1,4 @@
-"""Apply owner-merged website releases after GitHub verifies the exact main commit."""
+"""Publish website PRs merged by authorized maintainers after CI verifies the exact commit."""
 import argparse
 import json
 import os
@@ -10,6 +10,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 
 REPO = "CGandGameEngineLearner/goldbach-proofs"
+OWNER_ID = 103875245
 STORE = Path("/opt/goldbach-site-releases")
 APP = Path("/opt/goldbach-web")
 CHECKPOINT = STORE / "checkpoint"
@@ -54,10 +55,11 @@ def verified(sha):
                and p["base"]["ref"] == "main" and p["base"]["repo"]["full_name"] == REPO
                and p.get("merged_at")), None)
     if pr is None:
-        raise RuntimeError(f"Website changes at {sha} require an owner-merged PR")
+        raise RuntimeError(f"Website changes at {sha} require a merged PR")
     detail = api(f'/pulls/{pr["number"]}')
-    if (detail.get("merged_by") or {}).get("login", "").casefold() != REPO.split("/")[0].casefold():
-        raise RuntimeError(f'PR #{pr["number"]} requires owner merge for website publication')
+    allowed = {OWNER_ID, *(int(uid) for uid in os.environ.get("GOLDBACH_SITE_RELEASE_MERGER_IDS", "").split())}
+    if (detail.get("merged_by") or {}).get("id") not in allowed:
+        raise RuntimeError(f'PR #{pr["number"]} requires an authorized website publisher')
     runs = api("/actions/workflows/site-release.yml/runs?event=push&branch=main&head_sha=" + sha)["workflow_runs"]
     return any(run["head_sha"] == sha and run["conclusion"] == "success" for run in runs)
 

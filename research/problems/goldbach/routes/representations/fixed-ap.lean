@@ -57,7 +57,7 @@ theorem fromBMOR (bmor : ExplicitInput)
   rcases (show q=1 ∨ q=2 by omega) with rfl | rfl
   · have ev := nonunit 2 n (by decide) hn1
     change evenMass n ≤ _ at ev
-    rw [show (Nat.primeFactors 2).card=1 by decide] at ev
+    rw [Nat.prime_two.primeFactors, Finset.card_singleton] at ev
     have epos : 0≤evenMass n := Finset.sum_nonneg fun _ _ => ArithmeticFunction.vonMangoldt_nonneg
     have lmax : Real.log (n:ℝ) < 81 := by
       have hb : Real.log (n:ℝ)<Real.exp (19/5) := (Real.log_lt_iff_lt_exp nr).mpr hmax

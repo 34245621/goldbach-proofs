@@ -5,7 +5,7 @@ description: Deploy or update the Goldbach Open Conjecture Platform, verify the 
 
 # Goldbach 项目部署
 
-日常网站更新经仓库所有者合并 PR 到 `main` 后，GitHub Actions 对该提交运行 `Website release verification`，服务器定时器检查结果并发布。开发者用自己的 GitHub 账号开 PR。用公开健康接口的 `site_revision` 核对实际发布，不以服务器 Git 工作副本的 HEAD 为准。[自动发布、安装与故障处理](../../../deploy/site-release.md)
+日常网站更新经有发布权限的维护者合并 PR 到 `main` 后，GitHub Actions 对该提交运行 `Website release verification`，服务器定时器检查结果并发布。发布权限由服务器按 GitHub 用户 ID 核对。开发者用自己的 GitHub 账号开 PR。用公开健康接口的 `site_revision` 核对线上实际版本。[自动发布、安装与故障处理](../../../deploy/site-release.md)
 
 从仓库根目录运行命令。部署步骤和按变更类型选择的检查见 [发布与回滚](references/release.md)。服务配置、依赖、凭据文件位置和双入口架构见仓库的 [部署文档](../../../deploy/README.md)。
 

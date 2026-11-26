@@ -1,7 +1,7 @@
 {
   "version": 1,
   "problem": "goldbach",
-  "base_revision": "34ba122f878c93e29d58231bcaff4c6d55dbf3d3",
+  "base_revision": "0b2a2c36f712e43ff940f9cc314ff6a89197176f",
   "request_id": "fixed-ap-bmor",
   "parent": {
     "id": "L-goldbach-finite-fixed-progression-unit-error",

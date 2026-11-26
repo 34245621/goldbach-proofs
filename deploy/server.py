@@ -8,13 +8,14 @@ import re
 import sqlite3
 import ssl
 import time
+from collections import OrderedDict
 from contextlib import closing
 from datetime import datetime
 from functools import lru_cache
 from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from threading import BoundedSemaphore
+from threading import BoundedSemaphore, Lock
 from urllib.parse import parse_qs, urlsplit
 
 from desk import Desk, QUEUE_BATCH
@@ -216,6 +217,7 @@ def research_status(desk=DESK, *, compact=False, board=False):
         **extra,
         "catalogue_revision": RELEASE_SHA,
         "gaps": gaps,
+        **({"tracks": GOLDBACH_CATALOGUE.get("tracks", [])} if desk is DESK else {}),
         "results": results,
         "desk": desk_status,
         "counts": {
@@ -231,21 +233,47 @@ STATUS_BUILD = BoundedSemaphore(1)
 WEB_SNAPSHOTS = {}
 
 
-def status_body(desk, web_view, board=False):
-    key = (desk, board)
-    # A cache hit for one desk need not wait for another desk to build its snapshot.
-    cached = WEB_SNAPSHOTS.get(key) if web_view else None
+RAW_STATUS_CLIENTS = OrderedDict()
+RAW_STATUS_LOCK = Lock()
+
+
+def raw_status_allowed(ip):
+    now = time.monotonic()
+    with RAW_STATUS_LOCK:
+        credit, last = RAW_STATUS_CLIENTS.pop(ip, (4, now))
+        credit = min(4, credit + (now - last) / 30)
+        allowed = credit >= 1
+        RAW_STATUS_CLIENTS[ip] = (credit - int(allowed), now)
+        if len(RAW_STATUS_CLIENTS) > 4096:
+            RAW_STATUS_CLIENTS.popitem(last=False)
+        return allowed
+
+
+def accepts_gzip(value):
+    for item in value.split(","):
+        coding, _, params = item.strip().lower().partition(";")
+        if coding.strip() == "gzip":
+            return not params or bool(re.fullmatch(r"\s*q\s*=\s*(?:1(?:\.0{0,3})?|0\.\d{0,2}[1-9]\d{0,2})\s*", params))
+    return False
+
+
+def status_body(desk, web_view, board=False, compress=False, delta=False):
+    key = (desk, web_view, board, delta)
+    cached = WEB_SNAPSHOTS.get(key) if compress else None
     if cached and cached[0] > time.monotonic():
         return cached[1]
     with STATUS_BUILD:
-        if web_view:
+        if compress:
             cached = WEB_SNAPSHOTS.get(key)
             if cached and cached[0] > time.monotonic():
                 return cached[1]
         status = research_status(desk, compact=web_view, board=board)
+        if delta:
+            status["gaps"] = [{k: gap[k] for k in ("id", "latest", "proved")} for gap in status["gaps"]]
+            status.pop("tracks", None)
         body = json.dumps(status, ensure_ascii=False, separators=(",", ":")).encode()
-        if web_view:
-            body = gzip.compress(body, compresslevel=3)
+        if compress:
+            body = gzip.compress(body, compresslevel=5, mtime=0)
             WEB_SNAPSHOTS[key] = (time.monotonic() + 10, body)
         return body
 
@@ -275,12 +303,37 @@ def desk_routes(slug, lang):
 # Shared by the map, claim receipt and public verification records.
 TASK_ROUTE = {task: key for slug in DESKS for key, _, _, tasks, _ in desk_routes(slug, "en") for task in tasks}
 
+def route_refutations(slug, tasks, lang):
+    labels = {"pending": ("反证待核验", "Refutation under review"), "verified": ("已证伪", "Refuted")}
+    notes = []
+    for task in tasks:
+        ref = DESKS[slug].gaps[task].get("refutation")
+        if ref:
+            notes.append(f'{labels[ref["status"]][lang != "zh"]} · #{int(ref["pr"])}')
+    return f'<small class="route-meta">{escape(" · ".join(notes))}</small>' if notes else ""
+
+
 def route_filters(slug, lang):
     return "".join(
         f'<button type="button" class="map-program-button" data-program="{escape(key)}" aria-pressed="false">'
-        f'<strong class="program-name">{escape(title)}</strong><span class="program-count">{len(tasks)} '
+        f'<strong class="program-name">{escape(title)}</strong>{route_refutations(slug, tasks, lang)}<span class="program-count">{len(tasks)} '
         f'{"题" if lang == "zh" else "tasks"}</span></button>'
         for key, title, _, tasks, _ in desk_routes(slug, lang)
+    )
+
+
+def goldbach_program_filters(lang):
+    zh = lang == "zh"
+    programs = (
+        ("foundation", "素数权重" if zh else "Prime weights"),
+        ("grh", "黎曼猜想与素数分布" if zh else "GRH & prime distribution"),
+        ("correlation", "二元加法相关" if zh else "Binary correlations"),
+        ("exceptions", "例外集合" if zh else "Exceptional sets"),
+    )
+    return "".join(
+        f'<button type="button" class="map-program-button" data-program="{key}" aria-pressed="false">'
+        f'<strong class="program-name">{title}</strong><span class="program-count">—</span></button>'
+        for key, title in programs
     )
 
 
@@ -299,17 +352,28 @@ def route_panels(slug, lang):
         targets = " · ".join(f'<a href="#track-{escape(k)}">{escape(v)}</a>' for k, v in feeds)
         following = f'<p>{"用于" if zh else "Feeds into"}　{targets}</p>' if targets else ""
         sections.append(f'<details class="route-panel" id="track-{escape(key)}"><summary>'
-                        f'<strong>{escape(title)}</strong><span class="route-meta">{len(tasks)} '
+                        f'<strong>{escape(title)}</strong>{route_refutations(slug, tasks, lang)}<span class="route-meta">{len(tasks)} '
                         f'{"题" if zh else "tasks"}<span data-route-status></span></span></summary>'
                         f'<p>{escape(description)}</p>{following}<div class="roadmap-tasks">{"".join(links)}</div></details>')
     return '<div class="goldbach-tracks"><h3>' + ("按子命题领取" if zh else "Choose a proof task") + '</h3>' + "".join(sections) + '</div>'
 
 
 def goldbach_roadmap_page(page, lang):
+    # Catalogue order sets the two featured routes; the map contains the full catalogue.
     if RELEASE_SHA:
         page = page.replace("</head>", f'<meta name="catalogue-revision" content="{escape(RELEASE_SHA)}"></head>', 1)
-    return page.replace("<!-- catalogue filters -->", route_filters("goldbach", lang)).replace(
-        "<!-- catalogue roadmap -->", route_panels("goldbach", lang))
+    featured = GOLDBACH_CATALOGUE.get("tracks", [])[:2]
+    stages = []
+    for track in featured:
+        key = escape(track["id"])
+        title = escape(track["title"][lang])
+        summary = escape(track["description"][lang])
+        count = sum(g.get("track") == track["id"] for g in GAPS)
+        tasks = f"{count} 个子命题" if lang == "zh" else f"{count} proof tasks"
+        stages.append(f'<li><h3>{title}</h3><p>{summary}</p><a href="#route={key}">{tasks}</a></li>')
+    overview = '<ul class="roadmap topic-roadmap">' + "".join(stages) + '</ul>'
+    return page.replace("<!-- catalogue filters -->", goldbach_program_filters(lang)).replace(
+        "<!-- catalogue roadmap -->", overview)
 
 
 def problem_page(page, slug, lang):
@@ -418,6 +482,58 @@ def problem_card(slug, data, lang):
             f'<p class="problem-progress">{progress}</p></a>')
 
 
+TWIN_PRIMES_SLUG = "twin-primes"
+TWIN_PRIMES_FORMULA = "p, p + 2"
+TWIN_PRIMES_COPY = {
+    "zh": (
+        "孪生素数猜想",
+        "是否有无穷多对相差 2 的素数？",
+        "任务筹备中",
+        "返回猜想目录",
+        "历史进展",
+        "例如 (3, 5)、(11, 13) 和 (17, 19) 都是孪生素数。",
+        "陈景润证明，有无穷多个素数 p，使 p + 2 是至多两个素数的乘积（按重数计）。猜想要求其中无穷多个 p + 2 本身是素数。",
+        "张益唐于 2013 年证明，有无穷多对相邻素数的间隔小于 7000 万。孪生素数猜想要求间隔恰好为 2 的情形出现无穷多次。",
+        "拟议路线将研究 Levent 的 GRH 证明中使用的方法组合及其自然推广能否处理固定移位 2 的素数对。",
+        "查看研究任务拆分提案",
+    ),
+    "en": (
+        "Twin prime conjecture",
+        "Are there infinitely many pairs of primes that differ by 2?",
+        "Tasks in preparation",
+        "Back to research problems",
+        "Historical results",
+        "Examples include (3, 5), (11, 13), and (17, 19).",
+        "Chen Jingrun proved that infinitely many primes p have p + 2 equal to a product of at most two primes, counted with multiplicity. The conjecture asks whether p + 2 itself is prime for infinitely many such p.",
+        "In 2013, Yitang Zhang proved that infinitely many consecutive prime pairs have a gap below 70 million. The twin prime conjecture asks whether the gap is exactly 2 infinitely often.",
+        "The proposed research will examine whether the methods used in Levent’s GRH proof and their natural extensions can handle prime pairs at the fixed shift 2.",
+        "View the proposed research tasks",
+    ),
+}
+
+
+def twin_primes_page(lang):
+    title, question, status, back, history, examples, chen, zhang, route, proposal = TWIN_PRIMES_COPY[lang]
+    other_lang, other_label = ("en", "English") if lang == "zh" else ("zh", "简体中文")
+    chen_label = "陈景润原论文" if lang == "zh" else "Chen’s paper"
+    zhang_label = "张益唐原论文" if lang == "zh" else "Zhang’s paper"
+    return f"""<!doctype html>
+<html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{title}</title><link rel="icon" type="image/svg+xml" sizes="any" href="../../goldbach-icon.svg">
+<link rel="stylesheet" href="../../site.css"></head>
+<body><header class="masthead"><div class="shell masthead-inner"><a class="brand" href="../?lang={lang}">{back}</a>
+<a class="locale" href="?lang={other_lang}">{other_label}</a></div></header>
+<main class="shell problem-directory">
+<span class="problem-formula">{TWIN_PRIMES_FORMULA}</span><h1>{title}</h1>
+<p>{question} {examples}</p>
+<section><h2>{history}</h2>
+<p>{chen} <a href="https://doi.org/10.1142/9789812776600_0021">{chen_label}</a></p>
+<p>{zhang} <a href="https://doi.org/10.4007/annals.2014.179.3.7">{zhang_label}</a></p></section>
+<section><h2>{status}</h2><p>{route}</p>
+<p><a href="https://github.com/CGandGameEngineLearner/goldbach-proofs/pull/2388">{proposal}</a></p></section>
+</main>{site_dock(lang, "../../")}</body></html>"""
+
+
 def directory_page(lang):
     zh = lang == "zh"
     heading = "更多猜想" if zh else "Research problems"
@@ -429,6 +545,11 @@ def directory_page(lang):
             "question": {"zh": "每个大于 2 的偶数都是两个素数之和吗？", "en": "Is every even integer above two a sum of two primes?"},
             "formula": "2n = p + q"}
     cards = "\n".join(problem_card(slug, data, lang) for slug, data in {"goldbach": main, **PROBLEMS}.items())
+    if TWIN_PRIMES_SLUG not in PROBLEMS:
+        title, question, status, *_ = TWIN_PRIMES_COPY[lang]
+        cards += (f'<a class="problem-card" href="{TWIN_PRIMES_SLUG}/?lang={lang}">'
+                  f'<span class="problem-formula">{TWIN_PRIMES_FORMULA}</span>'
+                  f'<h2>{title}</h2><p>{question}</p><p class="problem-progress">{status}</p></a>')
     return f"""<!doctype html>
 <html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{heading} · {platform}</title><link rel="icon" type="image/svg+xml" sizes="any" href="../goldbach-icon.svg"><link rel="stylesheet" href="../site.css"></head>
@@ -562,7 +683,7 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def reply(self, status, body, content_type="application/json", language=None, encoding=None, static=False):
+    def reply(self, status, body, content_type="application/json", language=None, encoding=None, static=False, cache=None, etag=None, vary=False, retry_after=None):
         if status == 200 and self.command == "GET" and content_type == "text/html":
             try:
                 with closing(sqlite3.connect(PAGE_VIEWS_DB)) as conn, conn:
@@ -578,18 +699,30 @@ class Handler(BaseHTTPRequestHandler):
         if content_type == "application/json" or content_type.startswith("text/"):
             content_type += "; charset=utf-8"
         self.send_header("Content-Type", content_type)
-        if static:
+        if static or vary:
             self.send_header("Vary", "Accept-Encoding")
+        if etag:
+            self.send_header("ETag", etag)
+        if retry_after:
+            self.send_header("Retry-After", str(retry_after))
         if encoding:
             self.send_header("Content-Encoding", encoding)
-        self.send_header("Cache-Control", "public, max-age=300" if static else "no-store")
+        self.send_header("Cache-Control", cache or ("public, max-age=300" if static else "no-store"))
         self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Content-Length", str(len(body)))
+        if status != 304:
+            self.send_header("Content-Length", str(len(body)))
         if language:
             self.send_header("Content-Language", language)
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(body)
+
+    def public_conditional(self, body, content_type="application/json", encoding=None, cache="public, max-age=10", vary=False):
+        etag = '"' + hashlib.sha256(body).hexdigest() + '"'
+        validators = {item.strip().removeprefix("W/") for item in self.headers.get("If-None-Match", "").split(",")}
+        if etag in validators or "*" in validators:
+            return self.reply(304, b"", content_type, cache=cache, etag=etag, vary=vary)
+        return self.reply(200, body, content_type, encoding=encoding, cache=cache, etag=etag, vary=vary)
 
     def client_ip(self):
         peer = ipaddress.ip_address(self.client_address[0])
@@ -633,10 +766,12 @@ class Handler(BaseHTTPRequestHandler):
         logo = re.fullmatch(r"/sponsors/logo/([1-9][0-9]{0,15})\.png", url.path)
         if logo:
             image = sponsors.public_logo(ZHIHU.db, logo[1])
-            return self.reply(200, image, "image/png") if image else self.reply(404, b'{}')
+            return self.public_conditional(image, "image/png", cache="public, max-age=3600") if image else self.reply(404, b'{}')
         if url.path == ZHIHU_PATH or url.path.startswith(ZHIHU_PATH + "/"):
             return self.zhihu_request(url.path, url.query)
-        if url.path == "/problems" or url.path.removeprefix("/problems/") in PROBLEMS:
+        twin_primes_path = f"/problems/{TWIN_PRIMES_SLUG}"
+        if (url.path in {"/problems", twin_primes_path}
+                or url.path.removeprefix("/problems/") in PROBLEMS):
             self.send_response(308)
             suffix = "?" + url.query if url.query else ""
             self.send_header("Location", url.path.rsplit("/", 1)[-1] + "/" + suffix)
@@ -648,6 +783,9 @@ class Handler(BaseHTTPRequestHandler):
             directory = directory_page(lang).replace("</main>", "</main>" + sponsors.wall(ZHIHU.db,lang,"../"), 1)
             directory = directory.replace('</a></div></header>', '</a>'+ZHIHU.account_link(self.headers,lang)+'</div></header>',1)
             return self.reply(200, directory.encode(), "text/html", lang)
+        if url.path == twin_primes_path + "/" and TWIN_PRIMES_SLUG not in PROBLEMS:
+            lang = self.language(url)
+            return self.reply(200, twin_primes_page(lang).encode(), "text/html", lang)
         desk, path, slug = self.scope(url.path)
         if desk is None:
             return self.reply(404, b'{}')
@@ -673,10 +811,16 @@ class Handler(BaseHTTPRequestHandler):
                 nav.append(f'<a href="?lang={lang}&amp;end={min(end+20,len(entries))}">{"上一页" if zh else "Previous"}</a>')
             if start:
                 nav.append(f'<a href="?lang={lang}&amp;end={start}">{"下一页" if zh else "Next"}</a>')
+            def run_url(row):
+                run = int(row["run"])
+                if row.get("provider") == "circleci":
+                    return f"https://app.circleci.com/pipelines/github/CGandGameEngineLearner/goldbach-proofs/{run}"
+                return f"{repo}/actions/runs/{run}"
+
             rows = "".join(
                 f'<li><time>{escape(row["at"])}</time> · <a href="{repo}/pull/{int(row["pr"])}">'
                 f'{escape(row["title"])}</a> · {escape(row["actor"])} · '
-                f'<a href="{repo}/actions/runs/{int(row["run"])}">CI</a></li>'
+                f'<a href="{run_url(row)}">CI</a></li>'
                 for row in reversed(entries[start:end]))
             empty = "尚无自动发布记录。" if zh else "No automated releases yet."
             page = (f'<!doctype html><html lang="{"zh" if zh else "en"}"><meta charset="utf-8">'
@@ -710,15 +854,19 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/status":
             try:
                 view = parse_qs(url.query).get("view")
-                board = view == ["board-gzip"]
+                delta = view == ["board-delta-gzip"]
+                board = delta or view == ["board-gzip"]
                 web_view = board or view == ["web-gzip"]
-                body = status_body(desk, web_view, board)
+                compress = web_view or accepts_gzip(self.headers.get("Accept-Encoding", ""))
+                if (not compress and self.command == "GET" and not self.client_ip().is_loopback
+                        and not raw_status_allowed(self.client_ip())):
+                    return self.reply(429, b'{"error":"Use Accept-Encoding: gzip for frequent status requests"}',
+                                      vary=True, retry_after=30)
+                body = status_body(desk, web_view, board, compress=compress, delta=delta)
             except sqlite3.Error as error:
                 self.log_error("Unable to read verdicts: %s", error)
                 return self.reply(503, b'{"error":"verdicts unavailable"}')
-            if web_view:
-                return self.reply(200, body, encoding="gzip")
-            return self.reply(200, body)
+            return self.public_conditional(body, encoding="gzip" if compress else None, vary=True)
         if path == "/platform-logo.svg":
             path = "/goldbach-icon.svg"
         if path in ASSETS:
