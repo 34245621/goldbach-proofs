@@ -6,7 +6,7 @@ The estimate holds for every dyadic upper endpoint and every character at a poly
 modulus, with the principal term subtracted. The rectangular window is the actual interval
 exp(u) < n ≤ exp(u+δ). Fourier inversion with both boundaries, summation by parts,
 and explicit high-frequency integration justify the two discarded ranges.
-The middle integral is left visible in the statement. The companion conclusions control the worst reduced residue, give the additive-to-multiplicative endpoint error, and prove a logarithmic saving for a smooth long factor times an arbitrary cofactor in that band.
+The final conclusion removes the first term of the four-term Heath-Brown identity and the principal-character main term throughout dyadic cuts up to N^(2/5). The remaining integral involves the signed combination of three explicit convolutions. The companion conclusions control the worst reduced residue, give the additive-to-multiplicative endpoint error, and prove a logarithmic saving for a smooth long factor times an arbitrary cofactor in that band.
     
 The unconditional Siegel-Walfisz input below is adapted from goldbach-proofs PR 1667,
 813ca8c4a3e6ab6ef53180fc5a2c56275a19db88, with the original OpenAI credits preserved.
@@ -5876,7 +5876,7 @@ end
 end GBMean
 
 set_option maxHeartbeats 2400000 in
-theorem Conjectures.Goldbach.ShortProgressionsMiddleBand :
+theorem GBMean.four_components :
 (∀ a B c : ℕ, ∃ C : ℝ, 0<C ∧ ∀ᶠ N : ℕ in Filter.atTop,
   ∀ q : ℕ, (hq : 0<q) → (q:ℝ)≤(Real.log N)^B → ∀ b : ℕ, N≤b → b≤2*N →
   ∀ δ R : ℝ, 0<δ → (Real.log N)^c≤R →
@@ -5923,3 +5923,817 @@ theorem Conjectures.Goldbach.ShortProgressionsMiddleBand :
   refine ⟨GBMellinWindow.middle_reduction, GBMellinWindow.spatial_reduction, ?_, ?_⟩
   · exact fun q N b _ r hr hN hb a y h d ha hh hya hyb => GBMellinWindow.cell_error r hr hN hb ha hh hya hyb
   · exact fun m b q K _ hm hb hu hK s c hs T G hG h₁ h₂ h₃ => GBMean.typeI_saving m b q K hm hb hu hK s c hs hG h₁ h₂ h₃
+
+open Finset ArithmeticFunction
+open scoped ArithmeticFunction.Moebius ArithmeticFunction.zeta ArithmeticFunction.vonMangoldt
+namespace GBHeathBrown
+noncomputable section
+abbrev A := ArithmeticFunction ℝ
+
+def cutMu (z : ℕ) : A := ⟨fun n => if n≤z then (ArithmeticFunction.moebius n:ℝ) else 0,by simp⟩
+def defect (z : ℕ) : A := 1 - (ArithmeticFunction.zeta : A)*cutMu z
+
+theorem defect_low (z n : ℕ) (hn : n≤z) : defect z n = 0 := by
+  have hconv : ((ArithmeticFunction.zeta:A)*cutMu z) n =
+      ((ArithmeticFunction.zeta:A)*(ArithmeticFunction.moebius:A)) n := by
+    rw [ArithmeticFunction.mul_apply,ArithmeticFunction.mul_apply]
+    apply sum_congr rfl
+    intro p hp
+    have hmul := (Nat.mem_divisorsAntidiagonal.mp hp).1
+    have hp0 := Nat.left_ne_zero_of_mem_divisorsAntidiagonal hp
+    have hpc : p.2 ≤ n := by
+      rw [← hmul]
+      exact Nat.le_mul_of_pos_left _ (Nat.pos_of_ne_zero hp0)
+    congr 1
+    change (if p.2≤z then (ArithmeticFunction.moebius p.2:ℝ) else 0) = _
+    rw [ite_eq_left (hpc.trans hn)]
+    rfl
+  rw [ArithmeticFunction.coe_zeta_mul_coe_moebius] at hconv
+  change (1:A) n - _ = 0
+  exact sub_eq_zero.mpr hconv.symm
+
+theorem vanish_product (f g : A) (a b : ℕ) (hf : ∀ n<a, f n=0) (hg : ∀ n<b, g n=0)
+    (n : ℕ) (hn : n<a*b) : (f*g) n = 0 := by
+  rw [ArithmeticFunction.mul_apply]
+  apply sum_eq_zero
+  intro p hp
+  by_cases hx : p.1<a
+  · rw [hf _ hx,zero_mul]
+  · have hy : p.2<b := by
+      by_contra! hy
+      exact (not_le.mpr hn) ((Nat.mul_le_mul (by omega) hy).trans_eq (Nat.mem_divisorsAntidiagonal.mp hp).1)
+    rw [hg _ hy,mul_zero]
+
+theorem defect_pow_low (z K n : ℕ) (hn : n<(z+1)^K) : (defect z ^ K) n = 0 := by
+  induction K generalizing n with
+  | zero =>
+    have h : n=0 := by simpa only [pow_zero,Nat.lt_one_iff] using hn
+    simp [h]
+  | succ K ih =>
+    rw [pow_succ] at hn ⊢
+    exact vanish_product _ _ _ _ ih (fun m hm => defect_low z m (by omega)) n hn
+
+theorem vanish_remainder (z K n : ℕ) (hn : n<(z+1)^K) :
+    (ArithmeticFunction.vonMangoldt * defect z^K) n = 0 := by
+  apply vanish_product _ _ 1 ((z+1)^K) _ (defect_pow_low z K) n (by simpa using hn)
+  intro m hm
+  simp [show m=0 by omega]
+
+/-- Each term is a convolution with one log factor, j unrestricted factors and
+j+1 truncated Möbius factors. The term is multiplied by (-1)^j binom(K,j+1). -/
+def term (z K j : ℕ) : A :=
+  ((-1:A)^j * (K.choose (j+1):A)) *
+    (ArithmeticFunction.log * (ArithmeticFunction.zeta:A)^j * (cutMu z)^(j+1))
+
+theorem binomial_form (z K : ℕ) :
+    ArithmeticFunction.vonMangoldt * (1 - defect z^K) =
+      ∑ j ∈ range K, term z K j := by
+  let U := (ArithmeticFunction.zeta:A)*cutMu z
+  have hbin : defect z^K = ∑ i ∈ range (K+1), (-U)^i*(K.choose i:A) := by
+    change (1-U)^K = _
+    rw [show (1-U) = -U+1 by ring,add_pow]
+    simp
+  rw [hbin,Finset.sum_range_succ']
+  simp only [pow_zero,Nat.choose_zero_right,Nat.cast_one,mul_one,Finset.mul_sum]
+  rw [show (1:A) - ((∑ j ∈ range K, (-U)^(j+1)*(K.choose (j+1):A))+1) =
+    -(∑ j ∈ range K, (-U)^(j+1)*(K.choose (j+1):A)) by ring, ← Finset.sum_neg_distrib,Finset.mul_sum]
+  apply sum_congr rfl
+  intro j _
+  unfold U term
+  rw [neg_eq_neg_one_mul ((ArithmeticFunction.zeta:A)*cutMu z),mul_pow,mul_pow,
+    pow_succ (-1:A) j,pow_succ (ArithmeticFunction.zeta:A) j,← ArithmeticFunction.vonMangoldt_mul_zeta]
+  ring
+
+theorem identity (z K n : ℕ) (hn : n<(z+1)^K) :
+    ArithmeticFunction.vonMangoldt n = (∑ j ∈ range K, term z K j) n := by
+  rw [← binomial_form,mul_sub,mul_one]
+  change _ = ArithmeticFunction.vonMangoldt n - (ArithmeticFunction.vonMangoldt * defect z^K) n
+  rw [vanish_remainder z K n hn,sub_zero]
+
+end
+end GBHeathBrown
+
+open Finset ArithmeticFunction
+open scoped ArithmeticFunction.Moebius ArithmeticFunction.zeta ArithmeticFunction.vonMangoldt
+namespace GBHeathBrown
+noncomputable section
+
+def coeff (K j : ℕ) : ℝ := (-1:ℝ)^j * (K.choose (j+1):ℝ)
+def conv (z j : ℕ) : A := ArithmeticFunction.log * (ArithmeticFunction.zeta:A)^j * (cutMu z)^(j+1)
+
+theorem term_apply (z K j n : ℕ) : term z K j n = coeff K j * conv z j n := by
+  have hc : algebraMap ℝ A (coeff K j) = (-1:A)^j*(K.choose (j+1):A) := by simp [coeff]
+  unfold term
+  rw [← hc, ← Algebra.smul_def]
+  rfl
+
+theorem at_integer (z K n : ℕ) (hn : n<(z+1)^K) :
+    ArithmeticFunction.vonMangoldt n = ∑ j ∈ range K, coeff K j * conv z j n := by
+  rw [identity z K n hn]
+  have hv : ∀ s : Finset ℕ, (∑ j ∈ s, term z K j) n = ∑ j ∈ s, term z K j n := by
+    intro s
+    induction s using Finset.induction_on with
+    | empty => simp
+    | insert a s ha ih => simp [sum_insert ha,ih]
+  rw [hv]
+  exact sum_congr rfl fun j _ => term_apply z K j n
+
+theorem weighted_identity (z K : ℕ) (I : Finset ℕ) (w : ℕ → ℂ)
+    (hI : ∀ n ∈ I, n<(z+1)^K) :
+    (∑ n ∈ I, w n*(ArithmeticFunction.vonMangoldt n:ℂ)) =
+      ∑ j ∈ range K, (coeff K j:ℂ)*∑ n ∈ I, w n*(conv z j n:ℂ) := by
+  calc
+    _ = ∑ n ∈ I, ∑ j ∈ range K, (coeff K j:ℂ)*(w n*(conv z j n:ℂ)) := by
+      apply sum_congr rfl
+      intro n hn
+      rw [at_integer z K n (hI _ hn),Complex.ofReal_sum,Finset.mul_sum]
+      apply sum_congr rfl
+      intro j _
+      rw [Complex.ofReal_mul]
+      ring
+    _ = _ := by rw [sum_comm]; simp only [Finset.mul_sum]
+
+/-- The character and both moving endpoints are left unrestricted inside the proven range. -/
+theorem twisted_window (z K : ℕ) {q : ℕ} (χ : DirichletCharacter ℂ q) (y h : ℝ)
+    (hu : ⌊y+h⌋₊ < (z+1)^K) :
+    (∑ n ∈ Icc (⌊y⌋₊+1) ⌊y+h⌋₊, χ (n:ZMod q)*(ArithmeticFunction.vonMangoldt n:ℂ)) =
+      ∑ j ∈ range K, (coeff K j:ℂ) *
+        ∑ n ∈ Icc (⌊y⌋₊+1) ⌊y+h⌋₊, χ (n:ZMod q)*(conv z j n:ℂ) :=
+  weighted_identity _ _ _ _ fun _ hn => (mem_Icc.mp hn).2.trans_lt hu
+
+end
+end GBHeathBrown
+
+open Finset Complex
+open scoped Classical
+namespace GBMean
+noncomputable section
+
+theorem smooth_extra (q m b : ℕ) (χ : DirichletCharacter ℂ q) (hq : 0<q) (hm : 0 < m)
+    (hb : m≤b) (hu : b≤2*m+1) (t : ℝ) (ht : t≠0) :
+    ‖smooth χ m b t‖ ≤ 3*(m:ℝ)/|t|+|t|+2*(q:ℝ)*(2+|t|)+1 := by
+  by_cases h : b≤2*m
+  · exact (typeI_long q m b χ hq hm hb h t ht).trans (le_add_of_nonneg_right zero_le_one)
+  have he : b=2*m+1 := by omega
+  rw [he,smooth,sum_Ioc_succ_top (show m≤2*m by omega)]
+  apply (norm_add_le ..).trans
+  apply add_le_add (typeI_long q m (2*m) χ hq hm (by omega) le_rfl t ht)
+  rw [norm_mul,osc_norm,one_mul]; exact χ.norm_le_one _
+
+theorem abel_weight (g : ℕ → ℂ) (f : ℕ → ℝ) (hf : Monotone f) (hf0 : ∀ n, 0≤f n)
+    (m b : ℕ) (hb : m≤b) (H : ℝ) (hH : 0≤H)
+    (hpre : ∀ k, m≤k → k≤b → ‖∑ n ∈ Ioc m k, g n‖≤H) :
+    ‖∑ n ∈ Ioc m b, (f n:ℂ)*g n‖ ≤ 2*f b*H := by
+  let S := fun k => ∑ n ∈ Ioc m k, g n
+  have he (k : ℕ) (hk : m≤k) :
+      (∑ n ∈ Ioc m k, (f n:ℂ)*g n) = (f k:ℂ)*S k -
+        ∑ i ∈ Ico m k, ((f (i+1)-f i:ℝ):ℂ)*S i := by
+    induction k,hk using Nat.le_induction with
+    | base => simp [S]
+    | succ k hk ih =>
+      rw [sum_Ioc_succ_top hk,sum_Ico_succ_top hk,ih]
+      have hs : S (k+1)=S k+g (k+1) := sum_Ioc_succ_top hk _
+      rw [hs,Complex.ofReal_sub]; ring
+  rw [he _ hb]
+  apply (norm_sub_le ..).trans
+  rw [norm_mul,Complex.norm_real,Real.norm_eq_abs,abs_of_nonneg (hf0 _)]
+  have h₁ := mul_le_mul_of_nonneg_left (hpre b hb le_rfl) (hf0 b)
+  have h₂ : ‖∑ i ∈ Ico m b, ((f (i+1)-f i:ℝ):ℂ)*S i‖ ≤ (f b-f m)*H := by
+    apply (norm_sum_le ..).trans
+    calc
+      _ ≤ ∑ i ∈ Ico m b, (f (i+1)-f i)*H := by
+        apply sum_le_sum; intro k hk
+        have hp := sub_nonneg.mpr (hf (Nat.le_succ k))
+        rw [norm_mul,Complex.norm_real,Real.norm_eq_abs,abs_of_nonneg hp]
+        exact mul_le_mul_of_nonneg_left (hpre k (mem_Ico.mp hk).1 (mem_Ico.mp hk).2.le) hp
+      _ = _ := by rw [←sum_mul,Finset.sum_Ico_sub f hb]
+  change f b*‖S b‖≤_ at h₁
+  nlinarith only [h₁,h₂,mul_nonneg (hf0 m) hH]
+
+theorem logFactor_bound (q m b : ℕ) (χ : DirichletCharacter ℂ q) (hq : 0<q) (hm : 0 < m)
+    (hb : m≤b) (hu : b≤2*m+1) (t : ℝ) (ht : t≠0) :
+    ‖∑ n ∈ Ioc m b, (Real.log n:ℂ)*(osc n t*χ (n:ZMod q))‖ ≤
+      2*Real.log b*(3*(m:ℝ)/|t|+|t|+2*(q:ℝ)*(2+|t|)+1) := by
+  let f := fun n : ℕ => Real.log n
+  have hf0 (n : ℕ) : 0≤f n := by
+    rcases Nat.eq_zero_or_pos n with rfl | hn
+    · simp [f]
+    · exact Real.log_nonneg (by exact_mod_cast hn)
+  have hf : Monotone f := by
+    intro a b hab
+    rcases Nat.eq_zero_or_pos a with rfl | ha
+    · simpa [f] using hf0 b
+    · exact Real.log_le_log (by exact_mod_cast ha) (by exact_mod_cast hab)
+  apply abel_weight _ f hf hf0 _ _ hb _ (by positivity)
+  exact fun k hk hk' => smooth_extra q m k χ hq hm hk (hk'.trans hu) t ht
+end
+end GBMean
+
+open Finset ArithmeticFunction Complex
+open scoped Classical
+namespace GBMean
+noncomputable section
+
+def twistWeight {q : ℕ} (χ : DirichletCharacter ℂ q) (t : ℝ) (n : ℕ) : ℂ := osc n t * χ (n:ZMod q)
+def twistAF {q : ℕ} (χ : DirichletCharacter ℂ q) (t : ℝ) (f : ArithmeticFunction ℝ) : ArithmeticFunction ℂ :=
+  ⟨fun n => twistWeight χ t n*(f n:ℂ),by simp⟩
+
+theorem twist_mul {q : ℕ} (χ : DirichletCharacter ℂ q) (t : ℝ) {a b : ℕ} (ha : a≠0) (hb : b≠0) :
+    twistWeight χ t (a*b) = twistWeight χ t a*twistWeight χ t b := by
+  unfold twistWeight osc wave
+  have he : Real.log ((a*b:ℕ):ℝ) = Real.log a+Real.log b := by
+    rw [Nat.cast_mul,Real.log_mul (by exact_mod_cast ha) (by exact_mod_cast hb)]
+  rw [he,Nat.cast_mul,map_mul,add_mul,Complex.ofReal_add,add_mul,Complex.exp_add]; ring
+
+theorem twist_convolution {q : ℕ} (χ : DirichletCharacter ℂ q) (t : ℝ) (f g : ArithmeticFunction ℝ) :
+    twistAF χ t (f*g) = twistAF χ t f * twistAF χ t g := by
+  ext n
+  by_cases hn : n=0
+  · subst n; simp
+  change twistWeight χ t n*((f*g) n:ℂ) = _
+  rw [ArithmeticFunction.mul_apply,Complex.ofReal_sum,Finset.mul_sum,ArithmeticFunction.mul_apply]
+  apply sum_congr rfl
+  intro p hp
+  have he := (Nat.mem_divisorsAntidiagonal.mp hp).1
+  rw [←he,twist_mul χ t (Nat.left_ne_zero_of_mem_divisorsAntidiagonal hp) (Nat.right_ne_zero_of_mem_divisorsAntidiagonal hp)]
+  change _ = (twistWeight χ t p.1 * (f p.1:ℂ))*(twistWeight χ t p.2 * (g p.2:ℂ))
+  push_cast; ring
+
+theorem prefix_expand {q : ℕ} (χ : DirichletCharacter ℂ q) (t : ℝ) (f g : ArithmeticFunction ℝ)
+    {z u : ℕ} (hzu : z≤u) (hf : ∀ d, z<d → f d=0) :
+    (∑ n ∈ Ioc 0 u, twistWeight χ t n*((f*g) n:ℂ)) =
+      ∑ d ∈ Ioc 0 z, twistAF χ t f d*∑ k ∈ Ioc 0 (u/d), twistAF χ t g k := by
+  change (∑ n ∈ Ioc 0 u, twistAF χ t (f*g) n) = _
+  rw [twist_convolution,ArithmeticFunction.sum_Ioc_mul_eq_sum_sum]
+  symm
+  apply Finset.sum_subset (Ioc_subset_Ioc_right hzu)
+  intro d hd hn
+  have hd' := (mem_Ioc.mp hd).1
+  have hz : z<d := lt_of_not_ge fun h => hn (mem_Ioc.mpr ⟨hd',h⟩)
+  change (twistWeight χ t d*(f d:ℂ))*_ = 0
+  rw [hf d hz]; simp
+
+theorem block_expand {q : ℕ} (χ : DirichletCharacter ℂ q) (t : ℝ) (f g : ArithmeticFunction ℝ)
+    {z N b : ℕ} (hz : z≤N) (hb : N≤b) (hf : ∀ d, z<d → f d=0) :
+    (∑ n ∈ Ioc N b, twistWeight χ t n*((f*g) n:ℂ)) =
+      ∑ d ∈ Ioc 0 z, twistAF χ t f d*∑ k ∈ Ioc (N/d) (b/d), twistAF χ t g k := by
+  have add (w : ℕ → ℂ) (i j : ℕ) (hij : i≤j) :
+      (∑ n ∈ Ioc i j, w n) = (∑ n ∈ Ioc 0 j, w n)-(∑ n ∈ Ioc 0 i, w n) := by
+    have h := Finset.sum_Ioc_consecutive w (Nat.zero_le i) hij
+    linear_combination h
+  rw [add _ _ _ hb,prefix_expand χ t f g (hz.trans hb) hf,prefix_expand χ t f g hz hf,←sum_sub_distrib]
+  apply sum_congr rfl
+  intro d _
+  rw [←mul_sub,add _ _ _ (Nat.div_le_div_right hb)]
+
+theorem first_block (q z N b : ℕ) (χ : DirichletCharacter ℂ q) (t : ℝ) (hz : z≤N) (hb : N≤b) :
+    (∑ n ∈ Ioc N b, twistWeight χ t n*(GBHeathBrown.conv z 0 n:ℂ)) =
+      ∑ d ∈ Ioc 0 z, (twistWeight χ t d*(ArithmeticFunction.moebius d:ℂ))*
+        ∑ k ∈ Ioc (N/d) (b/d), (Real.log k:ℂ)*(osc k t*χ (k:ZMod q)) := by
+  have he : GBHeathBrown.conv z 0 = GBHeathBrown.cutMu z * ArithmeticFunction.log := by
+    unfold GBHeathBrown.conv; simp [mul_comm]
+  rw [he,block_expand χ t _ _ hz hb (by intro d hd; simp [GBHeathBrown.cutMu,not_le.mpr hd])]
+  apply sum_congr rfl
+  intro d hd
+  have hdz := (mem_Ioc.mp hd).2
+  change (twistWeight χ t d*((GBHeathBrown.cutMu z d:ℝ):ℂ))*_ = _
+  simp only [GBHeathBrown.cutMu,ArithmeticFunction.coe_mk,ite_eq_left hdz]
+  congr 1
+  apply sum_congr rfl; intro k _
+  change twistWeight χ t k*(ArithmeticFunction.log k:ℂ) = _
+  unfold twistWeight; rw [ArithmeticFunction.log_apply,mul_comm]
+end
+end GBMean
+
+open Finset ArithmeticFunction MeasureTheory Filter Complex
+open scoped Interval Topology Classical
+namespace GBMean
+noncomputable section
+
+def firstPoly (q z N b : ℕ) (χ : DirichletCharacter ℂ q) (t : ℝ) :=
+  ∑ n ∈ Ioc N b, twistWeight χ t n*(GBHeathBrown.conv z 0 n:ℂ)
+def firstBound (q z N : ℕ) (T : ℝ) :=
+  2*Real.log (2*N:ℝ)*(3*(N:ℝ)*(1+Real.log z)/T+11*(z:ℝ)*q*T)
+
+theorem floor_double (b N d : ℕ) (hd : 0<d) (hb : b≤2*N) : b/d≤2*(N/d)+1 := by
+  apply Nat.le_of_lt_succ
+  rw [Nat.div_lt_iff_lt_mul hd]
+  have hh := Nat.div_add_mod N d
+  have hr := Nat.mod_lt N hd
+  nlinarith
+
+theorem first_term_bound (q z N b : ℕ) (χ : DirichletCharacter ℂ q) (hq : 0<q)
+    (hz0 : 0<z) (hz : z≤N) (hb : N≤b) (hu : b≤2*N) {t T : ℝ}
+    (hT : 1≤T) (ht : T≤|t|) (ht' : |t|≤2*T) :
+    ‖firstPoly q z N b χ t‖ ≤ firstBound q z N T := by
+  let L := Real.log (2*N:ℝ)
+  have hp := zero_lt_one.trans_le hT
+  have htpos := hp.trans_le ht
+  have hnpos := hz0.trans_le hz
+  have hL : 0≤L := Real.log_nonneg (by exact_mod_cast (by omega : 1≤2*N))
+  have hqr : (1:ℝ)≤q := by exact_mod_cast hq
+  have hqt : T≤(q:ℝ)*T := le_mul_of_one_le_left hp.le hqr
+  have hqq : (q:ℝ)≤(q:ℝ)*T := le_mul_of_one_le_right (Nat.cast_nonneg _) hT
+  have hq1 : 1≤(q:ℝ)*T := hT.trans hqt
+  have hrest : |t|+2*(q:ℝ)*(2+|t|)+1 ≤ 11*(q:ℝ)*T := by
+    nlinarith only [ht',hqt,hqq,hq1,mul_le_mul_of_nonneg_left ht' (Nat.cast_nonneg q (α:=ℝ))]
+  have hin (d : ℕ) (hd : d∈Ioc 0 z) :
+      ‖(twistWeight χ t d*(ArithmeticFunction.moebius d:ℂ))*
+          ∑ k ∈ Ioc (N/d) (b/d), (Real.log k:ℂ)*(osc k t*χ (k:ZMod q))‖ ≤
+        2*L*((3*(N:ℝ)/T)*(d:ℝ)⁻¹+11*q*T) := by
+    obtain ⟨hd',hdu⟩ := mem_Ioc.mp hd
+    have hdp : 0<(d:ℝ) := by exact_mod_cast hd'
+    have hmd : 0<N/d := Nat.div_pos (hdu.trans hz) hd'
+    have hbd : N/d ≤ b/d := Nat.div_le_div_right hb
+    have hw : ‖twistWeight χ t d*(ArithmeticFunction.moebius d:ℂ)‖≤1 := by
+      rw [norm_mul,twistWeight,norm_mul,osc_norm,one_mul]
+      apply mul_le_one₀ (χ.norm_le_one _) (norm_nonneg _)
+      rw [Complex.norm_intCast]
+      exact_mod_cast ArithmeticFunction.abs_moebius_le_one (n:=d)
+    rw [norm_mul]
+    apply (mul_le_of_le_one_left (norm_nonneg _) hw).trans
+    apply (logFactor_bound q _ _ χ hq hmd hbd (floor_double b N d hd' hu) t (abs_pos.mp htpos)).trans
+    have hlog : Real.log (b/d:ℕ) ≤ L := Real.log_le_log (by exact_mod_cast hmd.trans_le hbd)
+      (by exact_mod_cast (Nat.div_le_self b d).trans hu)
+    have hnum : 3*((N/d:ℕ):ℝ)/|t| ≤ (3*(N:ℝ)/T)*(d:ℝ)⁻¹ := by
+      apply (div_le_div₀ (by positivity) (mul_le_mul_of_nonneg_left Nat.cast_div_le (by norm_num : (0:ℝ)≤3)) hp ht).trans_eq
+      ring
+    apply mul_le_mul (by linarith only [hlog]) (by linarith only [hnum,hrest]) (by positivity) (by positivity)
+  have hhar : (∑ d ∈ Ioc 0 z, (d:ℝ)⁻¹) ≤ 1+Real.log z := by
+    have h := harmonic_le_one_add_log z
+    rw [harmonic_eq_sum_Icc,Rat.cast_sum] at h
+    rw [show Ioc 0 z = Icc 1 z by ext n; simp; omega]
+    simpa only [Rat.cast_inv,Rat.cast_natCast] using h
+  unfold firstPoly
+  rw [first_block q z N b χ t hz hb]
+  apply (norm_sum_le ..).trans ((sum_le_sum hin).trans _)
+  rw [←Finset.mul_sum,sum_add_distrib,←Finset.mul_sum,sum_const,Nat.card_Ioc,Nat.sub_zero,nsmul_eq_mul]
+  unfold firstBound; change _ ≤ 2*L*_
+  apply mul_le_mul_of_nonneg_left _ (by positivity)
+  have h := mul_le_mul_of_nonneg_left hhar (show 0≤3*(N:ℝ)/T by positivity)
+  exact (add_le_add h le_rfl).trans_eq (by ring)
+
+set_option maxHeartbeats 800000 in
+theorem first_mean (q z N b : ℕ) [NeZero q] (hz0 : 0<z) (hz : z≤N) (hb : N≤b) (hu : b≤2*N)
+    {T : ℝ} (hT : 1≤T) :
+    (∑ χ : DirichletCharacter ℂ q, ∫ t in T..2*T, (‖firstPoly q z N b χ t‖^2+‖firstPoly q z N b χ (-t)‖^2)) ≤
+      2*(q:ℝ)*T*(firstBound q z N T)^2 := by
+  have hq := Nat.pos_of_ne_zero (NeZero.ne q)
+  have hp := zero_lt_one.trans_le hT
+  have he (χ : DirichletCharacter ℂ q) :
+      (∫ t in T..2*T, (‖firstPoly q z N b χ t‖^2+‖firstPoly q z N b χ (-t)‖^2)) ≤ T*(2*(firstBound q z N T)^2) := by
+    have hct : Continuous (fun t => ‖firstPoly q z N b χ t‖^2+‖firstPoly q z N b χ (-t)‖^2) := by
+      have hh : Continuous (fun t : ℝ => firstPoly q z N b χ t) := by unfold firstPoly twistWeight osc wave; exact continuous_finsetSum _ fun n _ => by fun_prop
+      exact (hh.norm.pow 2).add ((hh.comp continuous_neg).norm.pow 2)
+    calc
+      _ ≤ ∫ _t in T..2*T, 2*(firstBound q z N T)^2 := by
+        apply intervalIntegral.integral_mono_on (by linarith only [hp]) (hct.intervalIntegrable ..) (intervalIntegrable_const ..)
+        intro t h
+        have ht := hp.trans_le h.1
+        have h₁ := first_term_bound q z N b χ hq hz0 hz hb hu hT (by simpa only [abs_of_pos ht] using h.1 : T≤|t|) (by simpa only [abs_of_pos ht] using h.2 : |t|≤2*T)
+        have h₂ := first_term_bound q z N b χ hq hz0 hz hb hu hT (by simpa only [abs_neg,abs_of_pos ht] using h.1 : T≤|-t|) (by simpa only [abs_neg,abs_of_pos ht] using h.2 : |-t|≤2*T)
+        nlinarith only [pow_le_pow_left₀ (norm_nonneg _) h₁ 2,pow_le_pow_left₀ (norm_nonneg _) h₂ 2]
+      _ = _ := by rw [intervalIntegral.integral_const,smul_eq_mul]; ring
+  apply (sum_le_sum fun χ _ => he χ).trans
+  have hcard : Fintype.card (DirichletCharacter ℂ q)=q.totient := by
+    simpa only [Nat.card_eq_fintype_card] using DirichletCharacter.card_eq_totient_of_hasEnoughRootsOfUnity ℂ q
+  rw [sum_const,card_univ,hcard,nsmul_eq_mul]
+  have hφ : (q.totient:ℝ)≤q := by exact_mod_cast q.totient_le
+  exact (mul_le_mul_of_nonneg_right hφ (by positivity)).trans_eq (by ring)
+end
+end GBMean
+
+open Finset ArithmeticFunction MeasureTheory Filter Complex
+open scoped Interval Topology Classical
+namespace GBMean
+noncomputable section
+
+theorem first_algebra {q T z N L : ℝ} {a : ℕ} (hq : 0≤q) (hT : 0<T) (hz : 0≤z) (hN : 0≤N)
+    (hL : 0<L) (hlo : L^4*q*L^a≤T) (hhi : L^2*z^2*q^3*T^3*L^a≤N^2) :
+    2*q*T*(24*L^2*N/T+44*L*z*q*T)^2 ≤ 20000*N^2/L^a := by
+  let X := 24*L^2*N/T
+  let Y := 44*L*z*q*T
+  have hs : (X+Y)^2 ≤ 2*X^2+2*Y^2 := by nlinarith only [sq_nonneg (X-Y)]
+  apply (mul_le_mul_of_nonneg_left hs (show 0≤2*q*T by positivity)).trans
+  apply (le_div_iff₀ (pow_pos hL _)).mpr
+  have h₁ : 4*q*T*X^2*L^a ≤ 2304*N^2 := by
+    have h := mul_le_mul_of_nonneg_right hlo (show 0≤2304*N^2 by positivity)
+    have he : 4*q*T*X^2*L^a = (L^4*q*L^a*(2304*N^2))/T := by dsimp [X]; field_simp; ring
+    rw [he]; exact (div_le_iff₀ hT).mpr (h.trans_eq (mul_comm ..))
+  have h₂ : 4*q*T*Y^2*L^a ≤ 7744*N^2 := by
+    calc
+      _ = 7744*(L^2*z^2*q^3*T^3*L^a) := by dsimp [Y]; ring
+      _ ≤ _ := mul_le_mul_of_nonneg_left hhi (by norm_num)
+  nlinarith only [h₁,h₂,sq_nonneg N]
+
+theorem first_budget_saving (a B : ℕ) :
+    ∀ᶠ N : ℕ in atTop, ∀ (q z b : ℕ) [NeZero q], 0<z → z≤N → N≤b → b≤2*N →
+      (q:ℝ)≤(Real.log N)^B → (z:ℝ)≤(N:ℝ)^(1/3:ℝ) →
+      ∀ T : ℝ, (Real.log N)^(a+B+4)≤T → T≤(N:ℝ)^(2/5:ℝ) →
+        2*(q:ℝ)*T*(firstBound q z N T)^2 ≤
+          20000*(N:ℝ)^2/(Real.log N)^a := by
+  let J := a+2+3*B
+  have htiny := (isLittleO_log_rpow_rpow_atTop (J:ℝ) (show 0<(2/15:ℝ) by norm_num)).bound (by norm_num : (0:ℝ)<1)
+  have hlog := (Real.tendsto_log_atTop.comp (tendsto_natCast_atTop_atTop (R:=ℝ))).eventually (eventually_ge_atTop 1)
+  filter_upwards [tendsto_natCast_atTop_atTop.eventually htiny,hlog,eventually_ge_atTop (1:ℕ)] with N hsmall hlogN hN1
+  intro q z b _ hz0 hz hNb hb hq hzpow T hTl hTu
+  let L := Real.log N
+  have hL : 1≤L := hlogN
+  have hLp := zero_lt_one.trans_le hL
+  have hNp : (0:ℝ)<N := by exact_mod_cast hN1
+  have hT : 1≤T := (one_le_pow₀ hL (n:=a+B+4)).trans hTl
+  have hTp := zero_lt_one.trans_le hT
+  have hq' : 0≤(q:ℝ) := Nat.cast_nonneg _
+  have hz' : 0≤(z:ℝ) := Nat.cast_nonneg _
+  have hsmall' : L^J ≤ (N:ℝ)^(2/15:ℝ) := by
+    simpa only [Real.rpow_natCast,Real.norm_eq_abs,abs_of_nonneg (pow_nonneg hLp.le _),abs_of_nonneg (Real.rpow_nonneg hNp.le _),one_mul,L] using hsmall
+  have hlo : L^4*(q:ℝ)*L^a ≤ T := by
+    calc
+      _ ≤ L^4*L^B*L^a := by gcongr
+      _ = L^(a+B+4) := by ring
+      _ ≤ _ := hTl
+  have hhi : L^2*(z:ℝ)^2*(q:ℝ)^3*T^3*L^a ≤ (N:ℝ)^2 := by
+    calc
+      _ ≤ L^2*((N:ℝ)^(1/3:ℝ))^2*(L^B)^3*((N:ℝ)^(2/5:ℝ))^3*L^a := by gcongr
+      _ = L^J*(((N:ℝ)^(1/3:ℝ))^2*((N:ℝ)^(2/5:ℝ))^3) := by dsimp [J]; ring
+      _ ≤ (N:ℝ)^(2/15:ℝ)*(((N:ℝ)^(1/3:ℝ))^2*((N:ℝ)^(2/5:ℝ))^3) := by gcongr
+      _ = _ := by
+        rw [←Real.rpow_mul_natCast hNp.le,←Real.rpow_mul_natCast hNp.le,←Real.rpow_add hNp,←Real.rpow_add hNp]
+        norm_num
+  have hzlog : Real.log z ≤ L := Real.log_le_log (by exact_mod_cast hz0) (by exact_mod_cast hz)
+  have hlog2 : Real.log (2*N:ℝ)≤2*L := by
+    rw [Real.log_mul (by norm_num) hNp.ne']
+    linarith only [Real.log_le_sub_one_of_pos (by norm_num : 0<(2:ℝ)),hL]
+  have hzb : (3*(N:ℝ)*(1+Real.log z)/T)≤3*N*(2*L)/T := by
+    gcongr; linarith only [hzlog,hL]
+  have hlogz := Real.log_nonneg (show (1:ℝ)≤z by exact_mod_cast hz0)
+  have hlogN2 := Real.log_nonneg (show (1:ℝ)≤2*N by exact_mod_cast (by omega : 1≤2*N))
+  have hp0 : 0≤firstBound q z N T := by unfold firstBound; positivity
+  have hP : firstBound q z N T ≤ 24*L^2*N/T+44*L*z*q*T := by
+    unfold firstBound
+    calc
+      _ ≤ 2*(2*L)*(3*N*(2*L)/T+11*(z:ℝ)*q*T) := by gcongr
+      _ = _ := by ring
+  apply (mul_le_mul_of_nonneg_left (pow_le_pow_left₀ hp0 hP 2) (by positivity)).trans
+  exact first_algebra hq' hTp hz' hNp.le hLp hlo hhi
+end
+end GBMean
+
+open Finset MeasureTheory Filter Complex
+open scoped Interval Topology Classical
+namespace GBMean
+noncomputable section
+
+def cubeCut (N : ℕ) := ⌊(N:ℝ)^(1/3:ℝ)⌋₊
+def convPoly {q : ℕ} (χ : DirichletCharacter ℂ q) (z N b j : ℕ) (t : ℝ) :=
+  ∑ n ∈ Ioc N b, twistWeight χ t n*(GBHeathBrown.conv z j n:ℂ)
+def remThree {q : ℕ} (χ : DirichletCharacter ℂ q) (z N b : ℕ) (t : ℝ) :=
+  (-6:ℂ)*convPoly χ z N b 1 t+4*convPoly χ z N b 2 t-convPoly χ z N b 3 t
+def heightEnergy {q : ℕ} [NeZero q] (F : DirichletCharacter ℂ q → ℝ → ℂ) (T : ℝ) :=
+  ∑ χ : DirichletCharacter ℂ q, ∫ t in T..2*T, (‖F χ t‖^2+‖F χ (-t)‖^2)
+
+theorem cut_spec (N : ℕ) (hN : 8≤N) : 0<cubeCut N ∧ cubeCut N≤N ∧
+    (cubeCut N:ℝ)≤(N:ℝ)^(1/3:ℝ) ∧ 2*N<(cubeCut N+1)^4 := by
+  let x := (N:ℝ)^(1/3:ℝ)
+  have hN1 : (1:ℝ)≤N := by exact_mod_cast (by omega : 1≤N)
+  have hNr := zero_lt_one.trans_le hN1
+  have hx : 0<x := Real.rpow_pos_of_pos hNr _
+  have h3 : x^3=(N:ℝ) := by dsimp [x]; rw [←Real.rpow_mul_natCast hNr.le]; norm_num
+  have h2 : 2≤x := by
+    by_contra! hu
+    have hv := pow_lt_pow_left₀ hu hx.le (by decide : 3≠0)
+    rw [h3] at hv; norm_num at hv; exact (not_lt_of_ge hN) hv
+  have hfloor := Nat.floor_le hx.le
+  have hfloor' := Nat.lt_floor_add_one x
+  refine ⟨(Nat.le_floor_iff hx.le).mpr (by push_cast; linarith only [h2]),?_,hfloor,?_⟩
+  · exact Nat.floor_le_of_le ((Real.rpow_le_rpow_of_exponent_le hN1 (by norm_num : (1/3:ℝ)≤1)).trans_eq (Real.rpow_one _))
+  · have hlt := pow_lt_pow_left₀ hfloor' hx.le (by decide : 4≠0)
+    have h4 : 2*(N:ℝ)≤x^4 := by rw [pow_succ,h3]; nlinarith only [mul_le_mul_of_nonneg_left h2 hNr.le]
+    exact_mod_cast h4.trans_lt hlt
+
+theorem raw_three (q N b : ℕ) (χ : DirichletCharacter ℂ q) (hN : 8≤N) (hb : b≤2*N) (t : ℝ) :
+    rawPoly χ N b t = remThree χ (cubeCut N) N b t + 4*firstPoly q (cubeCut N) N b χ t -
+      (if χ=1 then ∑ n ∈ Ioc N b, osc n t else 0) := by
+  let z := cubeCut N
+  have h := GBHeathBrown.weighted_identity z 4 (Ioc N b) (twistWeight χ t)
+    (fun n hn => (mem_Ioc.mp hn).2.trans_lt (hb.trans_lt (cut_spec N hN).2.2.2))
+  have e : rawPoly χ N b t =
+    (∑ n ∈ Ioc N b, twistWeight χ t n*(ArithmeticFunction.vonMangoldt n:ℂ)) -
+      (if χ=1 then ∑ n ∈ Ioc N b, osc n t else 0) := by
+    unfold rawPoly
+    by_cases hχ : χ=1
+    · rw [ite_eq_left hχ,←sum_sub_distrib]
+      apply sum_congr rfl; intro n hn
+      simp only [centered,ite_eq_right ((Nat.zero_le N).trans_lt (mem_Ioc.mp hn).1).ne',ite_eq_left hχ,twistWeight]; ring
+    · rw [ite_eq_right hχ,sub_zero]
+      apply sum_congr rfl; intro n hn
+      simp only [centered,ite_eq_right ((Nat.zero_le N).trans_lt (mem_Ioc.mp hn).1).ne',ite_eq_right hχ,sub_zero,twistWeight]; ring
+  rw [e,h]
+  unfold GBHeathBrown.coeff
+  simp only [Finset.sum_range_succ,Finset.sum_range_zero,zero_add]
+  unfold remThree convPoly firstPoly
+  dsimp only [z]
+  norm_num [Nat.choose]
+  ring
+
+theorem raw_three_bound (q N b : ℕ) (χ : DirichletCharacter ℂ q) (hq : 0<q)
+    (hN : 8≤N) (hb : N≤b) (hu : b≤2*N) {T t : ℝ} (hT : 1≤T) (ht : T≤|t|) (ht' : |t|≤2*T) :
+    ‖rawPoly χ N b t‖^2 ≤ 2*‖remThree χ (cubeCut N) N b t‖^2+50*(firstBound q (cubeCut N) N T)^2 := by
+  let z := cubeCut N
+  let H := firstBound q z N T
+  let V := remThree χ z N b t
+  obtain ⟨hz,hzN,hzr,hcut⟩ := cut_spec N hN
+  have hp := zero_lt_one.trans_le hT
+  have h₂ : 1≤Real.log (2*N:ℝ) := by
+    have hle : Real.log 4≤Real.log (2*N:ℝ) := Real.log_le_log (by norm_num) (by exact_mod_cast (by omega : 4≤2*N))
+    have h4 : Real.log 4=2*Real.log 2 := by rw [show (4:ℝ)=2^2 by norm_num,Real.log_pow]; norm_num
+    linarith only [hle,h4,Real.log_two_gt_d9]
+  have hlog := Real.log_nonneg (show (1:ℝ)≤z by exact_mod_cast hz)
+  have hqr : (1:ℝ)≤q := by exact_mod_cast hq
+  have hzr' : (1:ℝ)≤z := by exact_mod_cast hz
+  have hf := first_term_bound q z N b χ hq hz hzN hb hu hT ht ht'
+  have hHp : 0≤H := (norm_nonneg _).trans hf
+  have hflat : ‖(if χ=1 then ∑ n ∈ Ioc N b, osc n t else 0)‖≤H := by
+    split_ifs
+    · apply (untwisted_long _ _ (by omega) hb hu t (abs_pos.mp (hp.trans_le ht))).trans
+      have h₁ : 3*(N:ℝ)/|t| ≤ 3*N*(1+Real.log z)/T := by
+        apply div_le_div₀ (by positivity) (le_mul_of_one_le_right (by positivity) (by linarith)) hp ht
+      have hzq := one_le_mul_of_one_le_of_one_le hzr' hqr
+      have htr : |t|≤11*(z:ℝ)*q*T := ht'.trans (by nlinarith only [mul_le_mul_of_nonneg_right hzq hp.le,hp.le])
+      apply (add_le_add h₁ htr).trans
+      exact le_mul_of_one_le_left (by positivity) (by linarith only [h₂])
+    · simpa using hHp
+  have hraw := raw_three q N b χ hN hu t
+  rw [hraw]
+  have hnorm : ‖V+4*firstPoly q z N b χ t-(if χ=1 then ∑ n ∈ Ioc N b, osc n t else 0)‖≤‖V‖+5*H := by
+    apply (norm_sub_le ..).trans
+    apply (add_le_add (norm_add_le ..) hflat).trans
+    rw [norm_mul,show ‖(4:ℂ)‖=4 by norm_num]
+    linarith only [hf]
+  change _ ≤ 2*‖V‖^2+50*H^2
+  nlinarith only [pow_le_pow_left₀ (norm_nonneg _) hnorm 2,sq_nonneg (‖V‖-5*H)]
+
+end
+end GBMean
+
+open Finset MeasureTheory Filter Complex
+open scoped Interval Topology Classical
+namespace GBMean
+noncomputable section
+
+theorem three_mean (q N b : ℕ) [NeZero q] (hN : 8≤N) (hb : N≤b) (hu : b≤2*N) {T : ℝ} (hT : 1≤T) :
+    heightEnergy (fun χ : DirichletCharacter ℂ q => rawPoly χ N b) T ≤
+      2*heightEnergy (fun χ : DirichletCharacter ℂ q => remThree χ (cubeCut N) N b) T +
+      100*(q:ℝ)*T*(firstBound q (cubeCut N) N T)^2 := by
+  let z := cubeCut N
+  let H := firstBound q z N T
+  let A := fun (χ : DirichletCharacter ℂ q) t => ‖rawPoly χ N b t‖^2 + ‖rawPoly χ N b (-t)‖^2
+  let B := fun (χ : DirichletCharacter ℂ q) t => ‖remThree χ z N b t‖^2 + ‖remThree χ z N b (-t)‖^2
+  have hq := Nat.pos_of_ne_zero (NeZero.ne q)
+  have hp := zero_lt_one.trans_le hT
+  have hi (χ : DirichletCharacter ℂ q) : (∫ t in T..2*T, A χ t) ≤ 2*(∫ t in T..2*T, B χ t)+100*H^2*T := by
+    have hc (j : ℕ) : Continuous (convPoly χ z N b j) := by unfold convPoly twistWeight osc wave; exact continuous_finsetSum _ fun n _ => by fun_prop
+    have hrc : Continuous (remThree χ z N b) := ((hc 1).const_mul (-6) |>.add ((hc 2).const_mul 4)).sub (hc 3)
+    have hb' : Continuous (B χ) := (hrc.norm.pow 2).add ((hrc.comp continuous_neg).norm.pow 2)
+    have hfc : Continuous (rawPoly χ N b) := by unfold rawPoly osc wave; exact continuous_finsetSum _ fun n _ => by fun_prop
+    have ha : Continuous (A χ) := (hfc.norm.pow 2).add ((hfc.comp continuous_neg).norm.pow 2)
+    calc
+      _ ≤ ∫ t in T..2*T, 2*B χ t+100*H^2 := by
+        apply intervalIntegral.integral_mono_on (by linarith only [hp]) (ha.intervalIntegrable ..) (((hb'.const_mul 2).add continuous_const).intervalIntegrable ..)
+        intro t hm
+        have ht := hp.trans_le hm.1
+        have h (v : ℝ) (he : |v|=t) := raw_three_bound q N b χ hq hN hb hu hT
+          (by simpa only [he] using hm.1 : T≤|v|) (by simpa only [he] using hm.2 : |v|≤2*T)
+        have h₁ := h t (abs_of_pos ht)
+        have h₂ := h (-t) (by rw [abs_neg,abs_of_pos ht])
+        dsimp only [Pi.add_apply,A,B,H,z]
+        linarith only [h₁,h₂]
+      _ = _ := by
+        rw [intervalIntegral.integral_add ((hb'.const_mul 2).intervalIntegrable ..) (intervalIntegrable_const ..),
+          intervalIntegral.integral_const_mul,intervalIntegral.integral_const,smul_eq_mul]
+        ring
+  unfold heightEnergy
+  apply (sum_le_sum fun χ _ => hi χ).trans
+  rw [sum_add_distrib,←Finset.mul_sum,sum_const,nsmul_eq_mul,card_univ]
+  have hcard : Fintype.card (DirichletCharacter ℂ q)=q.totient := by
+    simpa only [Nat.card_eq_fintype_card] using DirichletCharacter.card_eq_totient_of_hasEnoughRootsOfUnity ℂ q
+  rw [hcard]
+  apply add_le_add le_rfl
+  have hφ : (q.totient:ℝ)≤q := by exact_mod_cast q.totient_le
+  exact (mul_le_mul_of_nonneg_right hφ (show 0≤100*H^2*T by positivity)).trans_eq (by dsimp [H,z]; ring)
+
+theorem three_term_reduction (a B : ℕ) :
+    ∀ᶠ N : ℕ in atTop, ∀ (q b : ℕ) [NeZero q], N≤b → b≤2*N → (q:ℝ)≤(Real.log N)^B →
+      ∀ T : ℝ, (Real.log N)^(a+B+4)≤T → T≤(N:ℝ)^(2/5:ℝ) →
+        heightEnergy (fun χ : DirichletCharacter ℂ q => rawPoly χ N b) T ≤
+          2*heightEnergy (fun χ : DirichletCharacter ℂ q => remThree χ (cubeCut N) N b) T +
+          1000000*(N:ℝ)^2/(Real.log N)^a := by
+  have hlog := (Real.tendsto_log_atTop.comp (tendsto_natCast_atTop_atTop (R:=ℝ))).eventually (eventually_ge_atTop 1)
+  filter_upwards [first_budget_saving a B,eventually_ge_atTop (8:ℕ),hlog] with N hN h8 hL
+  intro q b _ hb hu hq T hTl hTu
+  obtain ⟨hz0,hzN,hzr,_⟩ := cut_spec N h8
+  have he := hN q (cubeCut N) b hz0 hzN hb hu hq hzr T hTl hTu
+  have hT : 1≤T := (one_le_pow₀ (show 1≤Real.log N from hL) (n:=a+B+4)).trans hTl
+  apply (three_mean q N b h8 hb hu hT).trans
+  apply add_le_add le_rfl
+  calc
+    _ = 50*(2*(q:ℝ)*T*(firstBound q (cubeCut N) N T)^2) := by ring
+    _ ≤ 50*(20000*(N:ℝ)^2/(Real.log N)^a) := mul_le_mul_of_nonneg_left he (by norm_num)
+    _ = _ := by ring
+end
+end GBMean
+
+open Finset MeasureTheory Filter Complex
+open scoped Interval Topology Classical
+namespace GBMean
+noncomputable section
+
+def remEnergy (q : ℕ) [NeZero q] (N b : ℕ) (t : ℝ) :=
+  ∑ χ : DirichletCharacter ℂ q, ‖remThree χ (cubeCut N) N b t‖^2
+
+theorem trace_height {q : ℕ} [NeZero q] (F : DirichletCharacter ℂ q → ℝ → ℂ)
+    (hf : ∀ χ, Continuous (F χ)) (T : ℝ) :
+    heightEnergy F T = ∫ t in T..2*T, both (fun v => ∑ χ, ‖F χ v‖^2) t := by
+  have hc (χ : DirichletCharacter ℂ q) : Continuous (fun t => ‖F χ t‖^2+‖F χ (-t)‖^2) :=
+    ((hf χ).norm.pow 2).add (((hf χ).comp continuous_neg).norm.pow 2)
+  unfold heightEnergy both
+  rw [←intervalIntegral.integral_finsetSum fun χ _ => (hc χ).intervalIntegrable ..]
+  simp only [sum_add_distrib]
+
+theorem rem_cont {q : ℕ} (χ : DirichletCharacter ℂ q) (z N b : ℕ) : Continuous (remThree χ z N b) := by
+  have hc (j : ℕ) : Continuous (convPoly χ z N b j) := by unfold convPoly twistWeight osc wave; exact continuous_finsetSum _ fun n _ => by fun_prop
+  exact ((hc 1).const_mul (-6) |>.add ((hc 2).const_mul 4)).sub (hc 3)
+
+theorem dyadic_add {F G : ℝ → ℝ} (hF : Continuous F) (hG : Continuous G)
+    {T cap e : ℝ} (hT : 0<T) (H : ∀ v : ℝ, T≤v → v≤cap →
+      (∫ t in v..2*v, F t) ≤ 2*(∫ t in v..2*v, G t)+e)
+    (k : ℕ) (hk : (2:ℝ)^k*T≤cap) :
+    (∫ t in T..(2^k*T), F t) ≤ 2*(∫ t in T..(2^k*T), G t)+(k:ℝ)*e := by
+  induction k with
+  | zero => simp
+  | succ k ih =>
+    let v := (2:ℝ)^k*T
+    have hv : 0<v := by dsimp [v]; positivity
+    have he : (2:ℝ)^(k+1)*T=2*v := by dsimp [v]; ring
+    rw [he] at hk ⊢
+    have hvc : v≤cap := by linarith only [hv,hk]
+    have hTv : T≤v := by simpa only [one_mul] using mul_le_mul_of_nonneg_right (one_le_pow₀ (by norm_num : 1≤(2:ℝ)) (n:=k)) hT.le
+    have ha := ih hvc
+    change (∫ t in T..v, F t) ≤ 2*(∫ t in T..v, G t)+_ at ha
+    have hh := H v hTv hvc
+    rw [←intervalIntegral.integral_add_adjacent_intervals (b:=v) (hF.intervalIntegrable ..) (hF.intervalIntegrable ..),
+        ←intervalIntegral.integral_add_adjacent_intervals (b:=v) (hG.intervalIntegrable ..) (hG.intervalIntegrable ..)]
+    push_cast; linarith only [ha,hh]
+
+theorem block_count {N : ℕ} {T : ℝ} (hN : 1≤N) (hT : 1≤T) (k : ℕ)
+    (hk : (2:ℝ)^k*T ≤ (N:ℝ)^(2/5:ℝ)) : (k:ℝ) ≤ 2*Real.log N := by
+  have hNr : (1:ℝ)≤N := by exact_mod_cast hN
+  have hN0 := zero_lt_one.trans_le hNr
+  have hh : (2:ℝ)^k ≤ N := (le_mul_of_one_le_right (by positivity) hT).trans
+    (hk.trans ((Real.rpow_le_rpow_of_exponent_le hNr (by norm_num : (2/5:ℝ)≤1)).trans_eq (Real.rpow_one _)))
+  have hl := Real.log_le_log (by positivity) hh
+  rw [Real.log_pow] at hl
+  nlinarith only [hl,mul_nonneg (Nat.cast_nonneg k (α:=ℝ)) (show 0≤2*Real.log 2-1 by linarith [Real.log_two_gt_d9])]
+
+theorem three_middle (a B : ℕ) :
+    ∃ C : ℝ, 0<C ∧ ∀ᶠ N : ℕ in atTop, ∀ (q b : ℕ) [NeZero q], N≤b → b≤2*N → (q:ℝ)≤(Real.log N)^B →
+      ∀ (δ : ℝ) (k : ℕ), 0<δ →
+      let T := (Real.log N)^(a+1+B+4)
+      let R := (2:ℝ)^k*T
+      R≤(N:ℝ)^(2/5:ℝ) →
+      (2*Real.pi)*∑ χ : DirichletCharacter ℂ q, (∫ u, ‖GBMellinWindow.shortSum χ N b δ u‖^2) ≤
+        C*(δ^2*(N:ℝ)^2/(Real.log N)^a+((q:ℝ)/R+(N:ℝ)/R^2)*(N:ℝ)*(1+Real.log (2*N:ℝ))^2) +
+        2*δ^2*(∫ t in T..R, both (remEnergy q N b) t) := by
+  obtain ⟨M,hM,hband⟩ := GBMellinWindow.middle_reduction a B (a+1+B+4)
+  refine ⟨M+2000000,by positivity,?_⟩
+  have hlog := (Real.tendsto_log_atTop.comp (tendsto_natCast_atTop_atTop (R:=ℝ))).eventually (eventually_ge_atTop 1)
+  filter_upwards [hband,three_term_reduction (a+1) B,hlog,eventually_ge_atTop (1:ℕ)] with N hN hthree hL hN1
+  intro q b _ hb hu hq δ k hd
+  dsimp only
+  let L := Real.log N
+  let T := L^(a+1+B+4)
+  let R := (2:ℝ)^k*T
+  intro hcap
+  have hL' : 1≤L := hL
+  have hLp := zero_lt_one.trans_le hL'
+  have hT : 1≤T := one_le_pow₀ hL'
+  have hTp := zero_lt_one.trans_le hT
+  have hTR : T≤R := by simpa only [one_mul] using mul_le_mul_of_nonneg_right (one_le_pow₀ (by norm_num : 1≤(2:ℝ)) (n:=k)) hTp.le
+  have hR := hTp.trans_le hTR
+  have h := hN q (Nat.pos_of_ne_zero (NeZero.ne q)) hq b hb hu δ R hd hTR
+  let F := both (rawEnergy q N b)
+  let G := both (remEnergy q N b)
+  let e := 1000000*(N:ℝ)^2/L^(a+1)
+  have hc := raw_energy_cont q N b
+  have hF : Continuous F := hc.add (hc.comp continuous_neg)
+  have hr (χ : DirichletCharacter ℂ q) := rem_cont χ (cubeCut N) N b
+  have hg : Continuous (remEnergy q N b) := continuous_finsetSum _ fun χ _ => (hr χ).norm.pow 2
+  have hG : Continuous G := hg.add (hg.comp continuous_neg)
+  have hv (v : ℝ) (hl : T≤v) (huv : v≤(N:ℝ)^(2/5:ℝ)) : (∫ t in v..2*v, F t) ≤ 2*(∫ t in v..2*v, G t)+e := by
+    have hf (χ : DirichletCharacter ℂ q) : Continuous (rawPoly χ N b) := by unfold rawPoly osc wave; exact continuous_finsetSum _ fun n _ => by fun_prop
+    have h' := hthree q b hb hu hq v hl huv
+    rw [trace_height _ hf,trace_height _ hr] at h'
+    exact h'
+  have hdy := dyadic_add hF hG hTp hv k hcap
+  have hk := block_count hN1 hT k hcap
+  have he : (k:ℝ)*e ≤ 2000000*((N:ℝ)^2/L^a) := by
+    calc
+      _ ≤ (2*L)*e := mul_le_mul_of_nonneg_right hk (by dsimp [e]; positivity)
+      _ = _ := by dsimp [e]; rw [pow_succ]; field_simp; ring
+  let x := δ^2*(N:ℝ)^2/L^a
+  let y := ((q:ℝ)/R+(N:ℝ)/R^2)*(N:ℝ)*(1+Real.log (2*N:ℝ))^2
+  have hy : 0≤y := by dsimp [y]; positivity
+  change _ ≤ M*(x+y)+δ^2*(∫ t in T..R, F t) at h
+  change _ ≤ (M+2000000)*(x+y)+2*δ^2*(∫ t in T..R, G t)
+  have hs := mul_le_mul_of_nonneg_left (hdy.trans (add_le_add le_rfl he)) (sq_nonneg δ)
+  change δ^2*(∫ t in T..R, F t) ≤ δ^2*(2*(∫ t in T..R, G t)+2000000*((N:ℝ)^2/L^a)) at hs
+  have heq : δ^2*(2000000*((N:ℝ)^2/L^a))=2000000*x := by dsimp [x]; ring
+  linarith only [h,hs,heq,hy]
+end
+end GBMean
+
+set_option maxHeartbeats 2000000 in
+theorem GBMean.explicit_three :
+∀ a B : ℕ, ∃ C : ℝ, 0<C ∧ ∀ᶠ N : ℕ in Filter.atTop, ∀ (q b : ℕ) [NeZero q],
+  N≤b → b≤2*N → (q:ℝ)≤(Real.log N)^B → ∀ (δ : ℝ) (k : ℕ), 0<δ →
+  let T := (Real.log N)^(a+1+B+4)
+  let R := (2:ℝ)^k*T
+  R≤(N:ℝ)^(2/5:ℝ) →
+  let I := Finset.Ioc N b
+  let d := fun (χ : DirichletCharacter ℂ q) (n : ℕ) => if n=0 then 0 else
+    χ (n:ZMod q)*(ArithmeticFunction.vonMangoldt n:ℂ)-(@ite ℂ (χ=1) (Classical.propDecidable _) 1 0)
+  let W := fun (χ : DirichletCharacter ℂ q) (u : ℝ) =>
+    ∑ n ∈ I.filter (fun n : ℕ => Real.exp u < n ∧ (n:ℝ) ≤ Real.exp (u+δ)), d χ n
+  let z := ⌊(N:ℝ)^(1/3:ℝ)⌋₊
+  let μz : ArithmeticFunction ℝ := ⟨fun n => if n≤z then (ArithmeticFunction.moebius n:ℝ) else 0,by simp⟩
+  let A := fun j : ℕ => ArithmeticFunction.log*(ArithmeticFunction.zeta:ArithmeticFunction ℝ)^j*μz^(j+1)
+  let P := fun (χ : DirichletCharacter ℂ q) (j : ℕ) (t : ℝ) =>
+    ∑ n ∈ I, (Complex.exp (((Real.log n*t:ℝ):ℂ)*Complex.I)*χ (n:ZMod q))*((A j n:ℝ):ℂ)
+  let E := fun t : ℝ => ∑ χ : DirichletCharacter ℂ q, ‖(-6:ℂ)*P χ 1 t+4*P χ 2 t-P χ 3 t‖^2
+  (2*Real.pi)*∑ χ : DirichletCharacter ℂ q, (∫ u, ‖W χ u‖^2) ≤
+    C*(δ^2*(N:ℝ)^2/(Real.log N)^a+((q:ℝ)/R+(N:ℝ)/R^2)*(N:ℝ)*(1+Real.log (2*N:ℝ))^2) +
+    2*δ^2*intervalIntegral (fun t => E t+E (-t)) T R MeasureTheory.volume := GBMean.three_middle
+
+set_option maxHeartbeats 4000000 in
+theorem Conjectures.Goldbach.ShortProgressionsMiddleBand :
+((∀ a B c : ℕ, ∃ C : ℝ, 0<C ∧ ∀ᶠ N : ℕ in Filter.atTop,
+  ∀ q : ℕ, (hq : 0<q) → (q:ℝ)≤(Real.log N)^B → ∀ b : ℕ, N≤b → b≤2*N →
+  ∀ δ R : ℝ, 0<δ → (Real.log N)^c≤R →
+  letI : NeZero q := ⟨hq.ne'⟩
+  let I := Finset.Ioc N b
+  let d := fun (χ : DirichletCharacter ℂ q) (n : ℕ) => if n=0 then 0 else
+    χ (n:ZMod q)*(ArithmeticFunction.vonMangoldt n:ℂ)-(@ite ℂ (χ=1) (Classical.propDecidable _) 1 0)
+  let W := fun (χ : DirichletCharacter ℂ q) (u : ℝ) =>
+    ∑ n ∈ I.filter (fun n : ℕ => Real.exp u < n ∧ (n:ℝ) ≤ Real.exp (u+δ)), d χ n
+  let E := fun t : ℝ => ∑ χ : DirichletCharacter ℂ q,
+    ‖∑ n ∈ I, Complex.exp (((Real.log n*t:ℝ):ℂ)*Complex.I)*d χ n‖^2
+  (2*Real.pi)*∑ χ : DirichletCharacter ℂ q, (∫ u, ‖W χ u‖^2) ≤
+    C*(δ^2*(N:ℝ)^2/(Real.log N)^a+((q:ℝ)/R+(N:ℝ)/R^2)*(N:ℝ)*(1+Real.log (2*N:ℝ))^2) +
+    δ^2*intervalIntegral (fun t => E t+E (-t)) ((Real.log N)^c) R MeasureTheory.volume) ∧ (∀ a B c : ℕ, ∃ C : ℝ, 0<C ∧ ∀ᶠ N : ℕ in Filter.atTop,
+  ∀ q : ℕ, (hq : 0<q) → (q:ℝ)≤(Real.log N)^B → ∀ b : ℕ, N≤b → b≤2*N →
+  ∀ δ R x : ℝ, 0<δ → (Real.log N)^c≤R → 0<x →
+  letI : NeZero q := ⟨hq.ne'⟩
+  let I := Finset.Ioc N b
+  let d := fun (χ : DirichletCharacter ℂ q) (n : ℕ) => if n=0 then 0 else
+    χ (n:ZMod q)*(ArithmeticFunction.vonMangoldt n:ℂ)-(@ite ℂ (χ=1) (Classical.propDecidable _) 1 0)
+  let err := fun (y : ℝ) =>
+    let J := I.filter (fun n : ℕ => Real.exp (Real.log y) < n ∧ (n:ℝ) ≤ Real.exp (Real.log y+δ))
+    (Finset.univ : Finset (ZMod q)).sup' Finset.univ_nonempty (fun r => if IsUnit r then
+      |(∑ n ∈ J.filter (fun n : ℕ => (n:ZMod q)=r), ArithmeticFunction.vonMangoldt n) - (J.card:ℝ)/q.totient| else 0)
+  let E := fun t : ℝ => ∑ χ : DirichletCharacter ℂ q,
+    ‖∑ n ∈ I, Complex.exp (((Real.log n*t:ℝ):ℂ)*Complex.I)*d χ n‖^2
+  (2*Real.pi)*(q.totient:ℝ)*intervalIntegral (fun y => (err y)^2) x (2*x) MeasureTheory.volume ≤
+    2*x*(C*(δ^2*(N:ℝ)^2/(Real.log N)^a+((q:ℝ)/R+(N:ℝ)/R^2)*(N:ℝ)*(1+Real.log (2*N:ℝ))^2) +
+    δ^2*intervalIntegral (fun t => E t+E (-t)) ((Real.log N)^c) R MeasureTheory.volume)) ∧ (∀ (q N b : ℕ) [NeZero q] (r : ZMod q), IsUnit r → 0<N → b≤2*N →
+  ∀ a y h d : ℝ, 0<a → 0≤h → a≤y → y≤a+d →
+  let I := Finset.Ioc N b
+  let D := fun (s : Finset ℕ) (v : ZMod q) => (∑ n ∈ s.filter (fun n : ℕ => (n:ZMod q)=v), ArithmeticFunction.vonMangoldt n) - (s.card:ℝ)/q.totient
+  let J := I.filter (fun n : ℕ => Real.exp (Real.log y) < n ∧ (n:ℝ)≤Real.exp (Real.log y+Real.log (1+h/a)))
+  |D (I.filter (fun n : ℕ => y<n ∧ (n:ℝ)≤y+h)) r| ≤
+    (Finset.univ : Finset (ZMod q)).sup' Finset.univ_nonempty (fun v => if IsUnit v then |D J v| else 0) +
+    (1+h*d/a)*(1+Real.log (2*N:ℝ))) ∧ (∀ (m b q K : ℕ) [NeZero q], 0 < m → m≤b → b≤2*m → 0<K →
+  ∀ (s : Finset ℕ) (c : ℕ → ℂ), (∀ n∈s, 0<n ∧ n≤K) → ∀ T G : ℝ,
+  1≤G → (q:ℝ)*G^2≤T → (q:ℝ)*T*G ≤ (m:ℝ) → (q:ℝ)^3*T^3*G^2 ≤ (m:ℝ)^2*K →
+  let osc := fun (n : ℕ) (t : ℝ) => Complex.exp (((Real.log n*t:ℝ):ℂ)*Complex.I)
+  let E := fun t : ℝ => ∑ χ : DirichletCharacter ℂ q,
+    ‖(∑ k ∈ Finset.Ioc m b, osc k t*χ (k:ZMod q))*(∑ n ∈ s, (c n*χ (n:ZMod q))*osc n t)‖^2
+  intervalIntegral (fun t => E t+E (-t)) T (2*T) MeasureTheory.volume ≤
+    (1000*(4*Real.exp 1*‖(Real.pi:ℂ)^(1/2:ℂ)‖))*(m:ℝ)^2*K/G^2*(∑ n ∈ s, ‖c n‖^2))) ∧ (∀ a B : ℕ, ∃ C : ℝ, 0<C ∧ ∀ᶠ N : ℕ in Filter.atTop, ∀ (q b : ℕ) [NeZero q],
+  N≤b → b≤2*N → (q:ℝ)≤(Real.log N)^B → ∀ (δ : ℝ) (k : ℕ), 0<δ →
+  let T := (Real.log N)^(a+1+B+4)
+  let R := (2:ℝ)^k*T
+  R≤(N:ℝ)^(2/5:ℝ) →
+  let I := Finset.Ioc N b
+  let d := fun (χ : DirichletCharacter ℂ q) (n : ℕ) => if n=0 then 0 else
+    χ (n:ZMod q)*(ArithmeticFunction.vonMangoldt n:ℂ)-(@ite ℂ (χ=1) (Classical.propDecidable _) 1 0)
+  let W := fun (χ : DirichletCharacter ℂ q) (u : ℝ) =>
+    ∑ n ∈ I.filter (fun n : ℕ => Real.exp u < n ∧ (n:ℝ) ≤ Real.exp (u+δ)), d χ n
+  let z := ⌊(N:ℝ)^(1/3:ℝ)⌋₊
+  let μz : ArithmeticFunction ℝ := ⟨fun n => if n≤z then (ArithmeticFunction.moebius n:ℝ) else 0,by simp⟩
+  let A := fun j : ℕ => ArithmeticFunction.log*(ArithmeticFunction.zeta:ArithmeticFunction ℝ)^j*μz^(j+1)
+  let P := fun (χ : DirichletCharacter ℂ q) (j : ℕ) (t : ℝ) =>
+    ∑ n ∈ I, (Complex.exp (((Real.log n*t:ℝ):ℂ)*Complex.I)*χ (n:ZMod q))*((A j n:ℝ):ℂ)
+  let E := fun t : ℝ => ∑ χ : DirichletCharacter ℂ q, ‖(-6:ℂ)*P χ 1 t+4*P χ 2 t-P χ 3 t‖^2
+  (2*Real.pi)*∑ χ : DirichletCharacter ℂ q, (∫ u, ‖W χ u‖^2) ≤
+    C*(δ^2*(N:ℝ)^2/(Real.log N)^a+((q:ℝ)/R+(N:ℝ)/R^2)*(N:ℝ)*(1+Real.log (2*N:ℝ))^2) +
+    2*δ^2*intervalIntegral (fun t => E t+E (-t)) T R MeasureTheory.volume) := ⟨GBMean.four_components,GBMean.explicit_three⟩
