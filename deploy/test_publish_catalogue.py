@@ -13,13 +13,21 @@ class CataloguePublisherTests(unittest.TestCase):
         sha = "a" * 40
         pr = dict(number=12, merge_commit_sha=sha, merged_at="today",
                   base=dict(ref="main", repo=dict(full_name=pub.REPO)))
-        detail = dict(pr, merged_by=dict(login=pub.REPO.split("/")[0]))
+        detail = dict(pr, merged_by=dict(id=pub.OWNER_ID, login=pub.REPO.split("/")[0]))
         runs = dict(workflow_runs=[dict(head_sha=sha, conclusion="success", id=4)])
         with patch.object(pub, "api", side_effect=[[pr], detail, runs]):
             self.assertEqual(pub.approved(sha), (detail, runs["workflow_runs"][0]))
         with patch.object(pub, "api", side_effect=[[pr], detail, dict(workflow_runs=[])]):
             self.assertIsNone(pub.approved(sha))
-        with patch.object(pub, "api", side_effect=[[pr], dict(pr, merged_by=dict(login="other"))]):
+        collaborator = dict(pr, merged_by=dict(id=1234, login="researcher"))
+        with patch.dict(os.environ, {"GOLDBACH_CATALOGUE_MERGER_IDS": "1234 5678"}):
+            with patch.object(pub, "api", side_effect=[[pr], collaborator, runs]):
+                self.assertEqual(pub.approved(sha), (collaborator, runs["workflow_runs"][0]))
+            wrong_commit = dict(workflow_runs=[dict(head_sha="b" * 40, conclusion="success")])
+            with patch.object(pub, "api", side_effect=[[pr], collaborator, wrong_commit]):
+                self.assertIsNone(pub.approved(sha))
+        with patch.dict(os.environ, {"GOLDBACH_CATALOGUE_MERGER_IDS": ""}), \
+                patch.object(pub, "api", side_effect=[[pr], collaborator]):
             with self.assertRaises(RuntimeError):
                 pub.approved(sha)
 
