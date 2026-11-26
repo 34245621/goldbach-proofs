@@ -13525,7 +13525,7 @@
         "zh": "相位为 βx+γ log x，振幅为 x^(σ−1)，0≤σ≤1。单项可用平凡界、曲率界或离开驻点的一阶导数界。把 |γ| 的整数部分在 J≥4|β|X 处分开，近区求和至多按 √J 增长，远区至多按 log(N+1) 增长。指标可重复取同一高度。用于显式公式还需给出相应零点的单位区间计数、加法扭转的显式公式及其余项。",
         "en": "The phase is βx+γ log x with amplitude x^(σ−1), 0≤σ≤1. A cutoff J≥4|β|X splits the square-root curvature bound from a reciprocal nonstationary tail. Repeated ordinates count with multiplicity. A prime-sum application requires a matching zero-count estimate, a twisted explicit formula and control of its remainder."
       },
-      "source": "https://github.com/34245621/goldbach-proofs/blob/cba708bd00210b8e17a7f7f9d5e48b74599f48c5/lean/PEqualNP/Outside/L_goldbach_zero_additive_twist_dyadic.lean",
+      "source": "https://github.com/34245621/goldbach-proofs/blob/1297b9a40400929ae31b459c1f95ccf4d9e7a098/lean/PEqualNP/Outside/L_goldbach_zero_additive_twist_dyadic.lean",
       "program": "correlation",
       "parallel": true,
       "imports": [],
