@@ -11,7 +11,7 @@
     "zh": "相邻端点 a/q、b/s 满足 bq−as=1、q+s>Q。补集在该格内恰为 ((a+δ)/q,(b−δ)/s)，允许空区间。全覆盖当且仅当 δ(Q+1)≥1。令 δ=H/n 即可用于宽弧补集，保留原来的复相位；逐偶数的有符号估计仍需另证。",
     "en": "Consecutive endpoints a/q and b/s satisfy bq−as=1 and q+s>Q. The uncovered portion of that cell is ((a+δ)/q,(b−δ)/s), possibly empty. Full coverage holds exactly when δ(Q+1)≥1. Taking δ=H/n gives a cellwise integral for the wide-arc exterior with its original complex phase. Pointwise signed cancellation remains open."
   },
-  "source": "https://github.com/34245621/goldbach-proofs/blob/1dc80ff30ee2a8999b396d3480e8e8b599f92bb0/lean/PEqualNP/Outside/L_goldbach_farey_complement_quadrature.lean",
+  "source": "https://github.com/34245621/goldbach-proofs/blob/278c494160c30a1c938e2c93aae48c2518d81f3c/lean/PEqualNP/Outside/L_goldbach_farey_complement_quadrature.lean",
   "program": "correlation",
   "parallel": true,
   "imports": [],
