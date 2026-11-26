@@ -6,7 +6,7 @@ The estimate holds for every dyadic upper endpoint and every character at a poly
 modulus, with the principal term subtracted. The rectangular window is the actual interval
 exp(u) < n ≤ exp(u+δ). Fourier inversion with both boundaries, summation by parts,
 and explicit high-frequency integration justify the two discarded ranges.
-The middle integral is left visible in the statement.
+The middle integral is left visible in the statement. The companion conclusions control the worst reduced residue, give the additive-to-multiplicative endpoint error, and prove a logarithmic saving for a smooth long factor times an arbitrary cofactor in that band.
     
 The unconditional Siegel-Walfisz input below is adapted from goldbach-proofs PR 1667,
 813ca8c4a3e6ab6ef53180fc5a2c56275a19db88, with the original OpenAI credits preserved.
@@ -5334,9 +5334,550 @@ theorem middle_reduction (a B c : ℕ) :
 end
 end GBMellinWindow
 
-set_option maxHeartbeats 4000000 in
+open Finset MeasureTheory Filter Complex
+open scoped Interval Topology Classical
+namespace GBMellinWindow
+open GBMean
+noncomputable section
+
+def discrepancy {q : ℕ} (I : Finset ℕ) (r : ZMod q) : ℝ :=
+  (∑ n ∈ I.filter (fun n : ℕ => (n:ZMod q)=r), ArithmeticFunction.vonMangoldt n) - (I.card:ℝ)/q.totient
+
+theorem centered_orthogonality {q : ℕ} [NeZero q] (I : Finset ℕ) (hI : ∀ n∈I, 0<n)
+    (r : ZMod q) (hr : IsUnit r) :
+    (∑ χ : DirichletCharacter ℂ q, χ r⁻¹*(∑ n ∈ I, centered χ n)) = (q.totient:ℂ)*(discrepancy I r:ℂ) := by
+  have hφ : (q.totient:ℂ)≠0 := by exact_mod_cast (Nat.totient_pos.mpr (Nat.pos_of_ne_zero (NeZero.ne q))).ne'
+  have hr' : IsUnit r⁻¹ := by obtain ⟨u,hu⟩ := hr; rw [←hu,ZMod.inv_coe_unit]; exact (u⁻¹).isUnit
+  have centeredSum (χ : DirichletCharacter ℂ q) :
+      (∑ n ∈ I, centered χ n) =
+      (∑ n ∈ I, χ (n:ZMod q)*(ArithmeticFunction.vonMangoldt n:ℂ)) - (if χ=1 then (I.card:ℂ) else 0) := by
+    have he (n : ℕ) (hn : n∈I) : centered χ n = χ (n:ZMod q)*(ArithmeticFunction.vonMangoldt n:ℂ)-(if χ=1 then 1 else 0) := by
+      simp only [centered,ite_eq_right (hI n hn).ne']; split_ifs <;> rfl
+    rw [sum_congr rfl he,sum_sub_distrib,sum_const]
+    split_ifs <;> simp
+  have hmain : (∑ χ : DirichletCharacter ℂ q, χ r⁻¹*∑ n ∈ I, χ (n:ZMod q)*(ArithmeticFunction.vonMangoldt n:ℂ)) =
+      (q.totient:ℂ)*((∑ n ∈ I.filter (fun n : ℕ => (n:ZMod q)=r), ArithmeticFunction.vonMangoldt n:ℝ):ℂ) := by
+    simp_rw [Finset.mul_sum,←mul_assoc]
+    rw [Finset.sum_comm,Complex.ofReal_sum,Finset.mul_sum,Finset.sum_filter]
+    apply sum_congr rfl
+    intro n _
+    rw [←Finset.sum_mul,DirichletCharacter.sum_char_inv_mul_char_eq ℂ hr]
+    by_cases hh : r=(n:ZMod q) <;> simp [hh,eq_comm]
+  simp_rw [centeredSum,mul_sub]
+  rw [sum_sub_distrib,hmain]
+  simp only [mul_ite,mul_zero,Finset.sum_ite_eq',Finset.mem_univ,ite_true,MulChar.one_apply hr',one_mul]
+  unfold discrepancy
+  push_cast; field_simp
+
+theorem discrepancy_sq {q : ℕ} [NeZero q] (I : Finset ℕ) (hI : ∀ n∈I, 0<n)
+    (r : ZMod q) (hr : IsUnit r) :
+    (q.totient:ℝ)*(discrepancy I r)^2 ≤ ∑ χ : DirichletCharacter ℂ q, ‖∑ n ∈ I, centered χ n‖^2 := by
+  have hφ : 0<(q.totient:ℝ) := by exact_mod_cast Nat.totient_pos.mpr (Nat.pos_of_ne_zero (NeZero.ne q))
+  let E := fun χ : DirichletCharacter ℂ q => ∑ n ∈ I, centered χ n
+  have h₁ : (q.totient:ℝ)*|discrepancy I r| ≤ ∑ χ, ‖E χ‖ := by
+    calc
+      _ = ‖(q.totient:ℂ)*(discrepancy I r:ℂ)‖ := by rw [norm_mul,Complex.norm_natCast,Complex.norm_real,Real.norm_eq_abs]
+      _ ≤ _ := by
+        rw [←centered_orthogonality I hI r hr]
+        apply (norm_sum_le ..).trans
+        exact sum_le_sum fun χ _ => (norm_mul ..).le.trans (mul_le_of_le_one_left (norm_nonneg _) (χ.norm_le_one _))
+  have hsq := (pow_le_pow_left₀ (mul_nonneg hφ.le (abs_nonneg _)) h₁ 2).trans
+    (sq_sum_le_card_mul_sum_sq (s:=univ) (f:=fun χ => ‖E χ‖))
+  have hcard : Fintype.card (DirichletCharacter ℂ q)=q.totient := by
+    simpa only [Nat.card_eq_fintype_card] using DirichletCharacter.card_eq_totient_of_hasEnoughRootsOfUnity ℂ q
+  rw [card_univ,hcard,mul_pow,sq_abs] at hsq
+  apply le_of_mul_le_mul_left (a:=(q.totient:ℝ)) _ hφ
+  exact (show (q.totient:ℝ)*((q.totient:ℝ)*discrepancy I r^2)=(q.totient:ℝ)^2*discrepancy I r^2 by ring).le.trans hsq
+
+def winSet (N b : ℕ) (δ u : ℝ) := (Ioc N b).filter fun n : ℕ => Real.exp u<n ∧ (n:ℝ)≤Real.exp (u+δ)
+def maxError (q : ℕ) [NeZero q] (N b : ℕ) (δ u : ℝ) :=
+  (univ : Finset (ZMod q)).sup' univ_nonempty (fun r => if IsUnit r then |discrepancy (winSet N b δ u) r| else 0)
+
+theorem max_sq (q : ℕ) [NeZero q] (N b : ℕ) (δ u : ℝ) :
+    (q.totient:ℝ)*(maxError q N b δ u)^2 ≤ ∑ χ : DirichletCharacter ℂ q, ‖shortSum χ N b δ u‖^2 := by
+  let I := winSet N b δ u
+  have hI (n : ℕ) (hn : n∈I) : 0<n := (Nat.zero_le N).trans_lt (mem_Ioc.mp (mem_filter.mp hn).1).1
+  obtain ⟨r,_,he⟩ := Finset.exists_mem_eq_sup' (s:=univ) univ_nonempty
+    (fun r : ZMod q => if IsUnit r then |discrepancy I r| else 0)
+  unfold maxError
+  rw [he]
+  split_ifs with hr
+  · rw [sq_abs]
+    exact discrepancy_sq I hI r hr
+  · simp only [zero_pow (by decide : 2≠0),mul_zero]; exact sum_nonneg fun _ _ => sq_nonneg _
+end
+end GBMellinWindow
+
+open Finset MeasureTheory Filter Complex
+open scoped Interval Topology Classical
+namespace GBMellinWindow
+open GBMean
+noncomputable section
+
+theorem max_meas (q : ℕ) [NeZero q] (N b : ℕ) (δ : ℝ) : Measurable (maxError q N b δ) := by
+  let g := fun u : ℝ => (⌊Real.exp u⌋₊,⌊Real.exp (u+δ)⌋₊)
+  let I := fun p : ℕ×ℕ => (Ioc N b).filter (fun n => p.1<n ∧ n≤p.2)
+  let F := fun p : ℕ×ℕ => (univ : Finset (ZMod q)).sup' univ_nonempty
+    (fun r => if IsUnit r then |discrepancy (I p) r| else 0)
+  have hm : Measurable g := by dsimp [g]; fun_prop
+  have h (u : ℝ) : winSet N b δ u = I (g u) := by
+    apply filter_congr; intro n _
+    dsimp [g]
+    rw [Nat.floor_lt (Real.exp_pos _).le,Nat.le_floor_iff (Real.exp_pos _).le]
+  have he : maxError q N b δ = F ∘ g := by funext u; unfold maxError; rw [h]; rfl
+  rw [he]; exact (measurable_of_countable F).comp hm
+
+theorem short_sq_int {q : ℕ} (χ : DirichletCharacter ℂ q) (N b : ℕ) (δ : ℝ) :
+    Integrable (fun u => ‖shortSum χ N b δ u‖^2) := by
+  let f := window (Ioc N b) (centered χ) (fun n : ℕ => Real.log n) δ
+  have hf : Integrable f := window_int ..
+  have hm : Measurable f := window_meas ..
+  have h := hf.norm.mul_bdd hm.norm.aestronglyMeasurable (c:=coeffMass (Ioc N b) (centered χ))
+    (Eventually.of_forall fun u => (show ‖‖f u‖‖≤_ by rw [norm_norm]; exact window_bound ..))
+  simpa only [sq,f,window_short] using h
+
+theorem max_energy (q : ℕ) [NeZero q] (N b : ℕ) (δ : ℝ) :
+    Integrable (fun u => (maxError q N b δ u)^2) ∧
+    (q.totient:ℝ)*(∫ u, (maxError q N b δ u)^2) ≤ ∑ χ : DirichletCharacter ℂ q, (∫ u, ‖shortSum χ N b δ u‖^2) := by
+  let G := fun u : ℝ => ∑ χ : DirichletCharacter ℂ q, ‖shortSum χ N b δ u‖^2
+  have hg : Integrable G := integrable_finsetSum _ fun χ _ => short_sq_int χ N b δ
+  have hφ : 0<(q.totient:ℝ) := by exact_mod_cast Nat.totient_pos.mpr (Nat.pos_of_ne_zero (NeZero.ne q))
+  have he : Integrable (fun u => (maxError q N b δ u)^2) := by
+    apply (hg.div_const (q.totient:ℝ)).mono' ((max_meas ..).pow_const 2).aestronglyMeasurable
+    filter_upwards with u
+    rw [Real.norm_eq_abs,abs_of_nonneg (sq_nonneg _)]
+    exact (le_div_iff₀ hφ).mpr ((mul_comm _ _).le.trans (max_sq q N b δ u))
+  refine ⟨he,?_⟩
+  rw [←integral_const_mul,←integral_finsetSum univ (fun χ _ => short_sq_int χ N b δ)]
+  exact integral_mono (he.const_mul _) hg (max_sq q N b δ)
+
+theorem dyadic_log_integral {f : ℝ → ℝ} (hi : Integrable f) (hp : ∀ u, 0≤f u) {x : ℝ} (hx : 0<x) :
+    (∫ y in x..(2*x), f (Real.log y)) ≤ 2*x*(∫ u, f u) := by
+  have H := (integrableOn_comp_log_Ioi_zero f).mpr hi
+  let G := fun y : ℝ => y⁻¹*f (Real.log y)
+  have HG : IntegrableOn G (Set.Ioi 0) := H
+  have hx' : x≤2*x := by linarith
+  have hsub : Set.Ioc x (2*x) ⊆ Set.Ioi 0 := fun y hy => hx.trans hy.1
+  have posG (y : ℝ) (hy : 0<y) : 0≤G y := mul_nonneg (inv_nonneg.mpr hy.le) (hp _)
+  rw [intervalIntegral.integral_of_le hx',←integral_comp_log_Ioi_zero f]
+  change (∫ y in Set.Ioc x (2*x), f (Real.log y)) ≤ 2*x*(∫ y in Set.Ioi 0, G y)
+  rw [←integral_const_mul]
+  calc
+    _ ≤ ∫ y in Set.Ioc x (2*x), (2*x)*G y := by
+      apply integral_mono_of_nonneg (Eventually.of_forall fun y => hp _) ((HG.mono_set hsub).const_mul _)
+      apply (ae_restrict_iff' measurableSet_Ioc).mpr
+      filter_upwards with y hy
+      have hy' := hx.trans hy.1
+      calc
+        _ = y*G y := by dsimp [G]; rw [←mul_assoc,mul_inv_cancel₀ hy'.ne',one_mul]
+        _ ≤ _ := mul_le_mul_of_nonneg_right hy.2 (posG y hy')
+    _ ≤ _ := setIntegral_mono_set (HG.const_mul _) ((ae_restrict_iff' measurableSet_Ioi).mpr <| Eventually.of_forall
+      fun y hy => mul_nonneg (by positivity) (posG y hy)) hsub.eventuallySubset
+
+theorem residue_spatial (q : ℕ) [NeZero q] (N b : ℕ) (δ : ℝ) {x : ℝ} (hx : 0<x) :
+    (q.totient:ℝ)*(∫ y in x..2*x, (maxError q N b δ (Real.log y))^2) ≤
+      2*x*∑ χ : DirichletCharacter ℂ q, (∫ u, ‖shortSum χ N b δ u‖^2) := by
+  obtain ⟨hi,he⟩ := max_energy q N b δ
+  apply (mul_le_mul_of_nonneg_left (dyadic_log_integral hi (fun _ => sq_nonneg _) hx) (Nat.cast_nonneg _)).trans
+  calc
+    _ = 2*x*((q.totient:ℝ)*(∫ u, (maxError q N b δ u)^2)) := by ring
+    _ ≤ _ := mul_le_mul_of_nonneg_left he (by positivity)
+end
+end GBMellinWindow
+
+open Finset MeasureTheory Filter Complex
+open scoped Interval Topology Classical
+namespace GBMellinWindow
+open GBMean
+noncomputable section
+
+theorem spatial_reduction (a B c : ℕ) :
+    ∃ C : ℝ, 0<C ∧ ∀ᶠ N : ℕ in atTop, ∀ q : ℕ, (hq : 0<q) → (q:ℝ)≤(Real.log N)^B →
+      ∀ b : ℕ, N≤b → b≤2*N → ∀ δ R x : ℝ, 0<δ → (Real.log N)^c≤R → 0<x →
+      letI : NeZero q := ⟨hq.ne'⟩
+      (2*Real.pi)*(q.totient:ℝ)*(∫ y in x..2*x, (maxError q N b δ (Real.log y))^2) ≤
+        2*x*(C*(δ^2*(N:ℝ)^2/(Real.log N)^a +
+          ((q:ℝ)/R+(N:ℝ)/R^2)*(N:ℝ)*(1+Real.log (2*N:ℝ))^2) +
+        δ^2*(∫ t in (Real.log N)^c..R, both (rawEnergy q N b) t)) := by
+  obtain ⟨C,hC,h⟩ := middle_reduction a B c
+  refine ⟨C,hC,?_⟩
+  filter_upwards [h] with N hN
+  intro q hq hqL b hNb hb δ R x hd hR hx
+  let : NeZero q := ⟨hq.ne'⟩
+  have he := mul_le_mul_of_nonneg_left (residue_spatial q N b δ hx) (show 0≤2*Real.pi by positivity)
+  have hf := mul_le_mul_of_nonneg_left (hN q hq hqL b hNb hb δ R hd hR) (show 0≤2*x by positivity)
+  let S := ∑ χ : DirichletCharacter ℂ q, (∫ u, ‖shortSum χ N b δ u‖^2)
+  change _ ≤ (2*Real.pi)*(2*x*S) at he
+  change 2*x*((2*Real.pi)*S) ≤ _ at hf
+  rw [mul_assoc (2*Real.pi) (q.totient:ℝ)]
+  exact he.trans ((show (2*Real.pi)*(2*x*S)=2*x*((2*Real.pi)*S) by ring).le.trans hf)
+end
+end GBMellinWindow
+
+open Finset MeasureTheory Filter Complex
+open scoped Interval Topology Classical
+namespace GBMellinWindow
+open GBMean
+noncomputable section
+
+def slice (N b : ℕ) (y v : ℝ) := (Ioc N b).filter fun n : ℕ => y<n ∧ (n:ℝ)≤v
+def unitCenter {q : ℕ} (r : ZMod q) (n : ℕ) : ℝ :=
+  (if (n:ZMod q)=r then ArithmeticFunction.vonMangoldt n else 0)-1/(q.totient:ℝ)
+
+theorem discrepancy_sum {q : ℕ} (I : Finset ℕ) (r : ZMod q) :
+    discrepancy I r = ∑ n ∈ I, unitCenter r n := by
+  unfold discrepancy unitCenter
+  rw [sum_filter,sum_sub_distrib,sum_const,nsmul_eq_mul]; ring
+
+theorem discrepancy_extra {q N b : ℕ} [NeZero q] (r : ZMod q) (hN : 0<N) (hb : b≤2*N)
+    (s I : Finset ℕ) (hs : s ⊆ I) (hI : I ⊆ Ioc N b) :
+    |discrepancy s r| ≤ |discrepancy I r|+((I \ s).card:ℝ)*(1+Real.log (2*N:ℝ)) := by
+  have hφ : (1:ℝ)≤q.totient := by exact_mod_cast Nat.totient_pos.mpr (Nat.pos_of_ne_zero (NeZero.ne q))
+  have hφp := zero_lt_one.trans_le hφ
+  have hlog : 0≤Real.log (2*N:ℝ) := Real.log_nonneg (by exact_mod_cast (by omega : 1≤2*N))
+  have hbound (k : ℕ) (hk : k ∈ I \ s) : |unitCenter r k| ≤ 1+Real.log (2*N:ℝ) := by
+    obtain ⟨hl,hh⟩ := mem_Ioc.mp (hI (mem_sdiff.mp hk).1)
+    have hlogk := Real.log_le_log (show 0<(k:ℝ) by exact_mod_cast hN.trans hl) (show (k:ℝ)≤2*N by exact_mod_cast hh.trans hb)
+    have hnon : 0≤(if (k:ZMod q)=r then ArithmeticFunction.vonMangoldt k else 0) := by split_ifs <;> positivity
+    have htop : (if (k:ZMod q)=r then ArithmeticFunction.vonMangoldt k else 0) ≤ Real.log (2*N:ℝ) := by
+      split_ifs; exact ArithmeticFunction.vonMangoldt_le_log.trans hlogk; exact hlog
+    unfold unitCenter
+    apply (abs_sub ..).trans
+    rw [abs_of_nonneg hnon,abs_of_nonneg (by positivity : 0≤1/(q.totient:ℝ))]
+    linarith only [htop,one_div_le_one_div_of_le zero_lt_one hφ]
+  have hsum := Finset.sum_sdiff hs (f:=unitCenter r)
+  rw [discrepancy_sum,discrepancy_sum,show (∑ n ∈ s, unitCenter r n) =
+      (∑ n ∈ I, unitCenter r n)-(∑ n ∈ I \ s, unitCenter r n) by linarith only [hsum] ]
+  apply (abs_sub ..).trans
+  apply add_le_add le_rfl
+  calc
+    _ ≤ ∑ n ∈ I \ s, |unitCenter r n| := Finset.abs_sum_le_sum_abs ..
+    _ ≤ ∑ _n ∈ I \ s, (1+Real.log (2*N:ℝ)) := sum_le_sum hbound
+    _ = _ := by rw [sum_const,nsmul_eq_mul]
+
+theorem slice_delta_card (N b : ℕ) {y v w : ℝ} (hv : 0≤v) (hw : v≤w) :
+    (((slice N b y w \ slice N b y v).card):ℝ) ≤ w-v+1 := by
+  have hsub : slice N b y w \ slice N b y v ⊆ Ioc ⌊v⌋₊ ⌊w⌋₊ := by
+    intro n hn
+    obtain ⟨h₁,h₂⟩ := mem_sdiff.mp hn
+    obtain ⟨hm,hl,hr⟩ := mem_filter.mp h₁
+    have hnv : v<(n:ℝ) := lt_of_not_ge fun he => h₂ (mem_filter.mpr ⟨hm,hl,he⟩)
+    exact mem_Ioc.mpr ⟨(Nat.floor_lt hv).mpr hnv,(Nat.le_floor_iff (hv.trans hw)).mpr hr⟩
+  have h := card_le_card hsub
+  rw [Nat.card_Ioc] at h
+  have hh : (((slice N b y w \ slice N b y v).card):ℝ) ≤ ↑⌊w⌋₊-(⌊v⌋₊:ℝ) := by
+    simpa only [Nat.cast_sub (Nat.floor_mono hw)] using (show (((slice N b y w \ slice N b y v).card):ℝ)≤((⌊w⌋₊-⌊v⌋₊:ℕ):ℝ) by exact_mod_cast h)
+  linarith only [hh,Nat.floor_le (hv.trans hw),Nat.lt_floor_add_one v]
+
+theorem cell_error {q N b : ℕ} [NeZero q] (r : ZMod q) (hr : IsUnit r) (hN : 0<N) (hb : b≤2*N)
+    {a y h d : ℝ} (ha : 0<a) (hh : 0≤h) (hya : a≤y) (hyb : y≤a+d) :
+    |discrepancy (slice N b y (y+h)) r| ≤ maxError q N b (Real.log (1+h/a)) (Real.log y) +
+      (1+h*d/a)*(1+Real.log (2*N:ℝ)) := by
+  let v := y+h
+  let w := y*(1+h/a)
+  have hy0 := ha.trans_le hya
+  have hgap : w-v=(y-a)*h/a := by dsimp [w,v]; field_simp; ring
+  have hw : v≤w := sub_nonneg.mp (hgap.symm ▸ div_nonneg (mul_nonneg (sub_nonneg.mpr hya) hh) ha.le)
+  have hdist : w-v≤h*d/a := by
+    rw [hgap,mul_comm (y-a) h]
+    apply div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left _ hh) ha.le
+    linarith only [hyb]
+  have he : winSet N b (Real.log (1+h/a)) (Real.log y) = slice N b y w := by
+    unfold winSet slice; rw [Real.exp_add,Real.exp_log hy0,Real.exp_log (by positivity : 0<1+h/a)]
+  have hs : slice N b y v ⊆ slice N b y w := by
+    intro n hn; obtain ⟨hi,hlo,hhi⟩ := mem_filter.mp hn
+    exact mem_filter.mpr ⟨hi,hlo,hhi.trans hw⟩
+  have hmax : |discrepancy (slice N b y w) r| ≤ maxError q N b (Real.log (1+h/a)) (Real.log y) := by
+    unfold maxError; rw [he]
+    simpa only [ite_eq_left hr] using (Finset.le_sup' (s:=univ) (f:=fun r : ZMod q => if IsUnit r then |discrepancy (slice N b y w) r| else 0) (mem_univ r))
+  have hcard := slice_delta_card N b (y:=y) (show 0≤v by dsimp [v]; positivity) hw
+  have hlog := Real.log_nonneg (show (1:ℝ)≤2*N by exact_mod_cast (by omega : 1≤2*N))
+  exact (discrepancy_extra r hN hb _ _ hs (filter_subset _ _)).trans
+    (add_le_add hmax (mul_le_mul_of_nonneg_right (by linarith only [hcard,hdist]) (by positivity)))
+end
+end GBMellinWindow
+
+open Finset MeasureTheory Filter Complex
+open scoped Interval Topology Classical
+namespace GBMean
+noncomputable section
+
+def periodMean {q : ℕ} (χ : DirichletCharacter ℂ q) := (∑ n ∈ range q, χ (n:ZMod q))/(q:ℂ)
+theorem periodMean_norm {q : ℕ} (χ : DirichletCharacter ℂ q) (hq : 0<q) : ‖periodMean χ‖ ≤ 1 := by
+  unfold periodMean; rw [norm_div,Complex.norm_natCast]
+  apply (div_le_one (by exact_mod_cast hq)).mpr
+  apply (norm_sum_le ..).trans
+  calc
+    _ ≤ ∑ _n ∈ range q, (1:ℝ) := sum_le_sum fun n _ => χ.norm_le_one _
+    _ = _ := by simp
+
+theorem periodic_prefix {q : ℕ} (χ : DirichletCharacter ℂ q) (hq : 0<q) (k : ℕ) :
+    ‖∑ n ∈ range k, (χ (n:ZMod q)-periodMean χ)‖ ≤ 2*(q:ℝ) := by
+  let g := fun n : ℕ => χ (n:ZMod q)-periodMean χ
+  have hzero : (∑ n ∈ range q, g n) = 0 := by
+    dsimp [g,periodMean]; rw [sum_sub_distrib,sum_const,card_range,nsmul_eq_mul]
+    field_simp [show (q:ℂ)≠0 by exact_mod_cast hq.ne']; simp
+  have hper (v n : ℕ) : g (q*v+n) = g n := by simp [g]
+  have hfull (v : ℕ) : (∑ n ∈ range (q*v),g n)=0 := by
+    induction v with
+    | zero => simp
+    | succ v ih => rw [Nat.mul_succ,sum_range_add,ih,zero_add]; simpa only [hper] using hzero
+  change ‖∑ n ∈ range k, g n‖ ≤ _
+  conv_lhs => rw [← Nat.div_add_mod k q,sum_range_add,hfull,zero_add]
+  simp_rw [hper]
+  apply (norm_sum_le ..).trans
+  calc
+    _ ≤ ∑ _n ∈ range (k % q), (2:ℝ) := sum_le_sum fun n _ =>
+      (norm_sub_le ..).trans (by linarith only [χ.norm_le_one (n:ZMod q),periodMean_norm χ hq])
+    _ ≤ _ := by rw [sum_const,card_range,nsmul_eq_mul]; nlinarith only [show (k % q:ℕ)≤(q:ℝ) by exact_mod_cast (Nat.mod_lt k hq).le]
+
+def longPhase (x t : ℝ) := wave (Real.log x) t
+
+theorem phase_gap {x y : ℝ} (hx : 0<x) (hxy : x≤y) (t : ℝ) :
+    ‖longPhase y t-longPhase x t‖ ≤ |t| * ((y-x)/x) := by
+  let d := Real.log y-Real.log x
+  have hd : 0≤d := sub_nonneg.mpr (Real.log_le_log hx hxy)
+  have hlog := Real.log_le_sub_one_of_pos (div_pos (hx.trans_le hxy) hx)
+  rw [Real.log_div (hx.trans_le hxy).ne' hx.ne'] at hlog
+  have hcap : d≤(y-x)/x := hlog.trans_eq (by field_simp)
+  have he : longPhase y t-longPhase x t = (Complex.exp (Complex.I*((d*t:ℝ):ℂ))-1)*longPhase x t := by
+    unfold longPhase wave
+    rw [sub_mul,one_mul,←Complex.exp_add]
+    congr 2; dsimp [d]; push_cast; ring
+  rw [he,norm_mul,show ‖longPhase x t‖=1 from Complex.norm_exp_ofReal_mul_I _,mul_one]
+  have h := Real.norm_exp_I_mul_ofReal_sub_one_le (x:=d*t)
+  rw [Real.norm_eq_abs,abs_mul,abs_of_nonneg hd] at h
+  exact h.trans ((mul_le_mul_of_nonneg_right hcap (abs_nonneg _)).trans_eq (mul_comm ..))
+
+theorem phase_int (m b : ℕ) (hm : 0 < m) (hb : m≤b) (t : ℝ) (ht : t≠0) :
+    ‖∫ u in (m:ℝ)..(b:ℝ),longPhase u t‖ ≤ ((m:ℝ)+(b:ℝ))/|t| := by
+  let z := (t:ℂ)*I
+  have hz : z.re=0 := by simp [z]
+  have him : (z+1).im=t := by simp [z]
+  have hnorm : |t|≤‖z+1‖ := by rw [←him]; exact Complex.abs_im_le_norm _
+  have he (u : ℝ) (hu : 0<u) : longPhase u t=(u:ℂ)^z := by
+    rw [Complex.cpow_def_of_ne_zero (Complex.ofReal_ne_zero.mpr hu.ne'),←Complex.ofReal_log hu.le]
+    unfold longPhase wave z; push_cast; congr 1; ring
+  have hmr : (0:ℝ) < m := by exact_mod_cast hm
+  have hbr : (0:ℝ)<b := by exact_mod_cast hm.trans_le hb
+  have hmb : (m:ℝ)≤b := by exact_mod_cast hb
+  have hint : (∫ u in (m:ℝ)..(b:ℝ),longPhase u t) = ∫ u in (m:ℝ)..(b:ℝ),(u:ℂ)^z := by
+    apply intervalIntegral.integral_congr
+    intro u hu
+    rw [Set.uIcc_of_le hmb] at hu
+    exact he u (hmr.trans_le hu.1)
+  rw [hint,integral_cpow (Or.inl (by rw [hz]; norm_num)),norm_div]
+  have hn (x : ℝ) (hx : 0<x) : ‖(x:ℂ)^(z+1)‖=x := by
+    rw [Complex.norm_cpow_eq_rpow_re_of_pos hx]; simp [hz]
+  exact div_le_div₀ (by positivity) ((norm_sub_le ..).trans_eq (by rw [hn _ hbr,hn _ hmr,add_comm]))
+    (abs_pos.mpr ht) hnorm
+end
+end GBMean
+
+open Finset MeasureTheory Filter Complex
+open scoped Interval Topology Classical
+namespace GBMean
+noncomputable section
+
+theorem longPhase_int {a b : ℝ} (ha : 0<a) (hab : a≤b) (t : ℝ) :
+    IntervalIntegrable (fun u => longPhase u t) volume a b := by
+  apply ContinuousOn.intervalIntegrable
+  unfold longPhase wave
+  apply Complex.continuous_exp.comp_continuousOn
+  apply ContinuousOn.mul _ continuousOn_const
+  apply Complex.continuous_ofReal.comp_continuousOn
+  apply ContinuousOn.mul _ continuousOn_const
+  apply Real.continuousOn_log.mono
+  intro u hu
+  rw [Set.uIcc_of_le hab] at hu
+  exact (ha.trans_le hu.1).ne'
+
+theorem long_cell {m k : ℕ} (hm : 0 < m) (hk : m≤k) (t : ℝ) :
+    ‖osc (k+1) t - ∫ u in (k:ℝ)..(k+1:ℝ), longPhase u t‖ ≤ |t|/(m:ℝ) := by
+  have hm' : (0:ℝ) < m := by exact_mod_cast hm
+  have hk' : (m:ℝ)≤k := by exact_mod_cast hk
+  have hkk : (k:ℝ)≤k+1 := by linarith
+  have hint := longPhase_int (hm'.trans_le hk') hkk t
+  have he : (∫ _u in (k:ℝ)..(k+1:ℝ),osc (k+1) t)=osc (k+1) t := by simp
+  rw [←he,←intervalIntegral.integral_sub (intervalIntegrable_const ..) hint]
+  apply (intervalIntegral.norm_integral_le_of_norm_le_const (C:=|t|/m) (fun u hu => ?_)).trans
+  · simp
+  rw [Set.uIoc_of_le hkk] at hu
+  have hu' := hk'.trans hu.1.le
+  have hy := phase_gap (hm'.trans_le hu') hu.2 t
+  have hgap : (((k:ℝ)+1-u)/u) ≤ 1/(m:ℝ) := by
+    apply div_le_div₀ (by norm_num) (by linarith only [hu.1]) hm' hu'
+  change ‖longPhase ((k+1:ℕ):ℝ) t-longPhase u t‖ ≤ _
+  push_cast
+  exact hy.trans ((mul_le_mul_of_nonneg_left hgap (abs_nonneg _)).trans_eq (by ring))
+
+theorem long_quadrature (m b : ℕ) (hm : 0 < m) (hb : m≤b) (t : ℝ) :
+    ‖(∑ k ∈ Ioc m b, osc k t) - ∫ u in (m:ℝ)..(b:ℝ), longPhase u t‖ ≤ ((b:ℝ)-m)*(|t|/m) := by
+  have hm' : (0:ℝ) < m := by exact_mod_cast hm
+  induction b,hb using Nat.le_induction with
+  | base => simp
+  | succ b hb ih =>
+    have hb' : (m:ℝ)≤b := by exact_mod_cast hb
+    have hint := longPhase_int hm' hb' t
+    have hi := longPhase_int (hm'.trans_le hb') (show (b:ℝ)≤b+1 by linarith) t
+    rw [sum_Ioc_succ_top hb]
+    push_cast
+    rw [←intervalIntegral.integral_add_adjacent_intervals hint hi]
+    rw [show (∑ k ∈ Ioc m b, osc k t)+osc (b+1) t-((∫ u in (m:ℝ)..(b:ℝ),longPhase u t)+(∫ u in (b:ℝ)..(b+1:ℝ),longPhase u t)) =
+        ((∑ k ∈ Ioc m b, osc k t)-(∫ u in (m:ℝ)..(b:ℝ),longPhase u t))+(osc (b+1) t-(∫ u in (b:ℝ)..(b+1:ℝ),longPhase u t)) by abel]
+    exact (norm_add_le ..).trans ((add_le_add ih (long_cell hm hb t)).trans_eq (by ring))
+
+theorem untwisted_long (m b : ℕ) (hm : 0 < m) (hb : m≤b) (hu : b≤2*m) (t : ℝ) (ht : t≠0) :
+    ‖∑ k ∈ Ioc m b, osc k t‖ ≤ 3*(m:ℝ)/|t|+|t| := by
+  have h := long_quadrature m b hm hb t
+  have h' := phase_int m b hm hb t ht
+  have hm' : (0:ℝ) < m := by exact_mod_cast hm
+  have hu' : (b:ℝ)≤2*m := by exact_mod_cast hu
+  have hp : 0≤|t|/m := by positivity
+  have hdis := (mul_le_mul_of_nonneg_right (show (b:ℝ)-(m:ℝ) ≤ (m:ℝ) by linarith) hp).trans_eq (by field_simp : (m:ℝ)*(|t|/m)=|t|)
+  have hi := div_le_div_of_nonneg_right (show (m:ℝ)+b≤3*m by linarith) (abs_nonneg t)
+  exact (norm_le_norm_sub_add _ _).trans ((add_le_add (h.trans hdis) (h'.trans hi)).trans_eq (add_comm ..))
+
+/-- A long unweighted factor for every Dirichlet character, uniformly in the block endpoint. -/
+theorem typeI_long (q m b : ℕ) (χ : DirichletCharacter ℂ q) (hq : 0<q) (hm : 0 < m)
+    (hb : m≤b) (hu : b≤2*m) (t : ℝ) (ht : t≠0) :
+    ‖∑ k ∈ Ioc m b, osc k t*χ (k:ZMod q)‖ ≤ 3*(m:ℝ)/|t|+|t|+2*(q:ℝ)*(2+|t|) := by
+  rcases hb.eq_or_lt with rfl | hb
+  · simp only [Ioc_self,sum_empty,norm_zero]; positivity
+  let F := ∑ k ∈ Ioc m b, osc k t*(χ (k:ZMod q)-periodMean χ)
+  let S := ∑ k ∈ Ioc m b, osc k t
+  have he : (∑ k ∈ Ioc m b, osc k t*χ (k:ZMod q)) = F+periodMean χ*S := by
+    dsimp [F,S]
+    rw [Finset.mul_sum,←sum_add_distrib]
+    apply sum_congr rfl; intro k _; ring
+  rw [he]
+  have hF : ‖F‖≤(2+|t|)*(2*(q:ℝ)) := osc_abel _ hm hb hu _ _ fun k _ _ => periodic_prefix χ hq (k+1)
+  have hS : ‖periodMean χ*S‖≤3*(m:ℝ)/|t|+|t| := by
+    rw [norm_mul]
+    exact (mul_le_of_le_one_left (norm_nonneg _) (periodMean_norm χ hq)).trans (untwisted_long m b hm hb.le hu t ht)
+  exact (norm_add_le ..).trans ((add_le_add hF hS).trans_eq (by ring))
+end
+end GBMean
+
+open Finset MeasureTheory Filter Complex
+open scoped Interval Topology Classical
+namespace GBMean
+noncomputable section
+
+def smooth {q : ℕ} (χ : DirichletCharacter ℂ q) (m b : ℕ) (t : ℝ) :=
+  ∑ n ∈ Ioc m b, osc n t*χ (n:ZMod q)
+def productEnergy (q : ℕ) [NeZero q] (m b : ℕ) (s : Finset ℕ) (c : ℕ → ℂ) (t : ℝ) :=
+  ∑ χ : DirichletCharacter ℂ q, ‖smooth χ m b t*twisted s c χ t‖^2
+def smoothBound (m q : ℕ) (T : ℝ) := 3*m/T+10*(q:ℝ)*T
+
+theorem band_pointwise (m b q : ℕ) (χ : DirichletCharacter ℂ q) (hm : 0 < m) (hq : 0<q)
+    (hb : m ≤ b) (hu : b ≤ 2*m) {T t : ℝ} (hT : 1 ≤ T) (ht : T ≤ |t|) (ht' : |t| ≤ 2*T) :
+    ‖smooth χ m b t‖ ≤ smoothBound m q T := by
+  have hp := zero_lt_one.trans_le hT
+  have ht0 := abs_pos.mp (hp.trans_le ht)
+  apply (typeI_long q m b χ hq hm hb hu t ht0).trans
+  have hq' : (1:ℝ) ≤ q := by exact_mod_cast hq
+  have hr := div_le_div_of_nonneg_left (show (0:ℝ) ≤ 3*m by positivity) hp ht
+  have hqt := mul_le_mul_of_nonneg_left ht' (show 0 ≤ 2*(q:ℝ) by positivity)
+  have hqT := le_mul_of_one_le_left hp.le hq'
+  have hTq := le_mul_of_one_le_right (Nat.cast_nonneg q (α:=ℝ)) hT
+  unfold smoothBound
+  nlinarith only [hr,ht',hqt,hqT,hTq]
+
+theorem product_pointwise (m b q : ℕ) [NeZero q] (hm : 0 < m) (hb : m ≤ b) (hu : b ≤ 2*m)
+    (s : Finset ℕ) (c : ℕ → ℂ) {T t : ℝ} (hT : 1 ≤ T) (ht : T ≤ |t|) (ht' : |t| ≤ 2*T) :
+    productEnergy q m b s c t  ≤  (smoothBound m q T)^2*energy (q:=q) s c t := by
+  unfold productEnergy energy; rw [Finset.mul_sum]
+  apply sum_le_sum
+  intro χ _
+  rw [norm_mul,mul_pow]
+  exact mul_le_mul_of_nonneg_right (pow_le_pow_left₀ (norm_nonneg _)
+    (band_pointwise m b q χ hm (Nat.pos_of_ne_zero (NeZero.ne q)) hb hu hT ht ht') 2) (sq_nonneg _)
+
+theorem product_mean (m b q K : ℕ) [NeZero q] (hm : 0 < m) (hb : m ≤ b) (hu : b ≤ 2*m)
+    (s : Finset ℕ) (c : ℕ → ℂ) (hs : ∀ n ∈ s, 0<n ∧ n ≤ K) {T : ℝ} (hT : 1 ≤ T) :
+    (∫ t in T..2*T, both (productEnergy q m b s c) t)  ≤ 
+      (smoothBound m q T)^2*((2*(q:ℝ)*T+2*(K:ℝ))*(constant*∑ n ∈ s, ‖c n‖^2)) := by
+  have hp := zero_lt_one.trans_le hT
+  have hq := Nat.pos_of_ne_zero (NeZero.ne q)
+  let P := productEnergy q m b s c
+  let E := energy (q:=q) s c
+  have hct : Continuous P := by unfold P productEnergy smooth osc twisted logPoly poly wave; fun_prop
+  have hce : Continuous E := energy_cont ..
+  have hcb : Continuous (both E) := hce.add (hce.comp continuous_neg)
+  have hcp : Continuous (both P) := hct.add (hct.comp continuous_neg)
+  have hpos (t : ℝ) : 0 ≤ both E t := add_nonneg (energy_pos ..) (energy_pos ..)
+  calc
+    _  ≤  ∫ t in T..2*T, (smoothBound m q T)^2*both E t := by
+      apply intervalIntegral.integral_mono_on (by linarith only [hp]) (hcp.intervalIntegrable ..) ((hcb.const_mul _).intervalIntegrable ..)
+      intro t ht
+      have ht0 := hp.trans_le ht.1
+      have h (v : ℝ) (he : |v|=t) := product_pointwise m b q hm hb hu s c hT (by simpa only [he] using ht.1 : T ≤ |v|)
+        (by simpa only [he] using ht.2 : |v| ≤ 2*T)
+      unfold both; rw [mul_add]
+      exact add_le_add (h t (abs_of_pos ht0)) (h (-t) (by rw [abs_neg,abs_of_pos ht0]))
+    _ = (smoothBound m q T)^2*(∫ t in T..2*T, both E t) := intervalIntegral.integral_const_mul ..
+    _  ≤  _ := by
+      apply mul_le_mul_of_nonneg_left _ (sq_nonneg _)
+      apply (intervalIntegral.integral_mono_interval hp.le (show T ≤ 2*T by linarith) le_rfl
+        (Eventually.of_forall hpos) (hcb.intervalIntegrable ..)).trans
+      apply (character_energy_bound q s c K (show 0<2*T by positivity) hs).trans
+      apply mul_le_mul_of_nonneg_right _ (by unfold constant; positivity)
+      have hφ : (q.totient:ℝ) ≤ q := by exact_mod_cast q.totient_le
+      nlinarith only [mul_le_mul_of_nonneg_right hφ hp.le]
+
+/-- The estimates hold both when the cofactor is longer than the frequency and when it is shorter. -/
+theorem saving_algebra {m q K T G : ℝ} (hm : 0 < m) (hq : 1 ≤ q) (hK : 1 ≤ K) (hG : 1 ≤ G)
+    (h₁ : q*G^2 ≤ T) (h₂ : q*T*G ≤ m) (h₃ : q^3*T^3*G^2  ≤  m^2*K) :
+    (3*m/T+10*q*T)^2*(2*q*T+2*K)  ≤  1000*m^2*K/G^2 := by
+  have hGp := zero_lt_one.trans_le hG
+  have hq0 := zero_lt_one.trans_le hq
+  have hK0 := zero_lt_one.trans_le hK
+  have hGsq := one_le_pow₀ hG (n:=2)
+  have hT1 := (one_le_mul_of_one_le_of_one_le hq hGsq).trans h₁
+  have hTp := zero_lt_one.trans_le hT1
+  have hG2T := (le_mul_of_one_le_left (sq_nonneg G) hq).trans h₁
+  have hG2T2 := hG2T.trans (by nlinarith only [mul_nonneg hTp.le (sub_nonneg.mpr hT1)] : T ≤ T^2)
+  have hqG2TK := h₁.trans (le_mul_of_one_le_right hTp.le hK)
+  have hsq := pow_le_pow_left₀ (mul_nonneg (mul_nonneg hq0.le hTp.le) hGp.le) h₂ 2
+  have hsplit : (3*m/T+10*q*T)^2  ≤  18*(m/T)^2 + 200*(q*T)^2 := by
+    rw [show 3*m/T=3*(m/T) by ring]
+    nlinarith only [sq_nonneg (3*(m/T)-10*q*T)]
+  apply (mul_le_mul_of_nonneg_right hsplit (by positivity : 0 ≤ 2*q*T+2*K)).trans
+  apply (le_div_iff₀ (sq_pos_of_pos hGp)).mpr
+  have H₁ := mul_le_mul_of_nonneg_left hqG2TK (show 0 ≤ m^2 by positivity)
+  have H₂ := mul_le_mul_of_nonneg_left hG2T2 (show 0 ≤ m^2*K by positivity)
+  have H₄ := mul_le_mul_of_nonneg_right hsq hK0.le
+  field_simp [hTp.ne']
+  nlinarith only [mul_le_mul_of_nonneg_right H₁ hTp.le,H₂,
+    mul_le_mul_of_nonneg_right h₃ (sq_nonneg T),mul_le_mul_of_nonneg_right H₄ (sq_nonneg T),mul_nonneg (mul_nonneg (sq_nonneg m) hK0.le) (sq_nonneg T)]
+end
+end GBMean
+
+open Finset MeasureTheory Filter Complex
+open scoped Interval Topology Classical
+namespace GBMean
+noncomputable section
+
+theorem typeI_saving (m b q K : ℕ) [NeZero q] (hm : 0 < m) (hb : m≤b) (hu : b≤2*m)
+    (hK : 0<K) (s : Finset ℕ) (c : ℕ → ℂ) (hs : ∀ n ∈ s, 0<n ∧ n≤K)
+    {T G : ℝ} (hG : 1≤G) (h₁ : (q:ℝ)*G^2≤T) (h₂ : (q:ℝ)*T*G ≤ (m:ℝ))
+    (h₃ : (q:ℝ)^3*T^3*G^2 ≤ (m:ℝ)^2*K) :
+    (∫ t in T..2*T, both (productEnergy q m b s c) t) ≤
+      (1000*constant)*(m:ℝ)^2*K/G^2*(∑ n ∈ s, ‖c n‖^2) := by
+  have hq : 1≤q := Nat.pos_of_ne_zero (NeZero.ne q)
+  have hqr : (1:ℝ)≤q := by exact_mod_cast hq
+  have hT : 1≤T := (one_le_mul_of_one_le_of_one_le hqr (one_le_pow₀ hG)).trans h₁
+  have halg := saving_algebra (m:=(m:ℝ)) (q:=(q:ℝ)) (K:=(K:ℝ)) (by exact_mod_cast hm) hqr (by exact_mod_cast hK) hG h₁ h₂ h₃
+  apply (product_mean m b q K hm hb hu s c hs hT).trans
+  rw [← mul_assoc]
+  exact (mul_le_mul_of_nonneg_right halg (show 0≤constant*∑ n ∈ s, ‖c n‖^2 by unfold constant; positivity)).trans_eq (by ring)
+end
+end GBMean
+
+set_option maxHeartbeats 2400000 in
 theorem Conjectures.Goldbach.ShortProgressionsMiddleBand :
-∀ a B c : ℕ, ∃ C : ℝ, 0<C ∧ ∀ᶠ N : ℕ in Filter.atTop,
+(∀ a B c : ℕ, ∃ C : ℝ, 0<C ∧ ∀ᶠ N : ℕ in Filter.atTop,
   ∀ q : ℕ, (hq : 0<q) → (q:ℝ)≤(Real.log N)^B → ∀ b : ℕ, N≤b → b≤2*N →
   ∀ δ R : ℝ, 0<δ → (Real.log N)^c≤R →
   letI : NeZero q := ⟨hq.ne'⟩
@@ -5349,6 +5890,36 @@ theorem Conjectures.Goldbach.ShortProgressionsMiddleBand :
     ‖∑ n ∈ I, Complex.exp (((Real.log n*t:ℝ):ℂ)*Complex.I)*d χ n‖^2
   (2*Real.pi)*∑ χ : DirichletCharacter ℂ q, (∫ u, ‖W χ u‖^2) ≤
     C*(δ^2*(N:ℝ)^2/(Real.log N)^a+((q:ℝ)/R+(N:ℝ)/R^2)*(N:ℝ)*(1+Real.log (2*N:ℝ))^2) +
-    δ^2*intervalIntegral (fun t => E t+E (-t)) ((Real.log N)^c) R MeasureTheory.volume := by
-  intro a B c
-  simpa only [GBMellinWindow.shortSum, GBMean.both, GBMean.rawEnergy, GBMean.rawPoly, GBMean.centered, GBMean.osc, GBMean.wave] using GBMellinWindow.middle_reduction a B c
+    δ^2*intervalIntegral (fun t => E t+E (-t)) ((Real.log N)^c) R MeasureTheory.volume) ∧ (∀ a B c : ℕ, ∃ C : ℝ, 0<C ∧ ∀ᶠ N : ℕ in Filter.atTop,
+  ∀ q : ℕ, (hq : 0<q) → (q:ℝ)≤(Real.log N)^B → ∀ b : ℕ, N≤b → b≤2*N →
+  ∀ δ R x : ℝ, 0<δ → (Real.log N)^c≤R → 0<x →
+  letI : NeZero q := ⟨hq.ne'⟩
+  let I := Finset.Ioc N b
+  let d := fun (χ : DirichletCharacter ℂ q) (n : ℕ) => if n=0 then 0 else
+    χ (n:ZMod q)*(ArithmeticFunction.vonMangoldt n:ℂ)-(@ite ℂ (χ=1) (Classical.propDecidable _) 1 0)
+  let err := fun (y : ℝ) =>
+    let J := I.filter (fun n : ℕ => Real.exp (Real.log y) < n ∧ (n:ℝ) ≤ Real.exp (Real.log y+δ))
+    (Finset.univ : Finset (ZMod q)).sup' Finset.univ_nonempty (fun r => if IsUnit r then
+      |(∑ n ∈ J.filter (fun n : ℕ => (n:ZMod q)=r), ArithmeticFunction.vonMangoldt n) - (J.card:ℝ)/q.totient| else 0)
+  let E := fun t : ℝ => ∑ χ : DirichletCharacter ℂ q,
+    ‖∑ n ∈ I, Complex.exp (((Real.log n*t:ℝ):ℂ)*Complex.I)*d χ n‖^2
+  (2*Real.pi)*(q.totient:ℝ)*intervalIntegral (fun y => (err y)^2) x (2*x) MeasureTheory.volume ≤
+    2*x*(C*(δ^2*(N:ℝ)^2/(Real.log N)^a+((q:ℝ)/R+(N:ℝ)/R^2)*(N:ℝ)*(1+Real.log (2*N:ℝ))^2) +
+    δ^2*intervalIntegral (fun t => E t+E (-t)) ((Real.log N)^c) R MeasureTheory.volume)) ∧ (∀ (q N b : ℕ) [NeZero q] (r : ZMod q), IsUnit r → 0<N → b≤2*N →
+  ∀ a y h d : ℝ, 0<a → 0≤h → a≤y → y≤a+d →
+  let I := Finset.Ioc N b
+  let D := fun (s : Finset ℕ) (v : ZMod q) => (∑ n ∈ s.filter (fun n : ℕ => (n:ZMod q)=v), ArithmeticFunction.vonMangoldt n) - (s.card:ℝ)/q.totient
+  let J := I.filter (fun n : ℕ => Real.exp (Real.log y) < n ∧ (n:ℝ)≤Real.exp (Real.log y+Real.log (1+h/a)))
+  |D (I.filter (fun n : ℕ => y<n ∧ (n:ℝ)≤y+h)) r| ≤
+    (Finset.univ : Finset (ZMod q)).sup' Finset.univ_nonempty (fun v => if IsUnit v then |D J v| else 0) +
+    (1+h*d/a)*(1+Real.log (2*N:ℝ))) ∧ (∀ (m b q K : ℕ) [NeZero q], 0 < m → m≤b → b≤2*m → 0<K →
+  ∀ (s : Finset ℕ) (c : ℕ → ℂ), (∀ n∈s, 0<n ∧ n≤K) → ∀ T G : ℝ,
+  1≤G → (q:ℝ)*G^2≤T → (q:ℝ)*T*G ≤ (m:ℝ) → (q:ℝ)^3*T^3*G^2 ≤ (m:ℝ)^2*K →
+  let osc := fun (n : ℕ) (t : ℝ) => Complex.exp (((Real.log n*t:ℝ):ℂ)*Complex.I)
+  let E := fun t : ℝ => ∑ χ : DirichletCharacter ℂ q,
+    ‖(∑ k ∈ Finset.Ioc m b, osc k t*χ (k:ZMod q))*(∑ n ∈ s, (c n*χ (n:ZMod q))*osc n t)‖^2
+  intervalIntegral (fun t => E t+E (-t)) T (2*T) MeasureTheory.volume ≤
+    (1000*(4*Real.exp 1*‖(Real.pi:ℂ)^(1/2:ℂ)‖))*(m:ℝ)^2*K/G^2*(∑ n ∈ s, ‖c n‖^2)) := by
+  refine ⟨GBMellinWindow.middle_reduction, GBMellinWindow.spatial_reduction, ?_, ?_⟩
+  · exact fun q N b _ r hr hN hb a y h d ha hh hya hyb => GBMellinWindow.cell_error r hr hN hb ha hh hya hyb
+  · exact fun m b q K _ hm hb hu hK s c hs T G hG h₁ h₂ h₃ => GBMean.typeI_saving m b q K hm hb hu hK s c hs hG h₁ h₂ h₃
