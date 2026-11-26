@@ -2,7 +2,8 @@ import Mathlib
 
 /-!
 Primitive-character and dyadic real-part criterion for the pointwise three-quarters bound.
-The ordinate cutoff uses the dyadic block and ambient denominator, and removes the entire tall tail.
+The real-part, ordinate and phase tests are evaluated at each inducing conductor.
+The phase derivative is tested over the entire dyadic interval.
 The signed residue sum is evaluated only at the primitive levels. Its exact inverse
 has squared Möbius coefficients; uniform upper bounds transfer at a cost of q/φ(q).
 The Mellin estimate also discards the zeros below the block-dependent threshold
@@ -7385,10 +7386,10 @@ character and angular costs. The absolute prime-sum budget is global in n. -/
 def localZeroScale (q : ℕ) (X γ σ : ℝ) : ℝ :=
   X^σ * Real.sqrt q * Real.sqrt (1+4*|γ| *X)
 
-private def lowerWindowZeros {q : ℕ} [NeZero q] (n : ℕ) (χ : DirichletCharacter ℂ q) (X γ : ℝ) :=
+def lowerWindowZeros {q : ℕ} [NeZero q] (n : ℕ) (χ : DirichletCharacter ℂ q) (X γ : ℝ) :=
   (exceptionalZeros χ (heightCut X)).filter (fun z => localZeroScale q X γ z.re ≤ (n:ℝ)^(3/4:ℝ))
 
-private theorem scaled_residue_bound :
+theorem scaled_residue_bound :
     ∃ C : ℝ, 0<C ∧ ∀ (n q : ℕ) [NeZero q], 1≤n → (q:ℝ)≤n →
       ∀ (χ : DirichletCharacter ℂ q) (a b X γ : ℝ), 1≤X → X≤a → a+1≤b → b+1≤2*X → X≤n →
       Real.sqrt q*‖∑ z ∈ lowerWindowZeros n χ X γ,
@@ -7443,14 +7444,14 @@ private theorem scaled_residue_bound :
     _ = _ := by dsimp [N,L];ring
 
 
-private def lowerWindowTerm {q : ℕ} [NeZero q] (n : ℕ) (χ : DirichletCharacter ℂ q) (p : ℕ×ℕ) (γ : ℝ) : ℂ :=
+def lowerWindowTerm {q : ℕ} [NeZero q] (n : ℕ) (χ : DirichletCharacter ℂ q) (p : ℕ×ℕ) (γ : ℝ) : ℂ :=
   ∑ z ∈ lowerWindowZeros n χ p.1 γ, (analyticOrderNatAt (regularizedL χ) z:ℂ)*transform p.1 p.2 γ z
 
 def upperWindowTerm {q : ℕ} [NeZero q] (n : ℕ) (χ : DirichletCharacter ℂ q) (p : ℕ×ℕ) (γ : ℝ) : ℂ :=
   ∑ z ∈ (exceptionalZeros χ (heightCut p.1)).filter (fun z => (n:ℝ)^(3/4:ℝ) < localZeroScale q p.1 γ z.re),
     (analyticOrderNatAt (regularizedL χ) z:ℂ)*transform p.1 p.2 γ z
 
-private theorem splitWindowTerm {q : ℕ} [NeZero q] (n : ℕ) (χ : DirichletCharacter ℂ q) (p : ℕ×ℕ) (γ : ℝ) :
+theorem splitWindowTerm {q : ℕ} [NeZero q] (n : ℕ) (χ : DirichletCharacter ℂ q) (p : ℕ×ℕ) (γ : ℝ) :
     lowerWindowTerm n χ p γ + upperWindowTerm n χ p γ = fixedZeroTerm χ p.1 p.2 p.1 γ := by
   simpa only [lowerWindowTerm,lowerWindowZeros,upperWindowTerm,fixedZeroTerm,not_le] using
     Finset.sum_filter_add_sum_filter_not (s:=exceptionalZeros χ (heightCut p.1))
@@ -8146,7 +8147,7 @@ open scoped Classical
 noncomputable section
 namespace GoldbachTwistedMellin
 
-private theorem tight_phase {n q : ℕ} [NeZero q] (hn : 64≤n) {β X : ℝ} (hx : X≤n)
+theorem tight_phase {n q : ℕ} [NeZero q] (hn : 64≤n) {β X : ℝ} (hx : X≤n)
     (hβ : |β|≤1/((q:ℝ)*Real.sqrt n)) : |2*Real.pi*β|≤1 ∧ |2*Real.pi*β|^2*X≤64 := by
   obtain ⟨h1,h2⟩ := angular_range hn (NeZero.pos q) hβ
   let g := |2*Real.pi*β|
@@ -8175,18 +8176,18 @@ def shortWindowTerm {q : ℕ} [NeZero q] (n : ℕ) (χ : DirichletCharacter ℂ 
   ∑ z ∈ (shortBand n χ p γ).filter (fun z => |z.im|≤ordinateCut q n p.1),
     (analyticOrderNatAt (regularizedL χ) z:ℂ)*transform p.1 p.2 γ z
 
-private def tallWindowTerm {q : ℕ} [NeZero q] (n : ℕ) (χ : DirichletCharacter ℂ q) (p : ℕ×ℕ) (γ : ℝ) : ℂ :=
+def tallWindowTerm {q : ℕ} [NeZero q] (n : ℕ) (χ : DirichletCharacter ℂ q) (p : ℕ×ℕ) (γ : ℝ) : ℂ :=
   ∑ z ∈ (shortBand n χ p γ).filter (fun z => ordinateCut q n p.1< |z.im|),
     (analyticOrderNatAt (regularizedL χ) z:ℂ)*transform p.1 p.2 γ z
 
-private theorem splitShortTerm {q : ℕ} [NeZero q] (n : ℕ) (χ : DirichletCharacter ℂ q) (p : ℕ×ℕ) (γ : ℝ) :
+theorem splitShortTerm {q : ℕ} [NeZero q] (n : ℕ) (χ : DirichletCharacter ℂ q) (p : ℕ×ℕ) (γ : ℝ) :
     shortWindowTerm n χ p γ + tallWindowTerm n χ p γ = upperWindowTerm n χ p γ := by
   simpa only [shortWindowTerm,tallWindowTerm,shortBand,upperWindowTerm,not_le] using
     Finset.sum_filter_add_sum_filter_not (s:=shortBand n χ p γ)
       (fun z => |z.im|≤ordinateCut q n p.1)
       (fun z => (analyticOrderNatAt (regularizedL χ) z:ℂ)*transform p.1 p.2 γ z)
 
-private theorem tall_residue_bound :
+theorem tall_residue_bound :
     ∃ C : ℝ, 0<C ∧ ∀ (n q : ℕ) [NeZero q], 64≤n → (q:ℝ)≤Real.sqrt n →
       ∀ (χ : DirichletCharacter ℂ q) (p : ℕ×ℕ) (β : ℝ), p∈prefixBlocks (n-2) →
       |β|≤1/((q:ℝ)*Real.sqrt n) →
@@ -8231,63 +8232,501 @@ private theorem tall_residue_bound :
       gcongr
     _ = _ := by ring
 
-def shortCorrection {q : ℕ} [NeZero q] (n : ℕ) (v : ZMod q) (β : ℝ) : ℂ :=
-  ∑ χ ∈ (univ : Finset (DirichletCharacter ℂ q)).filter (fun χ => projectedThreshold n q < (χ.conductor:ℝ)),
-    additiveWeight v χ * ((prefixBlocks (n-2)).map fun p => shortWindowTerm n χ p (2*Real.pi*β)).sum
+end GoldbachTwistedMellin
+end
+end
 
-private theorem splitShort {q : ℕ} [NeZero q] (n : ℕ) (v : ZMod q) (β : ℝ) :
-    adaptiveCorrection n v β - shortCorrection n v β =
-      ((prefixBlocks (n-2)).map fun p =>
-        ∑ χ ∈ (univ : Finset (DirichletCharacter ℂ q)).filter (fun χ => projectedThreshold n q < (χ.conductor:ℝ)),
-          additiveWeight v χ * tallWindowTerm n χ p (2*Real.pi*β)).sum := by
-  unfold adaptiveCorrection shortCorrection
-  induction prefixBlocks (n-2) with
-  | nil => simp
-  | cons p l ih =>
-    simp only [List.map_cons,List.sum_cons,←splitShortTerm n,mul_add,sum_add_distrib]
-    rw [←ih]
-    simp only [←splitShortTerm n]
-    abel
+section
+open Complex Set MeasureTheory
+open scoped Interval
+noncomputable section
+namespace GoldbachTwistedMellin
 
-/-- The discarded part of the high-conductor correction is bounded by the
-three-quarters scale times a fixed power of the logarithm, on every rational window. -/
-theorem short_discarded_finite :
-    ∃ K : ℝ, 0<K ∧ ∀ (n : ℕ), 64≤n → ∀ (q : ℕ) [NeZero q], (q:ℝ)≤Real.sqrt n → ∀ (v : ZMod q) (β : ℝ), |β|≤1/((q:ℝ)*Real.sqrt n) →
-      ‖adaptiveCorrection n v β - shortCorrection n v β‖ ≤ K*(n:ℝ)^(3/4:ℝ)*logScale n^2 := by
-  obtain ⟨C,hC,residues⟩ := tall_residue_bound
-  refine ⟨3*C,by positivity,?_⟩
-  intro n hn q _ hq v β hβ
-  let A := (univ : Finset (DirichletCharacter ℂ q)).filter (fun χ => projectedThreshold n q < (χ.conductor:ℝ))
-  let γ := 2*Real.pi*β
-  let D := C*(n:ℝ)^(3/4:ℝ)*logScale n
-  let F := fun p : ℕ×ℕ => ∑ χ ∈ A,additiveWeight v χ * tallWindowTerm n χ p γ
-  have hl0 : 0≤logScale n := zero_le_one.trans (logScale_one (by exact_mod_cast (show 1≤n by omega)))
-  have hD : 0≤D := by dsimp [D];positivity
-  have hs : 0<Real.sqrt (q:ℝ) := Real.sqrt_pos.mpr (by exact_mod_cast NeZero.pos q)
-  have block (p : ℕ×ℕ) (hp : p∈prefixBlocks (n-2)) : ‖F p‖ ≤ D := by
-    have single (χ : DirichletCharacter ℂ q) : ‖tallWindowTerm n χ p γ‖ ≤ D/Real.sqrt q := by
-      apply (le_div_iff₀ hs).mpr
-      rw [mul_comm]
-      exact residues n q hn hq χ p β hp hβ
+private theorem vertical_sharp_endpoint {X l r γ : ℝ} (hX : 1≤X) (hl : X≤l) (hlr : l≤r) (hr : r≤2*X)
+    {s : ℂ} (hs : 0<s.re) (hs' : s.re≤1) (hn : 0<‖s+1‖) :
+    ‖∫ x in l..r,density γ (s+1) x‖ ≤ (4*X^(s.re+1)*(2+|γ| *(r-l)))/‖s+1‖ := by
+  have xl : 0<l := zero_lt_one.trans_le (hX.trans hl)
+  have bnd (x : ℝ) (hx : x ∈ Icc l r) : ‖density γ ((s+1)+1) x‖ ≤ 4*X^(s.re+1) := by
+    rw [density_succ,norm_mul,norm_phase,one_mul,norm_cpow_eq_rpow_re_of_pos (xl.trans_le hx.1),add_re,one_re]
     calc
-      _ ≤ ∑ χ ∈ A, ‖additiveWeight v χ * tallWindowTerm n χ p γ‖ := norm_sum_le ..
-      _ ≤ ∑ χ ∈ A, ‖additiveWeight v χ‖*(D/Real.sqrt q) := by
-        refine sum_le_sum fun χ _ => ?_
-        rw [norm_mul];exact mul_le_mul_of_nonneg_left (single χ) (norm_nonneg _)
-      _ = (∑ χ ∈ A, ‖additiveWeight v χ‖)*(D/Real.sqrt q) := (Finset.sum_mul ..).symm
-      _ ≤ Real.sqrt q*(D/Real.sqrt q) := by
-        apply mul_le_mul_of_nonneg_right _ (div_nonneg hD hs.le)
-        calc
-          _ ≤ ∑ χ : DirichletCharacter ℂ q, ‖additiveWeight v χ‖ :=
-            sum_le_sum_of_subset_of_nonneg (subset_univ _) (fun _ _ _ => norm_nonneg _)
-          _ ≤ _ := sum_norm_additiveWeight_le v
-      _ = D := by field_simp
-  have pre := dyadic_prefix_corrected (fun _ => (0:ℂ)) F n (by omega) D
-    (fun k _ => by simpa using hD) (fun p hp => by simpa using block p hp)
-  simp only [sum_const_zero,zero_add] at pre
-  rw [splitShort]
-  exact pre.trans ((mul_le_mul_of_nonneg_right (dyadic_count_le (by omega : 4≤n)) hD).trans_eq (by dsimp [D];ring))
+      x^(s.re+1) ≤ (2*X)^(s.re+1) := Real.rpow_le_rpow (xl.le.trans hx.1) (hx.2.trans hr) (by linarith)
+      _ = (2:ℝ)^(s.re+1)*X^(s.re+1) := Real.mul_rpow (by norm_num) (by linarith)
+      _ ≤ 4*X^(s.re+1) := by
+        apply mul_le_mul_of_nonneg_right _ (Real.rpow_nonneg (by linarith) _)
+        exact (Real.rpow_le_rpow_of_exponent_le (by norm_num : (1:ℝ)≤2) (by linarith : s.re+1≤2)).trans_eq (by norm_num)
+  have hi := intervalIntegral.norm_integral_le_of_norm_le_const (a:=l) (b:=r)
+    (fun x hx => bnd x (by rw [uIoc_of_le hlr] at hx;exact ⟨hx.1.le,hx.2⟩))
+  rw [abs_of_nonneg (sub_nonneg.mpr hlr)] at hi
+  have e := scaled_power_ibp xl hlr γ (s:=s+1) (by simp only [add_re,one_re];linarith)
+  have he := norm_sub_le (density γ ((s+1)+1) r-density γ ((s+1)+1) l) (linearFrequency γ*(∫ x in l..r,density γ ((s+1)+1) x))
+  rw [←e,norm_mul,norm_mul,frequency_norm] at he
+  apply (le_div_iff₀ hn).mpr
+  nlinarith only [he,norm_sub_le (density γ ((s+1)+1) r) (density γ ((s+1)+1) l),
+    bnd r (right_mem_Icc.mpr hlr),bnd l (left_mem_Icc.mpr hlr),mul_le_mul_of_nonneg_left hi (abs_nonneg γ)]
 
+/-- The rational offset constraint controls the square of the angular frequency.
+Two integrations by parts then cost only the square of the dyadic scale. -/
+theorem vertical_ordinate_decay {X a b γ : ℝ} (hX : 1≤X) (ha : X≤a) (hab : a+1≤b)
+    (hb : b+1≤2*X) (hγ : |γ|≤1) (hf : |γ| ^2*X≤64) (s : ℂ)
+    (hs : 0<s.re) (hs' : s.re≤1) (ht : 0 < |s.im|) :
+    ‖transform a b γ s‖ ≤ 288*X^(s.re+1)/ |s.im| ^2 := by
+  let D := 4*X^(s.re+1)/‖s+1‖
+  have t1 : |s.im|≤‖s+1‖ := by simpa using abs_im_le_norm (s+1)
+  have hn := ht.trans_le t1
+  have hD : 0≤D := by dsimp [D];positivity
+  have bound {l r : ℝ} (hl : X≤l) (hlr : l≤r) (hr : r≤2*X) : ‖∫ x in l..r,density γ (s+1) x‖ ≤ D*(2+|γ| *(r-l)) :=
+    (vertical_sharp_endpoint hX hl hlr hr hs hs' hn).trans_eq (by dsimp [D];ring)
+  have endpt (l : ℝ) (hl : X≤l) (hr : l+1≤2*X) : ‖∫ x in l..l+1,density γ (s+1) x‖ ≤ 3*D := by
+    have h := bound hl (by linarith : l≤l+1) hr
+    have hle := mul_le_mul_of_nonneg_left hγ hD
+    nlinarith only [h,hle]
+  have all : ‖transform a b γ (s+1)‖ ≤ D*(2+|γ| *X) := by
+    refine norm_transform_le (zero_lt_one.trans_le hX) ha hab hb γ (s+1) (fun l r hl hlr hr => ?_)
+    apply (bound hl hlr hr).trans
+    gcongr
+    linarith
+  have e := transform_recurrence (zero_lt_one.trans_le (hX.trans ha)) hab γ hs
+  change s*transform a b γ s = _ - linearFrequency γ*transform a b γ (s+1) at e
+  have tr := norm_sub_le ((∫ x in b..b+1,density γ (s+1) x)-(∫ x in a..a+1,density γ (s+1) x)) (linearFrequency γ*transform a b γ (s+1))
+  rw [←e,norm_mul,norm_mul,frequency_norm] at tr
+  have small : ‖s‖*‖transform a b γ s‖ ≤ 72*D := by
+    nlinarith only [tr,norm_sub_le (∫ x in b..b+1,density γ (s+1) x) (∫ x in a..a+1,density γ (s+1) x),
+      endpt a ha (by linarith),endpt b (by linarith) hb,mul_le_mul_of_nonneg_left all (abs_nonneg γ),
+      mul_le_mul_of_nonneg_left hf hD,mul_le_mul_of_nonneg_left hγ hD]
+  have eq : 72*D=288*X^(s.re+1)/‖s+1‖ := by dsimp [D];ring
+  rw [eq] at small
+  apply (le_div_iff₀ (sq_pos_of_pos ht)).mpr
+  calc
+    _ = |s.im| *‖transform a b γ s‖*|s.im| := by ring
+    _ ≤ ‖s‖*‖transform a b γ s‖*‖s+1‖ := mul_le_mul (mul_le_mul_of_nonneg_right (abs_im_le_norm s) (norm_nonneg _)) t1 ht.le (by positivity)
+    _ ≤ _ := (le_div_iff₀ hn).mp small
+end GoldbachTwistedMellin
+end
+end
+
+section
+open Complex Set MeasureTheory
+open scoped Interval
+noncomputable section
+namespace GoldbachTwistedMellin
+
+/-- A zero can contribute beyond the harmonic error only when the phase slope
+gets small somewhere on the actual dyadic block, and curvature and endpoint
+decay both allow a contribution of that size. -/
+def activePhase (Q n : ℕ) (X γ : ℝ) (z : ℂ) : Prop :=
+  ∃ x ∈ Icc X (2*X),
+    (n:ℝ)^(3/4:ℝ) * max (max 1 (Real.sqrt |z.im|)) (max |γ*x+z.im| (|z.im|^2/X)) <
+      Real.sqrt Q*X^z.re*(1+|z.im|)
+
+private theorem separated_window {X a b γ H : ℝ} (hX : 0<X) (ha : X≤a)
+    (hab : a+1≤b) (hb : b+1≤2*X) {z : ℂ} (hs : 0≤z.re) (hs' : z.re≤1)
+    (hH : 0<H) (sep : ∀ x ∈ Icc X (2*X), H≤|γ*x+z.im|) :
+    ‖transform a b γ z‖ ≤ 10*X^z.re/H := by
+  apply norm_transform_le hX ha hab hb
+  intro l r hl hlr hr
+  have he := intervalIntegral.integral_congr (μ:=volume) (f:=density γ z)
+    (a:=l) (b:=r) (fun x hx => density_eq ((hX.trans_le hl).trans_le (((uIcc_of_le hlr) ▸ hx).1)) γ z)
+  rw [he]
+  have bounds := GoldbachOscillation.per_ordinate X l r z.re z.im γ hX hl hlr hr hs hs'
+  apply (bounds.2.2 H hH (fun x hx => sep x ⟨hl.trans hx.1,hx.2.trans hr⟩)).trans
+  apply (div_le_div_iff_of_pos_right hH).mpr
+  have hpow : r^z.re ≤ 2*X^z.re := calc
+    _ ≤ (2*X)^z.re := Real.rpow_le_rpow (hX.le.trans (hl.trans hlr)) hr hs
+    _ = (2:ℝ)^z.re*X^z.re := Real.mul_rpow (by norm_num) hX.le
+    _ ≤ _ := mul_le_mul_of_nonneg_right (by simpa using Real.rpow_le_rpow_of_exponent_le (show (1:ℝ)≤2 by norm_num) hs') (Real.rpow_nonneg hX.le _)
+  linarith
+
+theorem inactive_phase_cost {q n : ℕ} [NeZero q] (hn : 1≤n) {X a b γ : ℝ}
+    (hX : 1≤X) (ha : X≤a) (hab : a+1≤b) (hb : b+1≤2*X) (hγ : |γ|≤1) (hf : |γ|^2*X≤64)
+    (z : ℂ) (hs : 0<z.re) (hs' : z.re≤1) (inactive : ¬ activePhase q n X γ z) :
+    (Real.sqrt q*‖transform a b γ z‖)*(1+|z.im|) ≤ 288*(n:ℝ)^(3/4:ℝ) := by
+  let Y := X^z.re
+  let t := |z.im|
+  let N := (n:ℝ)^(3/4:ℝ)
+  let A := Real.sqrt q*Y*(1+t)/N
+  have hx := zero_lt_one.trans_le hX
+  have hN : 0<N := Real.rpow_pos_of_pos (by exact_mod_cast (show 0<n by omega)) _
+  have ht : 0≤t := abs_nonneg _
+  have hY : 0<Y := Real.rpow_pos_of_pos hx _
+  have hq : 0<Real.sqrt q := Real.sqrt_pos.mpr (by exact_mod_cast NeZero.pos q)
+  have hA : 0<A := by dsimp [A];positivity
+  have hAN : A*N = Real.sqrt q*Y*(1+t) := div_mul_cancel₀ _ hN.ne'
+  have lift (h : ‖transform a b γ z‖*A ≤ 288*Y) :
+      Real.sqrt q*‖transform a b γ z‖*(1+t) ≤ 288*N := by
+    apply (mul_le_mul_iff_left₀ hY).mp
+    calc
+      _ = (‖transform a b γ z‖*A)*N := by rw [mul_assoc _ A N,hAN];ring
+      _ ≤ (288*Y)*N := mul_le_mul_of_nonneg_right h hN.le
+      _ = _ := by ring
+  apply lift
+  obtain ⟨h0,h1,_⟩ := norm_window_modes hx ha hab hb γ z hs.le hs'
+  by_cases lo : A≤1
+  · exact (mul_le_mul h0 lo hA.le hY.le).trans (by dsimp only [Y];nlinarith only [hY.le])
+  by_cases mid : A≤Real.sqrt t
+  · have st := hA.trans_le mid
+    have tj : z.im≠0 := by intro e;simp [t,e] at st
+    have upper := (le_div_iff₀ st).mp ((h1 tj).trans_eq (by dsimp [Y,t];ring) :
+      ‖transform a b γ z‖ ≤ (Y*(3+5*Real.pi))/Real.sqrt t)
+    exact (mul_le_mul_of_nonneg_left mid (norm_nonneg _)).trans (upper.trans
+      ((mul_le_mul_of_nonneg_left (by linarith only [Real.pi_lt_four] : 3+5*Real.pi≤288) hY.le).trans_eq (mul_comm _ _)))
+  by_cases tall : A≤t^2/X
+  · have tpos : 0<t := by
+      by_contra! h
+      have h0 : t=0 := le_antisymm h ht
+      rw [h0] at tall
+      simp at tall
+      linarith
+    have decay := vertical_ordinate_decay hX ha hab hb hγ hf z hs hs' tpos
+    have hp := (le_div_iff₀ (sq_pos_of_pos tpos)).mp decay
+    have powid : X^(z.re+1)=Y*X := by rw [Real.rpow_add hx,Real.rpow_one]
+    rw [powid] at hp
+    apply (mul_le_mul_of_nonneg_left tall (norm_nonneg _)).trans
+    rw [←mul_div_assoc]
+    exact (div_le_iff₀ hx).mpr (by linarith only [hp])
+  have sep (x : ℝ) (h : x∈Icc X (2*X)) : A≤|γ*x+z.im| := by
+    by_contra! h'
+    apply inactive
+    refine ⟨x,h,?_⟩
+    have hm : max (max 1 (Real.sqrt t)) (max |γ*x+z.im| (t^2/X)) < A :=
+      max_lt (max_lt (lt_of_not_ge lo) (lt_of_not_ge mid)) (max_lt h' (lt_of_not_ge tall))
+    have e := (lt_div_iff₀ hN).mp hm
+    rw [mul_comm _ N] at e
+    exact e
+  exact ((le_div_iff₀ hA).mp (separated_window hx ha hab hb hs.le hs' hA sep)).trans
+    (mul_le_mul_of_nonneg_right (by norm_num : (10:ℝ)≤288) hY.le)
+end GoldbachTwistedMellin
+end
+end
+
+section
+open Finset Set Complex Goldbach
+open scoped Classical
+noncomputable section
+namespace GoldbachTwistedMellin
+private def harmonicBin (t : ℝ) : Bool×ℕ := (decide (0≤t),⌊|t|⌋₊)
+private def harmonicCenter (p : Bool×ℕ) : ℝ := if p.1 then (p.2:ℝ) else -(p.2:ℝ)
+private theorem harmonic_bin_range (y : ℝ) : ((harmonicBin y).2:ℝ) ≤ |y| ∧ |y-harmonicCenter (harmonicBin y)| ≤ 1 := by
+  have h := Nat.floor_le (abs_nonneg y)
+  have h' := Nat.lt_floor_add_one |y|
+  refine ⟨h,?_⟩
+  by_cases hy : 0≤y
+  · simp only [abs_of_nonneg hy] at h h'
+    simp [harmonicCenter,harmonicBin,hy,abs_of_nonneg hy,abs_le];constructor <;> linarith
+  · have hn := le_of_not_ge hy
+    simp only [abs_of_nonpos hn] at h h'
+    simp [harmonicCenter,harmonicBin,hy,abs_of_nonpos hn,abs_le];constructor <;> linarith
+
+
+/-- The harmonic weight in the ordinate pays only two logarithms for all
+zeros, including their analytic multiplicities, with no restriction on their signs. -/
+theorem ordinate_harmonic_mass : ∃ C : ℝ, 0<C ∧ ∀ (q : ℕ) [NeZero q] (χ : DirichletCharacter ℂ q)
+    (Z : Finset ℂ) (B : ℝ), 2≤B → (∀ z∈Z, 1/2≤z.re ∧ z.re≤1 ∧ |z.im|≤B) →
+    ∑ z ∈ Z, (analyticOrderNatAt (regularizedL χ) z:ℝ)/(1+|z.im|) ≤ C*logHeight q B*(1+Real.log B) := by
+  obtain ⟨K,hK,slice⟩ := unconditional_right_slice_count
+  refine ⟨100*K,by positivity,?_⟩
+  intro q _ χ Z B hB geom
+  let M := ⌊B⌋₊
+  let y := fun z : ℂ => harmonicBin z.im
+  let m := fun z : ℂ => (analyticOrderNatAt (regularizedL χ) z:ℝ)
+  have hM : (M:ℝ)≤B := Nat.floor_le (by linarith)
+  have hL : 0≤logHeight q B := zero_le_one.trans (logHeight_ge_one _ _)
+  have cover (z : ℂ) (hz : z∈Z) : y z∈grid (M+1) :=
+    mem_product.mpr ⟨mem_univ _,mem_range.mpr (Nat.lt_succ_of_le (Nat.floor_mono (geom z hz).2.2))⟩
+  have per (p : Bool×ℕ) (hp : p∈grid (M+1)) :
+      (∑ z ∈ Z.filter (fun z => y z=p), m z/(1+|z.im|)) ≤ (K*logHeight q B)*profile 0 p.2 := by
+    let Y := Z.filter (fun z => y z=p)
+    have hcnt := slice q χ (harmonicCenter p) Y (fun z hz => by
+      obtain ⟨hzZ,he⟩ := mem_filter.mp hz
+      exact ⟨(geom z hzZ).1,(geom z hzZ).2.1.trans (by norm_num),
+        by simpa only [←he,y] using (harmonic_bin_range z.im).2⟩)
+    have hc : |harmonicCenter p|=(p.2:ℝ) := by dsimp [harmonicCenter];split <;> simp
+    have hj : p.2≤M := Nat.lt_succ_iff.mp (mem_range.mp (mem_product.mp hp).2)
+    have height : logHeight q (harmonicCenter p)≤logHeight q B := by
+      apply logHeight_mono_abs;rw [hc,abs_of_nonneg (by linarith : 0≤B)]
+      exact (show (p.2:ℝ)≤M by exact_mod_cast hj).trans hM
+    have cnt : (∑ z ∈ Y,m z) ≤ K*logHeight q B := hcnt.trans (mul_le_mul_of_nonneg_left height hK.le)
+    have single (z : ℂ) (hz : z∈Y) : 1/(1+|z.im|) ≤ profile 0 p.2 := by
+      have hpz := (mem_filter.mp hz).2
+      have hd : 0<1+|z.im| := by positivity
+      by_cases j0 : p.2=0
+      · rw [profile,ite_eq_left j0]
+        exact (div_le_one hd).mpr (by linarith [abs_nonneg z.im])
+      · have jp : 0<(p.2:ℝ) := by exact_mod_cast Nat.pos_of_ne_zero j0
+        have hbin : (p.2:ℝ)≤|z.im| := by rw [←hpz];exact (harmonic_bin_range z.im).1
+        rw [profile,ite_eq_right j0,ite_eq_right (show ¬p.2≤0 by omega)]
+        exact (div_le_div_iff₀ hd jp).mpr (by linarith)
+    calc
+      _ ≤ ∑ z ∈ Y,m z*profile 0 p.2 := by
+        refine sum_le_sum fun z hz => ?_
+        calc
+          m z/(1+|z.im|) = m z*(1/(1+|z.im|)) := by ring
+          _ ≤ _ := mul_le_mul_of_nonneg_left (single z hz) (Nat.cast_nonneg _)
+      _ = (∑ z ∈ Y,m z)*profile 0 p.2 := (Finset.sum_mul ..).symm
+      _ ≤ _ := mul_le_mul_of_nonneg_right cnt (profile_nonneg ..)
+  have total := sum_le_sum per
+  rw [Finset.sum_fiberwise_of_maps_to cover,←Finset.mul_sum,sum_grid_weight] at total
+  have hln : Real.log (M+1:ℝ)≤1+Real.log B := by
+    have hy := Real.log_le_log (by positivity : 0<(M:ℝ)+1) (by linarith : (M:ℝ)+1≤2*B)
+    rw [Real.log_mul (by norm_num : (2:ℝ)≠0) (by linarith)] at hy
+    linarith only [hy,Real.log_le_sub_one_of_pos (by norm_num : 0<(2:ℝ))]
+  have hprof := profile_sum 0 M
+  simp only [Nat.cast_zero,Real.sqrt_zero,mul_zero,add_zero] at hprof
+  have bound : 2*(∑ j ∈ range (M+1),profile 0 j)≤100*(1+Real.log B) := by
+    linarith only [hprof,hln,Real.log_nonneg (by linarith : 1≤B)]
+  exact total.trans ((mul_le_mul_of_nonneg_left bound (mul_nonneg hK.le hL)).trans_eq (by ring))
+end GoldbachTwistedMellin
+end
+end
+
+section
+open Finset Complex Set Goldbach GoldbachSmoothing GoldbachGRHWindow DeepThreeQuarters Filter
+open scoped Classical
+noncomputable section
+namespace GoldbachTwistedMellin
+
+def shortSupport {q : ℕ} [NeZero q] (n : ℕ) (χ : DirichletCharacter ℂ q) (p : ℕ×ℕ) (γ : ℝ) :=
+  (shortBand n χ p γ).filter (fun z => |z.im|≤ordinateCut q n p.1)
+
+def phaseWindowTerm {q : ℕ} [NeZero q] (n : ℕ) (χ : DirichletCharacter ℂ q) (p : ℕ×ℕ) (γ : ℝ) : ℂ :=
+  ∑ z ∈ (shortSupport n χ p γ).filter (activePhase q n p.1 γ),
+    (analyticOrderNatAt (regularizedL χ) z:ℂ)*transform p.1 p.2 γ z
+
+def inactiveWindowTerm {q : ℕ} [NeZero q] (n : ℕ) (χ : DirichletCharacter ℂ q) (p : ℕ×ℕ) (γ : ℝ) : ℂ :=
+  ∑ z ∈ (shortSupport n χ p γ).filter (fun z => ¬activePhase q n p.1 γ z),
+    (analyticOrderNatAt (regularizedL χ) z:ℂ)*transform p.1 p.2 γ z
+
+theorem splitPhaseTerm {q : ℕ} [NeZero q] (n : ℕ) (χ : DirichletCharacter ℂ q) (p : ℕ×ℕ) (γ : ℝ) :
+    phaseWindowTerm n χ p γ + inactiveWindowTerm n χ p γ = shortWindowTerm n χ p γ := by
+  exact Finset.sum_filter_add_sum_filter_not (s:=shortSupport n χ p γ) (activePhase q n p.1 γ)
+    (fun z => (analyticOrderNatAt (regularizedL χ) z:ℂ)*transform p.1 p.2 γ z)
+
+theorem phase_residue_bound :
+    ∃ C : ℝ, 0<C ∧ ∀ (n q : ℕ) [NeZero q], 64≤n → (q:ℝ)≤Real.sqrt n →
+      ∀ (χ : DirichletCharacter ℂ q) (p : ℕ×ℕ) (β : ℝ), p∈prefixBlocks (n-2) →
+      |β|≤1/((q:ℝ)*Real.sqrt n) →
+      Real.sqrt q*‖inactiveWindowTerm n χ p (2*Real.pi*β)‖ ≤ C*(n:ℝ)^(3/4:ℝ)*logScale n^2 := by
+  obtain ⟨K,hK,mass⟩ := ordinate_harmonic_mass
+  refine ⟨28800*K,by positivity,?_⟩
+  intro n q _ hn hq χ p β hp hβ
+  let X : ℝ := p.1
+  let B := heightCut X
+  let γ := 2*Real.pi*β
+  let N := (n:ℝ)^(3/4:ℝ)
+  let Z := (shortSupport n χ p γ).filter (fun z => ¬activePhase q n p.1 γ z)
+  let m := fun z : ℂ => (analyticOrderNatAt (regularizedL χ) z:ℝ)
+  obtain ⟨hl,hlr,hr,hrn⟩ := prefixBlocks_valid hp
+  have hX : 1≤X := by dsimp [X];exact_mod_cast hl
+  have hxn : X≤(n:ℝ) := by dsimp [X];exact_mod_cast (show p.1≤n by omega)
+  have hnR : 1≤(n:ℝ) := by exact_mod_cast (show 1≤n by omega)
+  have hqs := hq.trans (Real.sqrt_le_self_iff.mpr (Or.inr hnR))
+  obtain ⟨hγ,hf⟩ := tight_phase (q:=q) hn hxn hβ
+  have hb : 2≤B := by dsimp [B];linarith only [heightCut_ge hX,hX]
+  have geom (z : ℂ) (hz : z∈Z) : 1/2≤z.re ∧ z.re≤1 ∧ |z.im|≤B := by
+    obtain ⟨hzR,hzH,hzero⟩ := (mem_exceptionalZeros χ _ z).mp (mem_filter.mp (mem_filter.mp (mem_filter.mp hz).1).1).1
+    exact ⟨hzR.le,le_of_not_gt (fun h => regularizedL_ne_zero_right χ h hzero),hzH⟩
+  have single (z : ℂ) (hz : z∈Z) : Real.sqrt q*(m z*‖transform p.1 p.2 γ z‖) ≤ (288*N)*(m z/(1+|z.im|)) := by
+    obtain ⟨hlo,hhi,_⟩ := geom z hz
+    have hd : 0<1+|z.im| := by positivity
+    have e := inactive_phase_cost (q:=q) (n:=n) (a:=(p.1:ℝ)) (b:=(p.2:ℝ)) (by omega) hX le_rfl (by exact_mod_cast hlr) (by dsimp [X];exact_mod_cast hr)
+      hγ hf z (by linarith) hhi (mem_filter.mp hz).2
+    calc
+      _ = m z*(Real.sqrt q*‖transform p.1 p.2 γ z‖) := by ring
+      _ ≤ m z*((288*N)/(1+|z.im|)) := mul_le_mul_of_nonneg_left ((le_div_iff₀ hd).mpr e) (Nat.cast_nonneg _)
+      _ = _ := by ring
+  have hnorm := norm_sum_le Z (fun z : ℂ => (analyticOrderNatAt (regularizedL χ) z:ℂ)*transform p.1 p.2 γ z)
+  simp only [norm_mul,Complex.norm_natCast] at hnorm
+  obtain ⟨ha,hlg⟩ := log_window_scale (q:=q) hX hxn hqs
+  have hlog : logHeight q B≤10*logScale n := by dsimp [logBudget] at ha;dsimp [B];linarith
+  have hL := logScale_one hnR
+  have hlog' : 1+Real.log B≤10*logScale n := by dsimp [B];linarith
+  have log0 : 0≤logHeight q B := zero_le_one.trans (logHeight_ge_one _ _)
+  have lo : 0≤1+Real.log B := by linarith [Real.log_nonneg (by linarith : 1≤B)]
+  have hN : 0≤N := Real.rpow_nonneg (Nat.cast_nonneg _) _
+  calc
+    _ ≤ Real.sqrt q*(∑ z ∈ Z,m z*‖transform p.1 p.2 γ z‖) := mul_le_mul_of_nonneg_left hnorm (Real.sqrt_nonneg _)
+    _ = ∑ z ∈ Z, Real.sqrt q*(m z*‖transform p.1 p.2 γ z‖) := Finset.mul_sum ..
+    _ ≤ ∑ z ∈ Z,(288*N)*(m z/(1+|z.im|)) := sum_le_sum single
+    _ = (288*N)*(∑ z ∈ Z,m z/(1+|z.im|)) := (Finset.mul_sum ..).symm
+    _ ≤ (288*N)*(K*logHeight q B*(1+Real.log B)) := mul_le_mul_of_nonneg_left (mass q χ Z B hb geom) (by positivity)
+    _ ≤ (288*N)*(K*(10*logScale n)*(10*logScale n)) := by gcongr
+    _ = _ := by dsimp [N];ring
+
+end GoldbachTwistedMellin
+end
+end
+
+section
+open Complex Finset Set Goldbach GoldbachGRHWindow DeepThreeQuarters DirichletCharacter Filter
+open scoped Classical
+noncomputable section
+namespace GoldbachTwistedMellin
+
+/-- Hold the ambient denominator scale fixed while descending the actual
+character. This preserves the frequency and real-part threshold of every block. -/
+def phaseKeptBlock {d : ℕ} [NeZero d] (Q n : ℕ) (χ : DirichletCharacter ℂ d) (p : ℕ×ℕ) (γ : ℝ) : ℂ :=
+  ∑ z ∈ (((exceptionalZeros χ (heightCut p.1)).filter (fun z => (n:ℝ)^(3/4:ℝ) < localZeroScale Q p.1 γ z.re)).filter (fun z => |z.im| ≤ ordinateCut Q n p.1)).filter (activePhase Q n p.1 γ),
+    (analyticOrderNatAt (regularizedL χ) z:ℂ)*transform p.1 p.2 γ z
+
+theorem phaseKeptBlock_inflate {d q : ℕ} [NeZero d] [NeZero q] (hd : d∣q) (Q n : ℕ)
+    (ψ : DirichletCharacter ℂ d) (p : ℕ×ℕ) (γ : ℝ) :
+    phaseKeptBlock Q n (changeLevel hd ψ) p γ = phaseKeptBlock Q n ψ p γ := by
+  unfold phaseKeptBlock
+  rw [zeros_changeLevel]
+  refine sum_congr rfl fun z hz => ?_
+  have h := ((mem_exceptionalZeros ψ _ z).mp (mem_filter.mp (mem_filter.mp (mem_filter.mp hz).1).1).1).1
+  rw [order_changeLevel hd ψ (show 0<z.re by linarith)]
+
+end GoldbachTwistedMellin
+end
+end
+
+section
+open Finset Set Complex Goldbach GoldbachSmoothing GoldbachGRHWindow DeepThreeQuarters DirichletCharacter
+open scoped Classical
+noncomputable section
+namespace GoldbachTwistedMellin
+
+/-- At each primitive conductor, the full block and the localized block differ
+by a fixed polylogarithmic loss on the three-quarters scale after Gauss normalization. -/
+theorem local_character_error : ∃ C : ℝ, 0<C ∧ ∀ (n d : ℕ) [NeZero d], 64≤n → (d:ℝ)≤Real.sqrt n →
+    ∀ (χ : DirichletCharacter ℂ d) (β : ℝ), |β|≤1/((d:ℝ)*Real.sqrt n) →
+    Real.sqrt d * ‖characterZeroSum n χ β -
+      ((prefixBlocks (n-2)).map fun p => phaseWindowTerm n χ p (2*Real.pi*β)).sum‖ ≤
+        C*(n:ℝ)^(3/4:ℝ)*logScale n^3 := by
+  obtain ⟨A,hA,low⟩ := scaled_residue_bound
+  obtain ⟨B,hB,tall⟩ := tall_residue_bound
+  obtain ⟨C,hC,inact⟩ := phase_residue_bound
+  refine ⟨3*(A+B+C),by positivity,?_⟩
+  intro n d _ hn hd χ β hβ
+  let γ := 2*Real.pi*β
+  let N := (n:ℝ)^(3/4:ℝ)
+  let L := logScale n
+  let E := (A+B+C)*N*L^2
+  let F := fun p : ℕ×ℕ => fixedZeroTerm χ p.1 p.2 p.1 γ - phaseWindowTerm n χ p γ
+  have hnR : 1≤(n:ℝ) := by exact_mod_cast (show 1≤n by omega)
+  have hL : 1≤L := logScale_one hnR
+  have hN : 0≤N := Real.rpow_nonneg (Nat.cast_nonneg _) _
+  have dd : 0<Real.sqrt d := Real.sqrt_pos.mpr (by exact_mod_cast NeZero.pos d)
+  have hE : 0≤E := by dsimp only [E];positivity
+  have hdn := hd.trans (Real.sqrt_le_self_iff.mpr (Or.inr hnR))
+  have per (p : ℕ×ℕ) (hp : p∈prefixBlocks (n-2)) : ‖F p‖ ≤ E/Real.sqrt d := by
+    obtain ⟨hl,hlr,hr,hrn⟩ := prefixBlocks_valid hp
+    have l := low n d (by omega) hdn χ p.1 p.2 p.1 γ (by exact_mod_cast hl) le_rfl
+      (by exact_mod_cast hlr) (by exact_mod_cast hr) (by exact_mod_cast (show p.1≤n by omega))
+    have l' : Real.sqrt d*‖lowerWindowTerm n χ p γ‖≤A*N*L^2 := l
+    have t := tall n d hn hd χ p β hp hβ
+    have i := inact n d hn hd χ p β hp hβ
+    have eq : F p = lowerWindowTerm n χ p γ + tallWindowTerm n χ p γ + inactiveWindowTerm n χ p γ := by
+      dsimp only [F]
+      rw [←splitWindowTerm n,←splitShortTerm n,←splitPhaseTerm n]
+      abel
+    have t' : Real.sqrt d*‖tallWindowTerm n χ p γ‖≤B*N*L^2 :=
+      t.trans (mul_le_mul_of_nonneg_left (by nlinarith only [hL,sq_nonneg (L-1)] : L≤L^2) (mul_nonneg hB.le hN))
+    have i' : Real.sqrt d*‖inactiveWindowTerm n χ p γ‖≤C*N*L^2 := i
+    apply (le_div_iff₀ dd).mpr
+    rw [mul_comm,eq]
+    have tri := (norm_add_le (lowerWindowTerm n χ p γ + tallWindowTerm n χ p γ) (inactiveWindowTerm n χ p γ)).trans
+      (add_le_add (norm_add_le (lowerWindowTerm n χ p γ) (tallWindowTerm n χ p γ)) (le_refl _))
+    exact (mul_le_mul_of_nonneg_left tri dd.le).trans (by dsimp [E];linarith only [l',t',i'])
+  have eq : characterZeroSum n χ β - ((prefixBlocks (n-2)).map fun p => phaseWindowTerm n χ p γ).sum =
+      ((prefixBlocks (n-2)).map F).sum := by
+    unfold characterZeroSum
+    induction prefixBlocks (n-2) with
+    | nil => simp
+    | cons p l ih => simp only [List.map_cons,List.sum_cons];dsimp only [F] at *;rw [←ih];abel
+  have pre := dyadic_prefix_corrected (fun _ => (0:ℂ)) F n (by omega) (E/Real.sqrt d)
+    (fun k _ => by simpa using div_nonneg hE dd.le) (fun p hp => by simpa using per p hp)
+  simp only [sum_const_zero,zero_add] at pre
+  change Real.sqrt d*‖characterZeroSum n χ β-_‖ ≤ _
+  rw [eq]
+  apply (mul_le_mul_of_nonneg_left (pre.trans (mul_le_mul_of_nonneg_right
+    (dyadic_count_le (by omega : 4≤n)) (div_nonneg hE dd.le))) dd.le).trans_eq
+  dsimp only [E,N,L]
+  field_simp
+end GoldbachTwistedMellin
+end
+end
+
+section
+open Complex Finset Set Goldbach GoldbachGRHWindow DeepThreeQuarters DirichletCharacter Filter
+open scoped Classical
+noncomputable section
+namespace GoldbachTwistedMellin
+
+/-- The ambient denominator governs only the conductor threshold. All three
+spectral cutoffs use the character's primitive conductor, even after inflation. -/
+def intrinsicSpectrum (Q : ℕ) : DescendingKernel where
+  coeff := fun {d} _ n χ β => if projectedThreshold n Q < (χ.conductor:ℝ) then
+    ((prefixBlocks (n-2)).map fun p => phaseKeptBlock χ.conductor n χ p (2*Real.pi*β)).sum else 0
+  compatible := by
+    intro d q _ _ hd ψ n β
+    simp only [conductor_changeLevel,phaseKeptBlock_inflate]
+
+private def discardedSpectrum (Q : ℕ) : DescendingKernel where
+  coeff := fun {d} _ n χ β => (if projectedThreshold n Q < (χ.conductor:ℝ) then characterZeroSum n χ β else 0) -
+    (intrinsicSpectrum Q).coeff n χ β
+  compatible := by
+    intro d q _ _ hd ψ n β
+    rw [characterZeroSum_changeLevel,conductor_changeLevel,(intrinsicSpectrum Q).compatible hd]
+
+private theorem discarded_full {q : ℕ} [NeZero q] (a n : ℕ) (β : ℝ) :
+    levelTransform (discardedSpectrum q) false q 1 a n β =
+      projectedHighCorrection n (a:ZMod q) β - kernelCorrection (intrinsicSpectrum q) n (a:ZMod q) β := by
+  rw [levelTransform_eq]
+  simp only [Bool.false_eq_true,ite_false,Nat.cast_one,map_one,mul_one,discardedSpectrum,kernelCorrection,
+    projectedHighCorrection,Finset.sum_filter,mul_sub,Finset.sum_sub_distrib]
+  congr 1
+  refine sum_congr rfl fun χ _ => ?_
+  split_ifs <;> simp
+
+/-- Transport absolute errors at primitive conductors to a fixed reduced
+numerator. The only arithmetic overhead is the totient ratio. -/
+theorem intrinsic_error_finite :
+    ∃ C : ℝ, 0<C ∧ ∀ (n q a : ℕ) [NeZero q], 64≤n → (q:ℝ)≤Real.sqrt n → a.Coprime q →
+    ∀ β : ℝ, |β|≤1/((q:ℝ)*Real.sqrt n) →
+    ‖projectedHighCorrection n (a:ZMod q) β - kernelCorrection (intrinsicSpectrum q) n (a:ZMod q) β‖ ≤
+      ((q:ℝ)/q.totient)*(C*(n:ℝ)^(3/4:ℝ)*logScale n^3) := by
+  obtain ⟨C,hC,errs⟩ := local_character_error
+  refine ⟨C,hC,?_⟩
+  intro n q a _ hn hq hc β hβ
+  let D := C*(n:ℝ)^(3/4:ℝ)*logScale n^3
+  have hnR : 1≤(n:ℝ) := by exact_mod_cast (show 1≤n by omega)
+  have hL := logScale_one hnR
+  have hD : 0≤D := by dsimp [D];positivity
+  have loc (d : ℕ) (hd : d∈q.divisors) (b : ℕ) (_ : b<d) (_ : b.Coprime d) :
+      ‖levelTransform (discardedSpectrum q) true d 1 b n β‖≤D := by
+    let : NeZero d := ⟨(Nat.pos_of_mem_divisors hd).ne'⟩
+    have hs : 0<Real.sqrt d := Real.sqrt_pos.mpr (by exact_mod_cast Nat.pos_of_mem_divisors hd)
+    have hdq : (d:ℝ)≤q := by exact_mod_cast Nat.le_of_dvd (NeZero.pos q) (Nat.dvd_of_mem_divisors hd)
+    have hdn : (d:ℝ)≤Real.sqrt n := hdq.trans hq
+    have offset : |β|≤1/((d:ℝ)*Real.sqrt n) := hβ.trans (div_le_div_of_nonneg_left zero_le_one
+      (mul_pos (by exact_mod_cast Nat.pos_of_mem_divisors hd) (Real.sqrt_pos.mpr (zero_lt_one.trans_le hnR)))
+      (mul_le_mul_of_nonneg_right hdq (Real.sqrt_nonneg _)))
+    let S := (univ : Finset (DirichletCharacter ℂ d)).filter IsPrimitive
+    have estimate (χ : DirichletCharacter ℂ d) (hχ : χ∈S) : ‖(discardedSpectrum q).coeff n χ β‖ ≤ D/Real.sqrt d := by
+      have primitive : χ.conductor=d := (mem_filter.mp hχ).2
+      simp only [discardedSpectrum,intrinsicSpectrum,primitive]
+      split_ifs with ht
+      · apply (le_div_iff₀ hs).mpr
+        rw [mul_comm]
+        exact errs n d hn hdn χ β offset
+      · simpa using div_nonneg hD hs.le
+    rw [levelTransform_eq]
+    simp only [ite_true,Nat.cast_one,map_one,mul_one]
+    calc
+      _ ≤ ∑ χ ∈ S,‖additiveWeight (b:ZMod d) χ*(discardedSpectrum q).coeff n χ β‖ := norm_sum_le ..
+      _ ≤ ∑ χ ∈ S,‖additiveWeight (b:ZMod d) χ‖*(D/Real.sqrt d) := by
+        refine sum_le_sum fun χ hχ => ?_
+        rw [norm_mul];exact mul_le_mul_of_nonneg_left (estimate χ hχ) (norm_nonneg _)
+      _ = (∑ χ ∈ S, ‖additiveWeight (b:ZMod d) χ‖)*(D/Real.sqrt d) := (Finset.sum_mul ..).symm
+      _ ≤ Real.sqrt d*(D/Real.sqrt d) := by
+        apply mul_le_mul_of_nonneg_right _ (div_nonneg hD hs.le)
+        exact (sum_le_sum_of_subset_of_nonneg (subset_univ S) (fun _ _ _ => norm_nonneg _)).trans (sum_norm_additiveWeight_le (b:ZMod d))
+      _ = D := by field_simp
+  have he := conductor_two_way_bound (discardedSpectrum q) true a n hc β D hD loc
+  change ‖levelTransform (discardedSpectrum q) false q 1 a n β‖ ≤ _ at he
+  rw [discarded_full] at he
+  exact he
 end GoldbachTwistedMellin
 end
 end
@@ -8297,16 +8736,37 @@ open Set Filter Complex Goldbach GoldbachGRHWindow DeepThreeQuarters
 noncomputable section
 namespace GoldbachTwistedMellin
 
+def conductorCorrection {q : ℕ} [NeZero q] (n : ℕ) (v : ZMod q) (β : ℝ) : ℂ :=
+  kernelCorrection (intrinsicSpectrum q) n v β
+
+private theorem conductor_error_polylog :
+    ∃ C : ℝ, 0<C ∧ ∀ (n q a : ℕ) [NeZero q], 64≤n → (q:ℝ)≤Real.sqrt n → a.Coprime q →
+    ∀ β : ℝ, |β|≤1/((q:ℝ)*Real.sqrt n) →
+    ‖projectedHighCorrection n (a:ZMod q) β - conductorCorrection n (a:ZMod q) β‖ ≤
+      C*(n:ℝ)^(3/4:ℝ)*logScale n^4 := by
+  obtain ⟨C,hC,h⟩ := intrinsic_error_finite
+  refine ⟨4*C,by positivity,?_⟩
+  intro n q a _ hn hq hc β hβ
+  have hnR : (2:ℝ)≤n := by exact_mod_cast (show 2≤n by omega)
+  have hqn := hq.trans (Real.sqrt_le_self_iff.mpr (Or.inr (by linarith : 1≤(n:ℝ))))
+  have ls : Real.log ((q+2:ℕ):ℝ)≤logScale n := by
+    have l := Real.log_le_log (by positivity : (0:ℝ)<((q+2:ℕ):ℝ)) (show ((q+2:ℕ):ℝ)≤2*n by push_cast;linarith)
+    dsimp [logScale];linarith
+  have ratio := (totient_ratio_le_four_log q (NeZero.pos q)).trans (mul_le_mul_of_nonneg_left ls (by norm_num))
+  have ll := logScale_one (by linarith : 1≤(n:ℝ))
+  apply (h n q a hn hq hc β hβ).trans
+  exact (mul_le_mul_of_nonneg_right ratio (by positivity)).trans_eq (by ring)
+
 /-- The pointwise model now retains only high-conductor characters and the
 zeros above the real-part threshold and below the local ordinate cutoff. -/
-theorem deep_short_model :
+theorem deep_intrinsic_model :
     ∀ η : ℝ, 0<η → ∃ N : ℕ, ∀ n : ℕ, N≤n → ∀ t ∈ Icc (0:ℝ) 1, t ∉ wideArcs n →
       ∀ (a q : ℕ) [NeZero q], a≤q → a.Coprime q → (q:ℝ)≤Real.sqrt n →
       |t-(a:ℝ)/q| ≤ 1/((q:ℝ)*Real.sqrt n) →
-      ‖weightedSum n primeWeight t + shortCorrection n (a:ZMod q) (t-(a:ℝ)/q)‖ ≤ (n:ℝ)^(3/4+η) := by
+      ‖weightedSum n primeWeight t + conductorCorrection n (a:ZMod q) (t-(a:ℝ)/q)‖ ≤ (n:ℝ)^(3/4+η) := by
   intro η hη
-  obtain ⟨N,hN⟩ := deep_adaptive_model (η/2) (half_pos hη)
-  obtain ⟨K,hK,discard⟩ := short_discarded_finite
+  obtain ⟨N,hN⟩ := deep_projected_high_model (η/2) (half_pos hη)
+  obtain ⟨K,hK,discard⟩ := conductor_error_polylog
   obtain ⟨D,hD,logs⟩ := quartic_log_scale (half_pos hη)
   obtain ⟨P,hP⟩ := eventually_atTop.mp (eventually_absorb (1+K*D) η hη)
   refine ⟨max 64 (max N P),?_⟩
@@ -8315,49 +8775,48 @@ theorem deep_short_model :
   let β := t-(a:ℝ)/q
   have hnR : (1:ℝ)≤n := by exact_mod_cast (show 1≤n by omega)
   have hn0 := zero_lt_one.trans_le hnR
-  have hL := logScale_one hnR
-  have hp := discard n (by omega) q hq v β hβ
-  have hl := (pow_le_pow_right₀ hL (by decide : 2≤4)).trans (logs n hnR)
-  have he : ‖adaptiveCorrection n v β - shortCorrection n v β‖ ≤ K*D*(n:ℝ)^(3/4+η/2) := by
+  have hp := discard n q a (by omega) hq hc β hβ
+  have hl := logs n hnR
+  have he : ‖projectedHighCorrection n v β - conductorCorrection n v β‖ ≤ K*D*(n:ℝ)^(3/4+η/2) := by
     apply hp.trans
     calc
       _ ≤ K*(n:ℝ)^(3/4:ℝ)*(D*(n:ℝ)^(η/2)) := mul_le_mul_of_nonneg_left hl (by positivity)
       _ = _ := by rw [Real.rpow_add hn0];ring
   let S := weightedSum n primeWeight t
-  have eq : S+shortCorrection n v β =
-      (S+adaptiveCorrection n v β) - (adaptiveCorrection n v β - shortCorrection n v β) := by abel
-  change ‖S+shortCorrection n v β‖ ≤ _
+  have eq : S+conductorCorrection n v β =
+      (S+projectedHighCorrection n v β) - (projectedHighCorrection n v β - conductorCorrection n v β) := by abel
+  change ‖S+conductorCorrection n v β‖ ≤ _
   rw [eq]
   exact (norm_sub_le ..).trans ((add_le_add (hN n (by omega) t ht hdeep a q ha hc hq hβ) he).trans
     ((le_of_eq (by ring)).trans (hP n (by omega))))
 
 /-- The exact deep-arc target is equivalent to cancellation in the fixed signed zero sum.
 The zero criterion quantifies over every reduced Dirichlet approximant. -/
-theorem deep_iff_short_cancellation :
+theorem deep_iff_conductor_cancellation :
     (∀ η : ℝ, 0<η → ∃ N : ℕ, ∀ n : ℕ, N≤n → ∀ t ∈ Icc (0:ℝ) 1, t ∉ wideArcs n →
       ‖weightedSum n primeWeight t‖ ≤ (n:ℝ)^(3/4+η)) ↔
     (∀ η : ℝ, 0<η → ∃ N : ℕ, ∀ n : ℕ, N≤n → ∀ t ∈ Icc (0:ℝ) 1, t ∉ wideArcs n →
       ∀ (a q : ℕ) [NeZero q], a≤q → a.Coprime q → (q:ℝ)≤Real.sqrt n →
       |t-(a:ℝ)/q| ≤ 1/((q:ℝ)*Real.sqrt n) →
-      ‖shortCorrection n (a:ZMod q) (t-(a:ℝ)/q)‖ ≤ (n:ℝ)^(3/4+η)) := by
+      ‖conductorCorrection n (a:ZMod q) (t-(a:ℝ)/q)‖ ≤ (n:ℝ)^(3/4+η)) := by
   constructor
   · intro target η hη
     obtain ⟨N,hN⟩ := target (η/2) (half_pos hη)
-    obtain ⟨M,hM⟩ := deep_short_model (η/2) (half_pos hη)
+    obtain ⟨M,hM⟩ := deep_intrinsic_model (η/2) (half_pos hη)
     obtain ⟨P,hP⟩ := eventually_atTop.1 (eventually_absorb 2 η hη)
     refine ⟨max N (max M P),?_⟩
     intro n hn t ht hdeep a q _ ha hc hq hβ
     have h₁ := hN n (by omega) t ht hdeep
     have h₂ := hM n (by omega) t ht hdeep a q ha hc hq hβ
     let S := weightedSum n primeWeight t
-    let Z := shortCorrection n (a:ZMod q) (t-(a:ℝ)/q)
+    let Z := conductorCorrection n (a:ZMod q) (t-(a:ℝ)/q)
     change ‖Z‖ ≤ _
     have h : Z = (S+Z)-S := by abel
     rw [h]
     exact (norm_sub_le ..).trans ((add_le_add h₂ h₁).trans ((le_of_eq (by ring)).trans (hP n (by omega))))
   · intro zeros η hη
     obtain ⟨N,hN⟩ := zeros (η/2) (half_pos hη)
-    obtain ⟨M,hM⟩ := deep_short_model (η/2) (half_pos hη)
+    obtain ⟨M,hM⟩ := deep_intrinsic_model (η/2) (half_pos hη)
     obtain ⟨P,hP⟩ := eventually_atTop.1 (eventually_absorb 2 η hη)
     refine ⟨max 1 (max N (max M P)),?_⟩
     intro n hn t ht hdeep
@@ -8366,7 +8825,7 @@ theorem deep_iff_short_cancellation :
     have h₁ := hN n (by omega) t ht hdeep a q ha hc hden hβ
     have h₂ := hM n (by omega) t ht hdeep a q ha hc hden hβ
     let S := weightedSum n primeWeight t
-    let Z := shortCorrection n (a:ZMod q) (t-(a:ℝ)/q)
+    let Z := conductorCorrection n (a:ZMod q) (t-(a:ℝ)/q)
     change ‖S‖ ≤ _
     have h : S = (S+Z)-Z := by abel
     rw [h]
@@ -8381,59 +8840,32 @@ open scoped Classical
 noncomputable section
 namespace GoldbachTwistedMellin
 
-/-- Hold the ambient denominator scale fixed while descending the actual
-character. This preserves the frequency and real-part threshold of every block. -/
-def shortKeptBlock {d : ℕ} [NeZero d] (Q n : ℕ) (χ : DirichletCharacter ℂ d) (p : ℕ×ℕ) (γ : ℝ) : ℂ :=
-  ∑ z ∈ ((exceptionalZeros χ (heightCut p.1)).filter (fun z => (n:ℝ)^(3/4:ℝ) < localZeroScale Q p.1 γ z.re)).filter (fun z => |z.im| ≤ ordinateCut Q n p.1),
-    (analyticOrderNatAt (regularizedL χ) z:ℂ)*transform p.1 p.2 γ z
-
-private theorem shortKeptBlock_inflate {d q : ℕ} [NeZero d] [NeZero q] (hd : d∣q) (Q n : ℕ)
-    (ψ : DirichletCharacter ℂ d) (p : ℕ×ℕ) (γ : ℝ) :
-    shortKeptBlock Q n (changeLevel hd ψ) p γ = shortKeptBlock Q n ψ p γ := by
-  unfold shortKeptBlock
-  rw [zeros_changeLevel]
-  refine sum_congr rfl fun z hz => ?_
-  have h := ((mem_exceptionalZeros ψ _ z).mp (mem_filter.mp (mem_filter.mp hz).1).1).1
-  rw [order_changeLevel hd ψ (show 0<z.re by linarith)]
-
-def shortSpectrum (Q : ℕ) : DescendingKernel where
-  coeff := fun {d} _ n χ β => if projectedThreshold n Q < (χ.conductor:ℝ) then
-    ((prefixBlocks (n-2)).map fun p => shortKeptBlock Q n χ p (2*Real.pi*β)).sum else 0
-  compatible := by
-    intro d q _ _ hd ψ n β
-    simp only [conductor_changeLevel,shortKeptBlock_inflate]
-
-theorem short_full_eq {q : ℕ} [NeZero q] (n : ℕ) (v : ZMod q) (β : ℝ) :
-    kernelCorrection (shortSpectrum q) n v β = shortCorrection n v β := by
-  simp only [kernelCorrection,shortSpectrum,shortCorrection,Finset.sum_filter]
-  refine sum_congr rfl fun χ _ => ?_
-  split_ifs <;> simp only [shortWindowTerm,shortBand,shortKeptBlock,mul_zero]
-
-def shortPrimitiveRemainder (q n a : ℕ) (β : ℝ) : ℂ :=
+def localConductorRemainder (q n a : ℕ) (β : ℝ) : ℂ :=
   (∑ d ∈ q.divisors, (ArithmeticFunction.moebius (q/d):ℂ)*(d.totient:ℂ)*
-    levelTransform (shortSpectrum q) true d (q/d) a n β)/(q.totient:ℂ)
+    levelTransform (intrinsicSpectrum q) true d (q/d) a n β)/(q.totient:ℂ)
 
-theorem shortPrimitiveRemainder_eq {q : ℕ} [NeZero q] (a n : ℕ) (ha : a.Coprime q) (β : ℝ) :
-    shortPrimitiveRemainder q n a β = shortCorrection n (a:ZMod q) β := by
-  unfold shortPrimitiveRemainder
-  have h := (conductor_descent_pair (shortSpectrum q) a n ha β).1
-  rw [←h,short_full_eq,mul_div_cancel_left₀ _ (show (q.totient:ℂ)≠0 by exact_mod_cast (Nat.totient_pos.mpr (NeZero.pos q)).ne')]
+theorem localConductorRemainder_eq {q : ℕ} [NeZero q] (a n : ℕ) (ha : a.Coprime q) (β : ℝ) :
+    localConductorRemainder q n a β = conductorCorrection n (a:ZMod q) β := by
+  unfold localConductorRemainder
+  have h := (conductor_descent_pair (intrinsicSpectrum q) a n ha β).1
+  change _ = kernelCorrection (intrinsicSpectrum q) n (a:ZMod q) β
+  rw [←h,mul_div_cancel_left₀ _ (show (q.totient:ℂ)≠0 by exact_mod_cast (Nat.totient_pos.mpr (NeZero.pos q)).ne')]
 
 /-- A uniform estimate for primitive sums on the divisor levels is sufficient
 for the original pointwise target; the total normalization loss is q/φ(q). -/
-theorem deep_of_conductor_short_bounds
+theorem deep_of_conductor_conductor_bounds
     (h : ∀ η : ℝ, 0<η → ∃ N : ℕ, ∀ n : ℕ, N≤n → ∀ t ∈ Icc (0:ℝ) 1, t ∉ wideArcs n →
       ∀ (a q : ℕ) [NeZero q], a≤q → a.Coprime q → (q:ℝ)≤Real.sqrt n →
       |t-(a:ℝ)/q| ≤ 1/((q:ℝ)*Real.sqrt n) →
       ∀ d ∈ q.divisors, ∀ b : ℕ, b<d → b.Coprime d →
-        ‖levelTransform (shortSpectrum q) true d 1 b n (t-(a:ℝ)/q)‖ ≤ (n:ℝ)^(3/4+η)) :
+        ‖levelTransform (intrinsicSpectrum q) true d 1 b n (t-(a:ℝ)/q)‖ ≤ (n:ℝ)^(3/4+η)) :
     ∀ η : ℝ, 0<η → ∃ N : ℕ, ∀ n : ℕ, N≤n → ∀ t ∈ Icc (0:ℝ) 1, t ∉ wideArcs n →
       ‖weightedSum n primeWeight t‖ ≤ (n:ℝ)^(3/4+η) := by
   intro η hη
   let e := η/4
   have he : 0<e := by dsimp [e];positivity
   obtain ⟨N,hN⟩ := h e he
-  obtain ⟨M,hM⟩ := deep_short_model (η/2) (half_pos hη)
+  obtain ⟨M,hM⟩ := deep_intrinsic_model (η/2) (half_pos hη)
   obtain ⟨P,hP⟩ := eventually_atTop.mp (eventually_absorb (1+(8+4/e)) η hη)
   refine ⟨max 1 (max N (max M P)),?_⟩
   intro n hn t ht hdeep
@@ -8442,13 +8874,13 @@ theorem deep_of_conductor_short_bounds
   obtain ⟨a,q,hq,ha,hc,hqs,hβ⟩ := exists_dirichlet n (by omega) t ht
   let : NeZero q := ⟨by omega⟩
   let β := t-(a:ℝ)/q
-  let Z := shortCorrection n (a:ZMod q) β
+  let Z := conductorCorrection n (a:ZMod q) β
   have estimate := hN n (by omega) t ht hdeep a q ha hc hqs hβ
-  have bound := conductor_two_way_bound (shortSpectrum q) true a n hc β ((n:ℝ)^(3/4+e)) (by positivity) estimate
-  have eq : levelTransform (shortSpectrum q) false q 1 a n β = Z := by
-    rw [levelTransform_eq,shortSpectrum];simp only [Bool.false_eq_true,ite_false,Nat.cast_one,map_one,mul_one]
-    exact short_full_eq n (a:ZMod q) β
-  change ‖levelTransform (shortSpectrum q) false q 1 a n β‖≤_ at bound
+  have bound := conductor_two_way_bound (intrinsicSpectrum q) true a n hc β ((n:ℝ)^(3/4+e)) (by positivity) estimate
+  have eq : levelTransform (intrinsicSpectrum q) false q 1 a n β = Z := by
+    rw [levelTransform_eq,intrinsicSpectrum];simp only [Bool.false_eq_true,ite_false,Nat.cast_one,map_one,mul_one]
+    rfl
+  change ‖levelTransform (intrinsicSpectrum q) false q 1 a n β‖≤_ at bound
   rw [eq] at bound
   have qn : (q:ℝ)≤n := hqs.trans (Real.sqrt_le_self_iff.mpr (Or.inr hnR))
   have hratio := (totient_ratio_le_rpow he q hq).trans (mul_le_mul_of_nonneg_left (Real.rpow_le_rpow (Nat.cast_nonneg _) qn he.le) (by positivity))
@@ -8487,11 +8919,14 @@ let g := fun (q : ℕ) [NeZero q] (v : ZMod q) (χ : DirichletCharacter ℂ q) =
   (∀ m, blocks m = if m<2 then [] else (m/2+2,m+2)::blocks (m/2)) ∧
   (∀ (q : ℕ) [NeZero q] (χ : DirichletCharacter ℂ q) (B : ℝ) (z : ℂ),
     z ∈ zeros q χ B ↔ 1/2 < z.re ∧ |z.im| ≤ B ∧ f q χ z = 0) ∧
+  let active := fun (D n : ℕ) (X γ : ℝ) (z : ℂ) => @decide
+    (∃ x ∈ Set.Icc X (2*X), (n:ℝ)^(3/4:ℝ)*max (max 1 (Real.sqrt |z.im|))
+      (max |γ*x+z.im| (|z.im|^2/X)) < Real.sqrt D*X^z.re*(1+|z.im|)) (Classical.propDecidable _)
   let K := fun (Q d : ℕ) [NeZero d] (n : ℕ) (χ : DirichletCharacter ℂ d) (β : ℝ) =>
     if (Q:ℝ)/(n:ℝ)^(1/4:ℝ) < (χ.conductor:ℝ) then ((blocks (n-2)).map fun p =>
-      ∑ z ∈ ((zeros d χ ((2*(p.1:ℝ))^8)).filter (fun z =>
-        (n:ℝ)^(3/4:ℝ) < (p.1:ℝ)^z.re * Real.sqrt Q * Real.sqrt (1+4*|2*Real.pi*β| *p.1))).filter (fun z =>
-        |z.im| ≤ max 2 (Real.sqrt Q*(p.1:ℝ)^2/(n:ℝ)^(3/4:ℝ))),
+      ∑ z ∈ (((zeros d χ ((2*(p.1:ℝ))^8)).filter (fun z =>
+        (n:ℝ)^(3/4:ℝ) < (p.1:ℝ)^z.re * Real.sqrt χ.conductor * Real.sqrt (1+4*|2*Real.pi*β| *p.1))).filter (fun z =>
+        |z.im| ≤ max 2 (Real.sqrt χ.conductor*(p.1:ℝ)^2/(n:ℝ)^(3/4:ℝ)))).filter (fun z => active χ.conductor n p.1 (2*Real.pi*β) z = true),
         (analyticOrderNatAt (f d χ) z:ℂ)*W p.1 p.2 β z).sum else 0
   let U := fun (p : Bool) (Q d m a n : ℕ) (β : ℝ) => if h : d=0 then (0:ℂ) else
     let _ : NeZero d := ⟨h⟩
@@ -8522,15 +8957,16 @@ let g := fun (q : ℕ) [NeZero q] (v : ZMod q) (χ : DirichletCharacter ℂ q) =
     have hf : f q χ = regularizedL χ := by by_cases h : χ=1 <;> simp [f,regularizedL,h]
     rw [hf]
     exact mem_exceptionalZeros χ B z
-  · intro K U R
+  · intro active K U R
     have eqK (Q d : ℕ) [NeZero d] (n : ℕ) (χ : DirichletCharacter ℂ d) (β : ℝ) :
-        K Q d n χ β = (shortSpectrum Q).coeff n χ β := by
+        K Q d n χ β = (intrinsicSpectrum Q).coeff n χ β := by
       have hf : f d χ = regularizedL χ := by by_cases h : χ=1 <;> simp [f,regularizedL,h]
-      dsimp only [K,shortSpectrum,shortKeptBlock]
+      dsimp only [K,intrinsicSpectrum,phaseKeptBlock]
       simp_rw [hf]
+      simp only [active,decide_eq_true_eq,activePhase]
       rfl
     have eqU (p : Bool) (Q d m a n : ℕ) (β : ℝ) :
-        U p Q d m a n β = levelTransform (shortSpectrum Q) p d m a n β := by
+        U p Q d m a n β = levelTransform (intrinsicSpectrum Q) p d m a n β := by
       by_cases hd : d=0
       · simp [U,levelTransform,hd]
       · let : NeZero d := ⟨hd⟩
@@ -8542,33 +8978,33 @@ let g := fun (q : ℕ) [NeZero q] (v : ZMod q) (χ : DirichletCharacter ℂ q) =
           simp_rw [eqK]
           rfl
     have eqR (q : ℕ) [NeZero q] (n a : ℕ) (β : ℝ) (hc : a.Coprime q) :
-        R q n a β = shortCorrection n (a:ZMod q) β := by
+        R q n a β = conductorCorrection n (a:ZMod q) β := by
       dsimp only [R]
       simp_rw [eqU]
-      exact shortPrimitiveRemainder_eq a n hc β
+      exact localConductorRemainder_eq a n hc β
     constructor
     · intro q _ a n hc β
       simp_rw [eqU]
-      refine ⟨?_,(conductor_descent_pair (shortSpectrum q) a n hc β).2⟩
+      refine ⟨?_,(conductor_descent_pair (intrinsicSpectrum q) a n hc β).2⟩
       rw [eqR q n a β hc,levelTransform_eq]
       simp only [Bool.false_eq_true,ite_false,Nat.cast_one,map_one,mul_one]
-      exact short_full_eq n (a:ZMod q) β
+      rfl
     constructor
     · intro η hη
-      obtain ⟨N,hN⟩ := deep_short_model η hη
+      obtain ⟨N,hN⟩ := deep_intrinsic_model η hη
       refine ⟨N,?_⟩
       intro n hn t ht hdeep a q _ ha hc hq hβ
       rw [eqR q n a _ hc]
       exact hN n hn t ht hdeep a q ha hc hq hβ
     · constructor
       · intro target η hη
-        obtain ⟨N,hN⟩ := deep_iff_short_cancellation.mp target η hη
+        obtain ⟨N,hN⟩ := deep_iff_conductor_cancellation.mp target η hη
         refine ⟨N,?_⟩
         intro n hn t ht hdeep a q _ ha hc hq hβ
         rw [eqR q n a _ hc]
         exact hN n hn t ht hdeep a q ha hc hq hβ
       · intro h
-        apply deep_iff_short_cancellation.mpr
+        apply deep_iff_conductor_cancellation.mpr
         intro η hη
         obtain ⟨N,hN⟩ := h η hη
         refine ⟨N,?_⟩
