@@ -32,7 +32,7 @@ lemma IsBoundedMeasurable.of [TopologicalSpace Z] [BorelSpace Z] [SecondCountabl
   ≤ C) (c : Continuous F := by fun_prop) : IsBoundedMeasurable F := ⟨c.stronglyMeasurable, h⟩
 
 lemma IsBoundedMeasurable.comp (h : IsBoundedMeasurable F) (j : W → Z) (m :
-  Measurable j := by fun_prop) : IsBoundedMeasurable (F <| j ·) := ⟨by fun_prop, h.2.imp (by tauto)⟩
+  Measurable j := by fun_prop) : IsBoundedMeasurable (F <| j ·) := ⟨by fun_prop, h.2.imp (fun _ hC w ↦ hC (j w))⟩
 
 lemma IsBoundedMeasurable.memLp_top (h : IsBoundedMeasurable F) :
     MemLp F ∞ μ := memLp_top_of_bound ⟨_, h.1, .rfl⟩ _ (.of_forall h.2.choose_spec)
@@ -91,6 +91,7 @@ structure IsIdempotentKernel (e : G → ℂ) where
 lemma IsIdempotentKernel.convolution_self (h : IsIdempotentKernel e) y : ∫ z, e z * e (z⁻¹ * y) =
   e y := by simpa [h.4] using h.5 1 y
 
+set_option maxHeartbeats 12000000 in
 attribute [-instance] SubfieldClass.toSubringClass in
 attribute [-simp] map_mul norm_pow in
 attribute [local simp] norm_coe_le_norm DFunLike.ext_iff Prod.mul_def mul_add mul_assoc
@@ -137,10 +138,12 @@ lemma integral_idem_mul_eq_zero [IsTopologicalGroup G] [SecondCountableTopology 
     circleMap, mul_left_comm] : SemiconjBy U S (exp ((↑n)⁻¹ * Real.pi * -I) • S)).pow_right
     n).eq, mul_sub, smul_pow, ← exp_nat_mul, h0.ne', field, mul_two, SameRay.rfl.norm_add] using
     norm_add_le_of_le (norm_mul_le_of_le w (refl ‖S ^ n‖)) (norm_mul_le_of_le le_rfl w)
+  have iter_eq (v : p) (hv : (S^n) v = 0) : (⇑S)^[n] v = (⇑S)^[n] 0 := by
+    simpa only [← FunLike.coe_pow_eq_iterate S n, map_zero] using hv
   refine congr($((Function.Injective.of_ker S fun ⟨f, k, _⟩ h ↦ Subtype.ext (norm_le_zero_iff.1
     (le_imp_le_of_lt_imp_lt (mul_lt_mul_of_pos_right hn) ((le_div_iff₀' (by simpa)).1
-    (norm_le_of_nonempty.2 fun x ↦ .trans (b := ‖T (m * f - m x • f) x‖) ?_ ?_))))).iterate _ ((this
-    _ ⟨V f, by simp_all [T]⟩).trans (iterate_map_zero ..).symm)).1 x)
+    (norm_le_of_nonempty.2 fun x ↦ .trans (b := ‖T (m * f - m x • f) x‖) ?_ ?_))))).iterate n (iter_eq _ (this
+    _ ⟨V f, by simp_all [T]⟩))).1 x)
   simpa [(congr($h) : T (m * f) = 0), m] using congr(‖$k x‖).ge
   rw [← mul_div, mul_right_comm, ← integral_const_mul]
   apply norm_integral_le_of_norm_le; fun_prop; simp [← sub_mul, m]

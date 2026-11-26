@@ -34,11 +34,15 @@ lemma exists_int_approx (x : LocInt w) n : ∃ a : 𝓞 E, v (algebraMap E _ a -
 lemma algebraMap_ResField_surjective : (⇑(algebraMap (𝓞 E) (ResField w))).Surjective := Quot.ind
     (exists_int_approx w · 0 |>.imp fun _ ↦ residue_eq_iff_valuation_sub_lt_one.2)
 
-lemma card_ResField : .card (ResField w) = w.q := card_congr
-    (RingHom.quotientKerEquivOfSurjective (algebraMap_ResField_surjective w)).1 ▸ by rcongr; simp
+lemma card_ResField : Nat.card (ResField w) = w.q := by
+  have hker : RingHom.ker (algebraMap (𝓞 E) (ResField w)) = w.1 := by
+    ext y
+    exact algebraMap_ResField_eq_zero
+  rw [FinPlace.q, Ideal.absNorm_eq_natCard, ← hker]
+  exact Nat.card_congr (RingHom.quotientKerEquivOfSurjective (algebraMap_ResField_surjective w)).symm.toEquiv
 
 instance instFiniteResField : Finite (ResField w) :=
-  finite_of_card_ne_zero (by simp [card_ResField])
+  finite_of_card_ne_zero (by rw [card_ResField]; exact (zero_lt_one.trans w.one_lt_q).ne')
 
 instance : ProperSpace (LocField w) :=
     properSpace_iff_completeSpace_and_isDiscreteValuationRing_integer_and_finite_residueField.2
@@ -63,11 +67,20 @@ instance : Fact (∀ w : FinPlace E, IsOpen (LocInt w).carrier) := ⟨(isOpen_in
 
 deriving instance T0Space, LocallyCompactSpace for 𝔸f E
 
-lemma isCompact_Ô :
-    IsCompact (Ô E : Set (𝔸f E)) := (Set.ext fun _ ↦ mem_Ô).substr ((range_structureMap ..).subst
-    (isCompact_range (X := ∀ w, LocInt w) isEmbedding_structureMap.continuous))
+private lemma integralAdeles_set :
+    (Ô E : Set (𝔸f E)) = {x : 𝔸f E | ∀ w : FinPlace E, x w ∈ LocInt w} :=
+  Set.ext fun _ => mem_Ô
 
-lemma isOpen_Ô : IsOpen (Ô E : Set (𝔸f E)) := (Set.ext fun _ ↦ mem_Ô).substr (isOpen_forall_mem out)
+lemma isCompact_Ô : IsCompact (Ô E : Set (𝔸f E)) := by
+  have eqRange : Set.range (structureMap (fun w : FinPlace E => LocField w)
+      (fun w => (LocInt w : Set (LocField w))) Filter.cofinite) =
+      {x : 𝔸f E | ∀ w : FinPlace E, x w ∈ LocInt w} := range_structureMap ..
+  rw [integralAdeles_set, ← eqRange]
+  exact isCompact_range (X := ∀ w : FinPlace E, LocInt w) isEmbedding_structureMap.continuous
+
+lemma isOpen_Ô : IsOpen (Ô E : Set (𝔸f E)) := by
+  rw [integralAdeles_set]
+  exact isOpen_forall_mem (fun w : FinPlace E => isOpen_integer (LocField w))
 
 @[fun_prop] lemma continuous_evalAt : Continuous (evalAt w) := continuous_eval w
 
