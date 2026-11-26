@@ -8899,6 +8899,294 @@ end GoldbachTwistedMellin
 end
 end
 
+section
+open Finset Complex Set GoldbachSmoothing Goldbach GoldbachGRHWindow DeepThreeQuarters
+noncomputable section
+namespace GoldbachTwistedMellin
+
+private theorem block_twist_trivial {n l r q : ℕ} [NeZero q] (χ : DirichletCharacter ℂ q)
+    (hn : 1≤n) (hr : r≤n) (γ : ℝ) :
+    ‖∑ k ∈ Finset.Ioc l r, twistedCoefficient χ k*phase γ k‖ ≤ (n:ℝ)*logScale n := by
+  have hnR : 1≤(n:ℝ) := by exact_mod_cast hn
+  calc
+    _ ≤ ∑ k ∈ Finset.Ioc l r, ‖twistedCoefficient χ k*phase γ k‖ := norm_sum_le ..
+    _ ≤ ∑ _k ∈ Finset.Ioc l r, logScale n := by
+      refine sum_le_sum fun k hk => ?_
+      have hkn : k≤n := (Finset.mem_Ioc.mp hk).2.trans hr
+      have hk0 : (0:ℝ)<k := by exact_mod_cast (show 0<k by have := (Finset.mem_Ioc.mp hk).1;omega)
+      simp only [twistedCoefficient,Pi.mul_apply,norm_mul,norm_phase,mul_one,Complex.norm_real,
+        Real.norm_of_nonneg ArithmeticFunction.vonMangoldt_nonneg]
+      calc
+        _ ≤ 1*ArithmeticFunction.vonMangoldt k :=
+          mul_le_mul_of_nonneg_right (χ.norm_le_one _) ArithmeticFunction.vonMangoldt_nonneg
+        _ ≤ logScale n := by
+          rw [one_mul]
+          exact ArithmeticFunction.vonMangoldt_le_log.trans ((Real.log_le_log hk0 (by exact_mod_cast hkn)).trans (log_le_scale hnR))
+    _ ≤ _ := by
+      simp only [sum_const,nsmul_eq_mul,Nat.card_Ioc]
+      exact mul_le_mul_of_nonneg_right (by exact_mod_cast ((Nat.sub_le r l).trans hr)) (zero_le_one.trans (logScale_one hnR))
+
+private theorem principal_trivial {n l r q : ℕ} [NeZero q] (χ : DirichletCharacter ℂ q)
+    (hl : 0<l) (hlr : l+1≤r) (hr : r≤n) {γ : ℝ} (hγ : |γ|≤1) :
+    ‖principalFlag χ*transform l r γ 1‖ ≤ 2*n := by
+  have hsum : ‖∑ k ∈ Finset.Ioc l r, phase γ k‖ ≤ (n:ℝ) := by
+    apply (norm_sum_le ..).trans
+    simp only [norm_phase, sum_const,nsmul_eq_mul,mul_one,Nat.card_Ioc]
+    exact_mod_cast (Nat.sub_le r l).trans hr
+  have hdiff := principal_approx hl hlr γ
+  have hrL : (0:ℝ)≤(r:ℝ)-l := sub_nonneg.mpr (by exact_mod_cast (show l≤r by omega))
+  have hrU : (r:ℝ)-l≤n := by linarith [show (r:ℝ)≤n by exact_mod_cast hr,Nat.cast_nonneg (α:=ℝ) l]
+  have harr := mul_le_mul_of_nonneg_left hγ hrL
+  have htri := norm_add_le (transform l r γ 1-∑ k ∈ Finset.Ioc l r,phase γ k) (∑ k ∈ Finset.Ioc l r,phase γ k)
+  rw [sub_add_cancel] at htri
+  by_cases hc : χ=1
+  · simp only [principalFlag,ite_eq_left hc,one_mul]
+    linarith
+  · simp [principalFlag,hc]
+
+private theorem single_error_budget {n l q : ℕ} [NeZero q] (hn : 1≤n) (hl : 1≤l)
+    (hln : l≤n) {γ C : ℝ} (hC : 0≤C) (hqs : (q:ℝ)≤Real.sqrt n)
+    (hγq : (q:ℝ)*|γ| *(n:ℝ)≤8*Real.sqrt n) :
+    C*(l:ℝ)^(1/2+2*(1/8:ℝ))*(logBudget q l)^2*(1+Real.sqrt (1+4*|γ| *l)+Real.log (heightCut l)) ≤
+      (12+1700*C)*(n:ℝ)*logScale n^3 := by
+  let L := logScale n
+  let W := 1+Real.sqrt (1+4*|γ| *l)+Real.log (heightCut l)
+  let C' := 10*C*L
+  have hx : 1≤(l:ℝ) := by exact_mod_cast hl
+  have hnR : 1≤(n:ℝ) := by exact_mod_cast hn
+  have hxn : (l:ℝ)≤n := by exact_mod_cast hln
+  have hL : 1≤L := logScale_one hnR
+  have hT : 1 ≤ heightCut l := by linarith [heightCut_ge hx]
+  have hW : 0 ≤ W := by dsimp [W];linarith only [Real.sqrt_nonneg (1+4*|γ| *l),Real.log_nonneg hT]
+  have hB0 : 0≤logBudget q l := by dsimp [logBudget];linarith only [logHeight_ge_one q (heightCut l)]
+  have hB := (log_window_scale hx hxn (hqs.trans (Real.sqrt_le_self_iff.mpr (Or.inr hnR)))).1
+  have hq1 : 1 ≤ (q:ℝ) := by exact_mod_cast NeZero.pos q
+  have hsq : 1≤Real.sqrt q := by simpa using Real.sqrt_le_sqrt hq1
+  have hC' : 0≤C' := by dsimp [C'];positivity
+  let M := C'*(l:ℝ)^(1/2+2*(1/8:ℝ))*logBudget q l*W
+  have hM : 0≤M := by dsimp [M];positivity
+  have inc : C*(l:ℝ)^(1/2+2*(1/8:ℝ))*(logBudget q l)^2*W ≤ M := by
+    calc
+      _ = (C*(l:ℝ)^(1/2+2*(1/8:ℝ))*logBudget q l*W)*logBudget q l := by ring
+      _ ≤ _ := (mul_le_mul_of_nonneg_left hB (by positivity)).trans_eq (by dsimp [M,C',L];ring)
+  have large := block_budget hx hxn (by norm_num : (0:ℝ)≤2*(1/8)) hC' hqs hγq
+  have pre : M ≤ Real.sqrt q*(2*Real.sqrt n*Real.log n+M+(n:ℝ)*|γ|+Real.log q) := by
+    have pos : 0 ≤ 2*Real.sqrt n*Real.log n := by positivity
+    have pos' : 0 ≤ (n:ℝ)*|γ| := by positivity
+    calc
+      _ ≤ 1*(2*Real.sqrt n*Real.log n+M+(n:ℝ)*|γ|+Real.log q) := by linarith [Real.log_natCast_nonneg q]
+      _ ≤ _ := mul_le_mul_of_nonneg_right hsq (by positivity)
+  have fin := inc.trans (pre.trans large)
+  norm_num only [show (3/4:ℝ)+2*(1/8)=1 by norm_num,Real.rpow_one] at fin
+  have hh := mul_le_mul_of_nonneg_right hL (mul_nonneg (Nat.cast_nonneg n) (sq_nonneg L))
+  dsimp only [C',L] at fin hh hL ⊢
+  nlinarith only [fin,hh]
+
+
+/-- Uniform characterwise bound, before any Gauss coefficient is applied.
+It follows from the unconditional block formula, not from a zero hypothesis. -/
+theorem individual_zero_cap :
+    ∃ K : ℝ, 0<K ∧ ∀ (n : ℕ), 64≤n → ∀ (q : ℕ) [NeZero q], (q:ℝ)≤Real.sqrt n →
+      ∀ (β : ℝ), |β|≤1/((q:ℝ)*Real.sqrt n) → ∀ χ : DirichletCharacter ℂ q,
+        ‖characterZeroSum n χ β‖ ≤ K*(n:ℝ)*logScale n^4 := by
+  obtain ⟨C,hC,model⟩ := fixed_dyadic_model (by norm_num : (0:ℝ)<1/8) le_rfl
+  refine ⟨3*(15+1700*C),by positivity,?_⟩
+  intro n hn q _ hqs β hβ χ
+  let γ := 2*Real.pi*β
+  let L := logScale n
+  let D := (15+1700*C)*(n:ℝ)*L^3
+  have hn1 : 1≤n := by omega
+  have hnR : 1≤(n:ℝ) := by exact_mod_cast hn1
+  have hL : 1≤L := logScale_one hnR
+  have hD : 0≤D := by dsimp [D];positivity
+  obtain ⟨hγ,hγq⟩ := angular_range hn (NeZero.pos q) hβ
+  let z := fun p : ℕ×ℕ => fixedZeroTerm χ p.1 p.2 p.1 γ
+  have bound (p : ℕ×ℕ) (hp : p∈prefixBlocks (n-2)) : ‖z p‖≤D := by
+    obtain ⟨hl,hlr,hr,hrn⟩ := prefixBlocks_valid hp
+    have hrn' : p.2 ≤ n := by omega
+    have hpn : p.1≤n := by omega
+    let A := ∑ k ∈ Finset.Ioc p.1 p.2,twistedCoefficient χ k*phase γ k
+    let M := principalFlag χ*transform p.1 p.2 γ 1
+    have e := model q χ p.1 p.2 p.1 γ (by exact_mod_cast hl) le_rfl (by exact_mod_cast hlr) (by exact_mod_cast hr) hγ
+    have err : ‖A-(M-z p)‖ ≤ (12+1700*C)*(n:ℝ)*L^3 :=
+      e.trans (single_error_budget hn1 hl hpn hC.le hqs hγq)
+    have ha : ‖A‖ ≤ (n:ℝ)*L := block_twist_trivial χ hn1 hrn' γ
+    have hm : ‖M‖ ≤ 2*(n:ℝ) := principal_trivial χ hl hlr hrn' hγ
+    have tri : ‖z p‖ ≤ ‖A-(M-z p)‖+‖A‖+‖M‖ := by
+      calc
+        _ = ‖(A-(M-z p)-A)+M‖ := by congr 1;abel
+        _ ≤ _ := (norm_add_le ..).trans (add_le_add (norm_sub_le ..) le_rfl)
+    have h1 := mul_le_mul_of_nonneg_left (one_le_pow₀ (n:=3) hL) (Nat.cast_nonneg n : (0:ℝ)≤_)
+    have h2 := mul_le_mul_of_nonneg_left (pow_le_pow_right₀ hL (by decide : 1≤3)) (Nat.cast_nonneg n : (0:ℝ)≤_)
+    dsimp [D]
+    nlinarith only [tri,err,ha,hm,h1,h2]
+  have pre := dyadic_prefix_corrected (fun _ => (0:ℂ)) z n (by omega) D
+    (fun k _ => by simpa using hD) (fun p hp => by simpa using bound p hp)
+  simp only [sum_const_zero, zero_add] at pre
+  exact pre.trans ((mul_le_mul_of_nonneg_right (dyadic_count_le (by omega : 4≤n)) hD).trans_eq (by dsimp [D,L];ring))
+
+end GoldbachTwistedMellin
+end
+end
+
+section
+open Complex Finset DirichletCharacter Goldbach GoldbachGRHWindow DeepThreeQuarters Filter
+open scoped Classical
+noncomputable section
+namespace GoldbachTwistedMellin
+
+private theorem filtered_character_cap :
+    ∃ K : ℝ, 0<K ∧ ∀ (n d Q : ℕ) [NeZero d], 64≤n → (d:ℝ)≤Real.sqrt n →
+      ∀ (β : ℝ), |β|≤1/((d:ℝ)*Real.sqrt n) → ∀ χ : DirichletCharacter ℂ d, χ.IsPrimitive →
+        ‖(intrinsicSpectrum Q).coeff n χ β‖ ≤ K*(n:ℝ)*logScale n^4 := by
+  obtain ⟨A,hA,full⟩ := individual_zero_cap
+  obtain ⟨C,hC,err⟩ := local_character_error
+  refine ⟨A+C,by positivity,?_⟩
+  intro n d Q _ hn hd β hβ χ hc
+  have hnR : 1≤(n:ℝ) := by exact_mod_cast (show 1≤n by omega)
+  have hL := logScale_one hnR
+  have hN : (n:ℝ)^(3/4:ℝ)≤n := by simpa only [Real.rpow_one] using Real.rpow_le_rpow_of_exponent_le hnR (by norm_num : (3/4:ℝ)≤1)
+  have hs : 1≤Real.sqrt d := Real.one_le_sqrt.mpr (by exact_mod_cast NeZero.pos d)
+  simp only [intrinsicSpectrum,show χ.conductor=d from hc]
+  split_ifs with hcut
+  on_goal 2 => simp only [norm_zero];positivity
+  let F := ((prefixBlocks (n-2)).map fun p => phaseWindowTerm n χ p (2*Real.pi*β)).sum
+  change ‖F‖≤_
+  have eh : ‖characterZeroSum n χ β-F‖≤ C*n*logScale n^4 := by
+    apply (le_mul_of_one_le_left (norm_nonneg _) hs).trans
+    apply (err n d hn hd χ β hβ).trans
+    exact mul_le_mul (mul_le_mul_of_nonneg_left hN hC.le) (pow_le_pow_right₀ hL (by decide : 3≤4))
+      (pow_nonneg (zero_le_one.trans hL) _) (mul_nonneg hC.le (Nat.cast_nonneg _))
+  have eq : F=characterZeroSum n χ β-(characterZeroSum n χ β-F) := by abel
+  exact (calc ‖F‖ = ‖characterZeroSum n χ β-(characterZeroSum n χ β-F)‖ := congrArg _ eq
+              _ ≤ _ := norm_sub_le ..).trans ((add_le_add (full n hn d hd β hβ χ) eh).trans_eq (by ring))
+
+/-- The selected characters can depend on the ambient modulus, cutoff and
+offset. The Möbius and inverse-character phases are retained exactly. -/
+def selectedLevel (Q n a d m : ℕ) (β : ℝ) (E : (k:ℕ) → Finset (DirichletCharacter ℂ k)) : ℂ :=
+  if h : d=0 then 0 else
+    let _ : NeZero d := ⟨h⟩
+    ∑ χ ∈ (E d).filter IsPrimitive, additiveWeight (a:ZMod d) χ*χ⁻¹ (m:ZMod d)*(intrinsicSpectrum Q).coeff n χ β
+
+def selectedContribution (q n a : ℕ) (β : ℝ) (E : (k:ℕ) → Finset (DirichletCharacter ℂ k)) : ℂ :=
+  (∑ d ∈ q.divisors,(ArithmeticFunction.moebius (q/d):ℂ)*(d.totient:ℂ)*selectedLevel q n a d (q/d) β E)/(q.totient:ℂ)
+
+/-- Counting primitive characters with weight sqrt(d) controls their entire
+signed contribution. This estimate includes possible real exceptional zeros. -/
+theorem selected_contribution_bound :
+    ∃ K : ℝ, 0<K ∧ ∀ (n q a : ℕ) [NeZero q], 64≤n → (q:ℝ)≤Real.sqrt n → a.Coprime q →
+      ∀ (β : ℝ), |β|≤1/((q:ℝ)*Real.sqrt n) → ∀ E : (k:ℕ)→Finset (DirichletCharacter ℂ k),
+      ‖selectedContribution q n a β E‖ ≤
+        (∑ d ∈ q.divisors,Real.sqrt d*((E d).card:ℝ))*(K*(n:ℝ)*logScale n^4)/(q.totient:ℝ) := by
+  obtain ⟨K,hK,cap⟩ := filtered_character_cap
+  refine ⟨K,hK,?_⟩
+  intro n q a _ hn hq ha β hβ E
+  let B := K*(n:ℝ)*logScale n^4
+  have hB : 0≤B := by dsimp [B];positivity
+  have hnR : 1≤(n:ℝ) := by exact_mod_cast (show 1≤n by omega)
+  have level (d : ℕ) (hd : d∈q.divisors) :
+      ‖(ArithmeticFunction.moebius (q/d):ℂ)*(d.totient:ℂ)*selectedLevel q n a d (q/d) β E‖ ≤
+        (Real.sqrt d*((E d).card:ℝ))*B := by
+    let : NeZero d := ⟨(Nat.pos_of_mem_divisors hd).ne'⟩
+    have hφ : 0<(d.totient:ℝ) := by exact_mod_cast Nat.totient_pos.mpr (NeZero.pos d)
+    have dd : (d:ℝ)≤q := by exact_mod_cast Nat.le_of_dvd (NeZero.pos q) (Nat.dvd_of_mem_divisors hd)
+    have hβd := hβ.trans (div_le_div_of_nonneg_left zero_le_one
+      (mul_pos (by exact_mod_cast NeZero.pos d) (Real.sqrt_pos.mpr (zero_lt_one.trans_le hnR)))
+      (mul_le_mul_of_nonneg_right dd (Real.sqrt_nonneg _)))
+    obtain ⟨u,hu⟩ := (ZMod.isUnit_iff_coprime a d).mpr (ha.of_dvd_right (Nat.dvd_of_mem_divisors hd))
+    have gw (χ : DirichletCharacter ℂ d) (hp : χ.IsPrimitive) :
+        ‖additiveWeight (a:ZMod d) χ‖≤Real.sqrt d/d.totient := by
+      rw [←hu,additiveWeight_unit,norm_mul,norm_primitive_weight χ hp]
+      exact mul_le_of_le_one_left (by positivity) (χ.norm_le_one _)
+    let S := (E d).filter IsPrimitive
+    have all : ‖selectedLevel q n a d (q/d) β E‖ ≤ ((E d).card:ℝ)*(Real.sqrt d/d.totient*B) := by
+      simp only [selectedLevel,dite_eq_right (NeZero.ne d)]
+      apply (norm_sum_le ..).trans
+      calc
+        _ ≤ ∑ _χ ∈ S,Real.sqrt d/d.totient*B := by
+          apply sum_le_sum
+          intro χ hχ
+          have hp := (mem_filter.mp hχ).2
+          rw [norm_mul,norm_mul]
+          exact mul_le_mul ((mul_le_mul (gw χ hp) (χ⁻¹.norm_le_one _) (norm_nonneg _) (by positivity)).trans_eq (mul_one _))
+            (cap n d q hn (dd.trans hq) β hβd χ hp) (norm_nonneg _) (by positivity)
+        _ ≤ _ := by
+          simp only [sum_const,nsmul_eq_mul]
+          exact mul_le_mul_of_nonneg_right (by exact_mod_cast card_filter_le ..) (by positivity)
+    have hm : ‖(ArithmeticFunction.moebius (q/d):ℂ)‖≤1 := by
+      rw [Complex.norm_intCast];exact_mod_cast ArithmeticFunction.abs_moebius_le_one (n:=q/d)
+    simp only [norm_mul,Complex.norm_natCast]
+    apply (mul_le_mul (mul_le_mul_of_nonneg_right hm (Nat.cast_nonneg _)) all (norm_nonneg _) (by positivity)).trans_eq
+    field_simp
+  rw [selectedContribution,norm_div,Complex.norm_natCast]
+  apply div_le_div_of_nonneg_right _ (Nat.cast_nonneg _)
+  rw [Finset.sum_mul]
+  exact (norm_sum_le ..).trans (sum_le_sum level)
+end GoldbachTwistedMellin
+end
+end
+
+section
+open Complex Finset DirichletCharacter Goldbach GoldbachGRHWindow DeepThreeQuarters Filter
+open scoped Classical
+noncomputable section
+namespace GoldbachTwistedMellin
+
+/-- A thin set of characters can be deleted before asking for pointwise
+cancellation. Its identity may change with the denominator and the offset. -/
+theorem deep_thin_model :
+    ∀ η : ℝ, 0<η → ∃ N : ℕ, ∀ n : ℕ, N≤n → ∀ t ∈ Set.Icc (0:ℝ) 1, t∉wideArcs n →
+      ∀ (a q : ℕ) [NeZero q], a≤q → a.Coprime q → (q:ℝ)≤Real.sqrt n →
+      |t-(a:ℝ)/q| ≤ 1/((q:ℝ)*Real.sqrt n) →
+      ∀ E : (d:ℕ)→Finset (DirichletCharacter ℂ d), (∑ d∈q.divisors,Real.sqrt d*((E d).card:ℝ)) ≤
+        (q:ℝ)/(n:ℝ)^(1/4:ℝ) →
+      ‖weightedSum n primeWeight t + (conductorCorrection n (a:ZMod q) (t-(a:ℝ)/q) -
+        selectedContribution q n a (t-(a:ℝ)/q) E)‖ ≤ (n:ℝ)^(3/4+η) := by
+  intro η hη
+  let e := η/4
+  have he : 0<e := by dsimp [e];linarith
+  obtain ⟨M,hM⟩ := deep_intrinsic_model (η/2) (half_pos hη)
+  obtain ⟨K,hK,cap⟩ := selected_contribution_bound
+  obtain ⟨D,hD,logs⟩ := quartic_log_scale he
+  let A := (8+4/e)*K*D
+  obtain ⟨P,hP⟩ := eventually_atTop.mp (eventually_absorb (1+A) η hη)
+  refine ⟨max 64 (max M P),?_⟩
+  intro n hn t ht hdeep a q _ ha hc hq hβ E hthin
+  let β := t-(a:ℝ)/q
+  let L := logScale n
+  have hnR : 1≤(n:ℝ) := by exact_mod_cast (show 1≤n by omega)
+  have h0 := zero_lt_one.trans_le hnR
+  have hL := logScale_one hnR
+  have hqn := hq.trans (Real.sqrt_le_self_iff.mpr (Or.inr hnR))
+  have ratio := (totient_ratio_le_rpow he q (NeZero.pos q)).trans
+    (mul_le_mul_of_nonneg_left (Real.rpow_le_rpow (Nat.cast_nonneg _) hqn he.le) (by positivity))
+  have np : (n:ℝ)/(n:ℝ)^(1/4:ℝ)=(n:ℝ)^(3/4:ℝ) := by
+    conv_lhs => lhs;rw [←Real.rpow_one (n:ℝ)]
+    rw [←Real.rpow_sub h0];norm_num
+  have hz : ‖selectedContribution q n a β E‖≤A*(n:ℝ)^(3/4+η/2) := by
+    apply (cap n q a (by omega) hq hc β hβ E).trans
+    calc
+      _ ≤ ((q:ℝ)/(n:ℝ)^(1/4:ℝ))*(K*n*L^4)/(q.totient:ℝ) := by gcongr
+      _ = ((q:ℝ)/q.totient)*K*((n:ℝ)/(n:ℝ)^(1/4:ℝ))*L^4 := by ring
+      _ ≤ ((8+4/e)*(n:ℝ)^e)*K*((n:ℝ)^(3/4:ℝ))*(D*(n:ℝ)^e) := by
+        rw [np]
+        gcongr
+        exact logs _ hnR
+      _ = A*((n:ℝ)^e*(n:ℝ)^(3/4:ℝ)*(n:ℝ)^e) := by dsimp [A];ring
+      _ = _ := by
+        rw [←Real.rpow_add h0,←Real.rpow_add h0]
+        have ex : e+3/4+e=3/4+η/2 := by dsimp [e];ring
+        rw [ex]
+  let S := weightedSum n primeWeight t
+  let R := conductorCorrection n (a:ZMod q) β
+  change ‖S+(R-selectedContribution q n a β E)‖ ≤ _
+  rw [←add_sub_assoc]
+  exact (norm_sub_le ..).trans ((add_le_add (hM n (by omega) t ht hdeep a q ha hc hq hβ) hz).trans
+    ((le_of_eq (by ring)).trans (hP n (by omega))))
+end GoldbachTwistedMellin
+end
+end
+
 open Goldbach GoldbachTwistedMellin
 theorem PEqualNP.Outside.L_goldbach_deep_three_quarters_filtered_zero_criterion :
 let w := fun k : ℕ => if Nat.Prime k then Real.log (k:ℝ) else 0
@@ -8946,7 +9234,21 @@ let g := fun (q : ℕ) [NeZero q] (v : ZMod q) (χ : DirichletCharacter ℂ q) =
     (∀ η : ℝ, 0 < η → ∃ N : ℕ, ∀ n : ℕ, N ≤ n → ∀ t ∈ Set.Icc (0:ℝ) 1, t ∉ wideArcs n →
       ∀ (a q : ℕ) [NeZero q], a ≤ q → a.Coprime q → (q:ℝ) ≤ Real.sqrt n →
         |t-(a:ℝ)/q| ≤ 1/((q:ℝ)*Real.sqrt n) →
-        ‖R q n a (t-(a:ℝ)/q)‖ ≤ (n:ℝ)^(3/4+η))) := by
+        ‖R q n a (t-(a:ℝ)/q)‖ ≤ (n:ℝ)^(3/4+η))) ∧
+  let V := fun (Q d n a m : ℕ) (β : ℝ) (F : (k:ℕ)→Finset (DirichletCharacter ℂ k)) =>
+    if h : d=0 then (0:ℂ) else
+      let _ : NeZero d := ⟨h⟩
+      ∑ χ ∈ @Finset.filter (DirichletCharacter ℂ d) DirichletCharacter.IsPrimitive
+        (fun _ => Classical.propDecidable _) (F d),
+        g d (a:ZMod d) χ*χ⁻¹ (m:ZMod d)*K Q d n χ β
+  ∀ η : ℝ, 0<η → ∃ N : ℕ, ∀ n : ℕ, N≤n → ∀ t ∈ Set.Icc (0:ℝ) 1, t ∉ wideArcs n →
+    ∀ (a q : ℕ) [NeZero q], a≤q → a.Coprime q → (q:ℝ)≤Real.sqrt n →
+      |t-(a:ℝ)/q|≤1/((q:ℝ)*Real.sqrt n) →
+    ∀ F : (k:ℕ)→Finset (DirichletCharacter ℂ k),
+      (∑ d∈q.divisors,Real.sqrt d*((F d).card:ℝ))≤(q:ℝ)/(n:ℝ)^(1/4:ℝ) →
+      ‖S n w t + (R q n a (t-(a:ℝ)/q) -
+        (∑ d∈q.divisors,(ArithmeticFunction.moebius (q/d):ℂ)*(d.totient:ℂ)*
+          V q d n a (q/d) (t-(a:ℝ)/q) F)/(q.totient:ℂ))‖ ≤ (n:ℝ)^(3/4+η) := by
   classical
   intro w E S Q Q₁ H arcs f W g
   refine ⟨prefixBlocks,fun q _ χ B => exceptionalZeros χ B,?_,?_,?_⟩
@@ -8997,17 +9299,34 @@ let g := fun (q : ℕ) [NeZero q] (v : ZMod q) (χ : DirichletCharacter ℂ q) =
       rw [eqR q n a _ hc]
       exact hN n hn t ht hdeep a q ha hc hq hβ
     · constructor
-      · intro target η hη
-        obtain ⟨N,hN⟩ := deep_iff_conductor_cancellation.mp target η hη
-        refine ⟨N,?_⟩
-        intro n hn t ht hdeep a q _ ha hc hq hβ
-        rw [eqR q n a _ hc]
-        exact hN n hn t ht hdeep a q ha hc hq hβ
-      · intro h
-        apply deep_iff_conductor_cancellation.mpr
+      · constructor
+        · intro target η hη
+          obtain ⟨N,hN⟩ := deep_iff_conductor_cancellation.mp target η hη
+          refine ⟨N,?_⟩
+          intro n hn t ht hdeep a q _ ha hc hq hβ
+          rw [eqR q n a _ hc]
+          exact hN n hn t ht hdeep a q ha hc hq hβ
+        · intro h
+          apply deep_iff_conductor_cancellation.mpr
+          intro η hη
+          obtain ⟨N,hN⟩ := h η hη
+          refine ⟨N,?_⟩
+          intro n hn t ht hdeep a q _ ha hc hq hβ
+          rw [←eqR q n a _ hc]
+          exact hN n hn t ht hdeep a q ha hc hq hβ
+      · intro V
+        have V_eq (Q d n a m : ℕ) (β : ℝ) (F : (k:ℕ)→Finset (DirichletCharacter ℂ k)) :
+            V Q d n a m β F = selectedLevel Q n a d m β F := by
+          by_cases zd : d=0
+          · simp only [V,selectedLevel,dite_eq_left zd]
+          · let : NeZero d := ⟨zd⟩
+            simp only [V,selectedLevel,dite_eq_right zd]
+            simp_rw [eqK]
+            rfl
         intro η hη
-        obtain ⟨N,hN⟩ := h η hη
+        obtain ⟨N,hN⟩ := deep_thin_model η hη
         refine ⟨N,?_⟩
-        intro n hn t ht hdeep a q _ ha hc hq hβ
-        rw [←eqR q n a _ hc]
-        exact hN n hn t ht hdeep a q ha hc hq hβ
+        intro n hn t ht hd a q _ ha hc hq hβ F hF
+        rw [eqR q n a _ hc]
+        simp_rw [V_eq]
+        exact hN n hn t ht hd a q ha hc hq hβ F hF
