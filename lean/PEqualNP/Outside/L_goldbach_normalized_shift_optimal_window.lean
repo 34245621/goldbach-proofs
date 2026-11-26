@@ -271,10 +271,14 @@ private theorem face_value {I : Finset ℕ} {c : ℕ → ℝ} {m t B : ℝ}
     change μ - (t/A)*V = μ - Real.sqrt ((B-1/(P.card:ℝ))*V)
     simp [hv]
 
+end GoldbachNormalized
+
+open GoldbachNormalized
+
 /-- Exact minimum of the weighted average on a finite shift window with mass one
 and an upper bound on squared mass. The formula uses only the mean and centered
 second moment on an initial segment of the shifts ordered by coefficient. -/
-theorem _root_.PEqualNP.Outside.L_goldbach_normalized_shift_optimal_window :
+theorem PEqualNP.Outside.L_goldbach_normalized_shift_optimal_window :
     ∀ (I : Finset ℕ) (c : ℕ → ℝ) (m B : ℝ),
       (∃ j ∈ I, c j = m) → (∀ j ∈ I, m ≤ c j) → 1 ≤ B * (I.card:ℝ) →
       let v := fun (t : ℝ) (j : ℕ) => max (1 - t*(c j-m)) 0
@@ -292,5 +296,3 @@ theorem _root_.PEqualNP.Outside.L_goldbach_normalized_shift_optimal_window :
   intro I c m B hm hc hB v w
   obtain ⟨t,ht,hpos,hmass,hbudget,hsat,hopt⟩ := exists_clipped I c m B hm hc hB
   exact ⟨t, ht, hpos, hmass, hbudget, hsat, face_value hm ht hsat, hopt⟩
-
-end GoldbachNormalized
