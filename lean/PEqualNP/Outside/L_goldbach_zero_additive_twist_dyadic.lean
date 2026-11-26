@@ -504,9 +504,14 @@ private theorem profile_sum (J N : ℕ) :
   push_cast at hn
   linarith only [bound N,hs',hn,hh]
 
+end GoldbachOscillation
+
+open GoldbachOscillation
+open scoped ComplexConjugate
+
 set_option maxHeartbeats 1200000 in
 /-- Dyadic kernel estimates and their sum over a finite indexed family with a unit-height occupancy bound. -/
-theorem _root_.PEqualNP.Outside.L_goldbach_zero_additive_twist_dyadic :
+theorem PEqualNP.Outside.L_goldbach_zero_additive_twist_dyadic :
     ∀ (X a b σ β : ℝ), 0 < X → X ≤ a → a ≤ b → b ≤ 2*X → 0 ≤ σ → σ ≤ 1 →
       let K := fun γ : ℝ => ∫ x in a..b, ((x^(σ-1):ℝ):ℂ) *
         Complex.exp (((β*x+γ*Real.log x:ℝ):ℂ)*Complex.I)
@@ -583,5 +588,3 @@ theorem _root_.PEqualNP.Outside.L_goldbach_zero_additive_twist_dyadic :
       simp_rw [← mul_assoc, mul_comm M (X^σ)]
       exact (Finset.mul_sum ..).symm
     _ ≤ _ := mul_le_mul_of_nonneg_left (profile_sum J N) (mul_nonneg hscale.le hM)
-
-end GoldbachOscillation
