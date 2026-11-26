@@ -1,7 +1,9 @@
 import Mathlib
 
 /-!
-Conductor and dyadic real-part criterion for the pointwise three-quarters bound on deep arcs.
+Primitive-character and dyadic real-part criterion for the pointwise three-quarters bound.
+The signed residue sum is evaluated only at the primitive levels. Its exact inverse
+has squared Möbius coefficients; uniform upper bounds transfer at a cost of q/φ(q).
 The Mellin estimate also discards the zeros below the block-dependent threshold
 X^Re(z) sqrt(q) sqrt(1+8 pi |beta| X) <= n^(3/4).
 The primitive-conductor projection cancels before taking absolute values.
@@ -7625,6 +7627,418 @@ end GoldbachTwistedMellin
 end
 end
 
+section
+open Complex Set Finset Goldbach DirichletCharacter
+noncomputable section
+namespace GoldbachTwistedMellin
+variable {f q : ℕ} [NeZero f] [NeZero q]
+
+private def removedEuler (q : ℕ) (χ : DirichletCharacter ℂ f) (s : ℂ) : ℂ :=
+  ∏ p ∈ q.primeFactors, (1 - χ p * (p : ℂ) ^ (-s))
+
+omit [NeZero f] [NeZero q] in
+private theorem diff_removedEuler (χ : DirichletCharacter ℂ f) :
+    Differentiable ℂ (removedEuler q χ) := by
+  unfold removedEuler
+  apply Differentiable.fun_finsetProd
+  intro p hp
+  have : NeZero p := ⟨(Nat.prime_of_mem_primeFactors hp).ne_zero⟩
+  fun_prop
+
+omit [NeZero f] [NeZero q] in
+private theorem removedEuler_ne_zero (χ : DirichletCharacter ℂ f) {s : ℂ} (hs : 0<s.re) :
+    removedEuler q χ s ≠ 0 := by
+  apply Finset.prod_ne_zero_iff.mpr
+  intro p hp
+  have hp' := Nat.prime_of_mem_primeFactors hp
+  have hpR : 1 < (p:ℝ) := by exact_mod_cast hp'.one_lt
+  apply sub_ne_zero.mpr
+  intro e
+  have hlt : ‖χ p * (p:ℂ)^(-s)‖ < 1 := by
+    rw [norm_mul,norm_natCast_cpow_of_pos hp'.pos, neg_re]
+    calc
+      _ ≤ 1*(p:ℝ)^(-s.re) := mul_le_mul_of_nonneg_right (χ.norm_le_one _) (by positivity)
+      _ < 1 := by simpa using Real.rpow_lt_one_of_one_lt_of_neg hpR (neg_lt_zero.mpr hs)
+  simp [←e] at hlt
+
+private theorem regularized_changeLevel (hd : f ∣ q) (χ : DirichletCharacter ℂ f) :
+    regularizedL (changeLevel hd χ) = regularizedL χ * removedEuler q χ := by
+  have lhs := (analytic_regularizedL (changeLevel hd χ)).continuousOn
+  have rhs := (analytic_regularizedL χ).continuousOn.mul (diff_removedEuler (q:=q) χ).continuous.continuousOn
+  apply (continuousOn_univ.mp lhs).ext_on (dense_compl_singleton 1) (continuousOn_univ.mp rhs)
+  intro s hs
+  have hs1 : s ≠ 1 := hs
+  change regularizedL (changeLevel hd χ) s = regularizedL χ s * _
+  by_cases hχ : χ = 1
+  · subst χ
+    have hL := LFunction_changeLevel hd (1 : DirichletCharacter ℂ f) (Or.inr hs1)
+    simp only [map_one] at hL ⊢
+    simp only [regularizedL,ite_true,LFunctionTrivChar₁,Function.update_of_ne hs1,LFunctionTrivChar]
+    rw [hL]
+    change _ = _ * ∏ p ∈ q.primeFactors, _
+    ring
+  · have hi : changeLevel hd χ ≠ 1 := mt (changeLevel_eq_one_iff hd).mp hχ
+    simpa only [regularizedL, ite_eq_right hχ, ite_eq_right hi, removedEuler] using
+      LFunction_changeLevel hd χ (Or.inl hχ) (s:=s)
+
+theorem zeros_changeLevel (hd : f ∣ q) (χ : DirichletCharacter ℂ f) (B : ℝ) :
+    exceptionalZeros (changeLevel hd χ) B = exceptionalZeros χ B := by
+  ext s
+  rw [mem_exceptionalZeros,mem_exceptionalZeros,regularized_changeLevel,Pi.mul_apply]
+  constructor
+  · rintro ⟨hl,hi,hz⟩
+    exact ⟨hl,hi,(mul_eq_zero.mp hz).resolve_right (removedEuler_ne_zero χ (show 0<s.re by linarith))⟩
+  · rintro ⟨hl,hi,hz⟩
+    exact ⟨hl,hi,by rw [hz,zero_mul]⟩
+
+theorem order_changeLevel (hd : f ∣ q) (χ : DirichletCharacter ℂ f) {s : ℂ} (hs : 0<s.re) :
+    analyticOrderNatAt (regularizedL (changeLevel hd χ)) s = analyticOrderNatAt (regularizedL χ) s := by
+  have h := (diff_removedEuler (q:=q) χ).analyticAt s
+  rw [regularized_changeLevel,analyticOrderNatAt,analyticOrderAt_mul
+    ((analytic_regularizedL χ) _ (Set.mem_univ _)) h,
+    h.analyticOrderAt_eq_zero.mpr (removedEuler_ne_zero χ hs),add_zero]
+  rfl
+
+theorem fixedZeroTerm_changeLevel (hd : f ∣ q) (χ : DirichletCharacter ℂ f) (a b X β : ℝ) :
+    fixedZeroTerm (changeLevel hd χ) a b X β = fixedZeroTerm χ a b X β := by
+  unfold fixedZeroTerm
+  rw [zeros_changeLevel]
+  refine sum_congr rfl fun z hz => ?_
+  have h := ((mem_exceptionalZeros χ _ z).mp hz).1
+  rw [order_changeLevel hd χ (show 0<z.re by linarith)]
+
+theorem characterZeroSum_changeLevel (hd : f ∣ q) (χ : DirichletCharacter ℂ f) (n : ℕ) (β : ℝ) :
+    characterZeroSum n (changeLevel hd χ) β = characterZeroSum n χ β := by
+  simp only [characterZeroSum, fixedZeroTerm_changeLevel]
+
+end GoldbachTwistedMellin
+end
+end
+
+section
+open Complex Finset DirichletCharacter GoldbachConductorGauss
+open scoped Classical
+noncomputable section
+namespace GoldbachTwistedMellin
+
+private theorem conductor_fibre {d q : ℕ} [NeZero d] [NeZero q] (hd : d∣q) :
+    (univ : Finset (DirichletCharacter ℂ q)).filter (fun χ => χ.conductor=d) =
+      ((univ : Finset (DirichletCharacter ℂ d)).filter DirichletCharacter.IsPrimitive).image (changeLevel hd) := by
+  ext χ
+  simp only [mem_filter,mem_univ,true_and,mem_image]
+  constructor
+  · intro eq
+    obtain ⟨_,ψ,he⟩ : χ.FactorsThrough d := eq ▸ χ.factorsThrough_conductor
+    refine ⟨ψ,?_,he.symm⟩
+    rw [isPrimitive_def,←conductor_changeLevel ψ hd,←he,eq]
+  · rintro ⟨ψ,hψ,rfl⟩
+    exact (conductor_changeLevel ψ hd).trans hψ
+
+private theorem conductor_lifts {d q : ℕ} [NeZero d] [NeZero q] (hd : d∣q) :
+    (univ : Finset (DirichletCharacter ℂ q)).filter (fun χ => χ.conductor∣d) =
+      (univ : Finset (DirichletCharacter ℂ d)).image (changeLevel hd) := by
+  ext χ
+  simp only [mem_filter,mem_univ,true_and,mem_image]
+  constructor
+  · intro hf
+    obtain ⟨_,ψ,he⟩ := (mem_conductorSet_iff_conductor_dvd χ hd).mpr hf
+    exact ⟨ψ,he.symm⟩
+  · rintro ⟨ψ,rfl⟩;rw [conductor_changeLevel];exact ψ.conductor_dvd_level
+
+/-- Unnormalized additive weights preserve both phases of the conductor descent:
+the Möbius sign and the value of the inverse character on the quotient. -/
+theorem conductor_gauss_weight {d q : ℕ} [NeZero d] [NeZero q] (hd : d∣q)
+    (a : ℕ) (ha : a.Coprime q) (ψ : DirichletCharacter ℂ d) :
+    (q.totient:ℂ)*additiveWeight (a:ZMod q) (changeLevel hd ψ) =
+      (ArithmeticFunction.moebius (q/d):ℂ)*(d.totient:ℂ)*additiveWeight (a:ZMod d) ψ*ψ⁻¹ ((q/d:ℕ):ZMod d) := by
+  obtain ⟨m,rfl⟩ := hd
+  let : NeZero m := ⟨fun h => NeZero.ne (d*m) (by simp [h])⟩
+  have div : d*m/d=m := Nat.mul_div_cancel_left m (NeZero.pos d)
+  let D := dvd_mul_right d m
+  obtain ⟨u,hu⟩ := (ZMod.isUnit_iff_coprime a (d*m)).mpr ha
+  let v := ZMod.unitsMap D u
+  have hv : (v:ZMod d)=(a:ZMod d) := by
+    change ZMod.castHom D (ZMod d) (u : ZMod (d*m)) = _
+    rw [hu,map_natCast]
+  have he : changeLevel D ψ u = ψ v := changeLevel_eq_cast_of_dvd ψ D u
+  rw [div,←hu,←hv,additiveWeight_unit,additiveWeight_unit,additiveWeight_gauss,additiveWeight_gauss,
+    AddChar.mulShift_one,←map_inv,induced_gaussSum,he]
+  have hφ : (((d*m).totient:ℕ):ℂ)≠0 := by exact_mod_cast (Nat.totient_pos.mpr (NeZero.pos (d*m))).ne'
+  have hψ : (d.totient:ℂ)≠0 := by exact_mod_cast (Nat.totient_pos.mpr (NeZero.pos d)).ne'
+  simp only [AddChar.mulShift_one]
+  field_simp
+
+/-- Families of character data that agree under inflation to any multiple of their level. -/
+structure DescendingKernel where
+  coeff : {q : ℕ} → [NeZero q] → ℕ → DirichletCharacter ℂ q → ℝ → ℂ
+  compatible : ∀ {d q : ℕ} [NeZero d] [NeZero q] (hd : d∣q) (ψ : DirichletCharacter ℂ d) (n : ℕ) (β : ℝ),
+    coeff n (changeLevel hd ψ) β = coeff n ψ β
+
+variable (K : DescendingKernel)
+
+def kernelCorrection {q : ℕ} [NeZero q] (n : ℕ) (v : ZMod q) (β : ℝ) : ℂ :=
+  ∑ χ : DirichletCharacter ℂ q,additiveWeight v χ * K.coeff n χ β
+
+/-- Character sums at their own level; the quotient twist is zero on a
+nonunit. This definition includes level one and both choices of character set. -/
+def levelTransform (primitive : Bool) (d m a n : ℕ) (β : ℝ) : ℂ := by
+  classical
+  exact if h : d=0 then 0 else
+    let _ : NeZero d := ⟨h⟩
+    ∑ ψ ∈ (if primitive then (univ : Finset (DirichletCharacter ℂ d)).filter DirichletCharacter.IsPrimitive else univ),
+      additiveWeight (a:ZMod d) ψ*ψ⁻¹ (m:ZMod d)*K.coeff n ψ β
+
+theorem levelTransform_eq (primitive : Bool) {d : ℕ} [NeZero d] (m a n : ℕ) (β : ℝ) :
+    levelTransform K primitive d m a n β =
+    ∑ ψ ∈ (if primitive then (univ : Finset (DirichletCharacter ℂ d)).filter DirichletCharacter.IsPrimitive else univ),
+      additiveWeight (a:ZMod d) ψ*ψ⁻¹ (m:ZMod d)*K.coeff n ψ β := by
+  simp only [levelTransform,dite_eq_right (NeZero.ne d)]
+
+private theorem transport_fibre (primitive : Bool) {d q : ℕ} [NeZero d] [NeZero q] (hd : d∣q)
+    (a n : ℕ) (ha : a.Coprime q) (β : ℝ) :
+    (q.totient:ℂ)*(∑ χ ∈ (univ : Finset (DirichletCharacter ℂ q)).filter
+      (fun χ => if primitive then χ.conductor=d else χ.conductor∣d),
+      additiveWeight (a:ZMod q) χ*K.coeff n χ β) =
+    (ArithmeticFunction.moebius (q/d):ℂ)*(d.totient:ℂ)*levelTransform K primitive d (q/d) a n β := by
+  let S := if primitive then (univ : Finset (DirichletCharacter ℂ d)).filter DirichletCharacter.IsPrimitive else univ
+  have sets : (univ : Finset (DirichletCharacter ℂ q)).filter
+      (fun χ => if primitive then χ.conductor=d else χ.conductor∣d) = S.image (changeLevel hd) := by
+    cases primitive
+    · simpa [S] using conductor_lifts hd
+    · simpa [S] using conductor_fibre hd
+  rw [sets,Finset.sum_image (fun _ _ _ _ h => changeLevel_injective hd h),levelTransform_eq K,
+    Finset.mul_sum,Finset.mul_sum]
+  refine sum_congr rfl fun ψ _ => ?_
+  rw [←mul_assoc,conductor_gauss_weight hd a ha ψ,K.compatible]
+  ring
+
+
+private def fibreAt {q : ℕ} (a n : ℕ) [NeZero q] (β : ℝ) (d : ℕ) : ℂ :=
+  ∑ χ ∈ (univ : Finset (DirichletCharacter ℂ q)).filter (fun χ => χ.conductor=d),
+    additiveWeight (a:ZMod q) χ * K.coeff n χ β
+
+private def liftsAt {q : ℕ} (a n : ℕ) [NeZero q] (β : ℝ) (d : ℕ) : ℂ :=
+  ∑ χ ∈ (univ : Finset (DirichletCharacter ℂ q)).filter (fun χ => χ.conductor∣d),
+    additiveWeight (a:ZMod q) χ * K.coeff n χ β
+
+private theorem sum_fibres {q : ℕ} [NeZero q] (a n : ℕ) (β : ℝ) (k : ℕ) (hk : 0<k) :
+    (∑ d ∈ k.divisors,fibreAt (q:=q) K a n β d) = liftsAt (q:=q) K a n β k := by
+  let A := (univ : Finset (DirichletCharacter ℂ q)).filter (fun χ => χ.conductor∣k)
+  let w := fun χ : DirichletCharacter ℂ q => additiveWeight (a:ZMod q) χ*K.coeff n χ β
+  have maps (χ) (hχ : χ∈A) : χ.conductor ∈ k.divisors := Nat.mem_divisors.mpr ⟨(mem_filter.mp hχ).2,hk.ne'⟩
+  change _ = ∑ χ ∈ A, w χ
+  rw [←sum_fiberwise_of_maps_to maps w]
+  refine sum_congr rfl fun d hd => ?_
+  unfold fibreAt
+  apply sum_congr _ (fun _ _ => rfl)
+  ext χ
+  simp only [A,mem_filter,mem_univ,true_and]
+  exact ⟨fun e => ⟨e ▸ Nat.dvd_of_mem_divisors hd,e⟩,And.right⟩
+
+private theorem all_level {q : ℕ} [NeZero q] (a n : ℕ) (β : ℝ) :
+    levelTransform K false q 1 a n β = kernelCorrection K n (a:ZMod q) β := by
+  simp only [levelTransform_eq K,Bool.false_eq_true,ite_false,Nat.cast_one,map_one,mul_one,kernelCorrection]
+
+private theorem all_lifts {q : ℕ} [NeZero q] (a n : ℕ) (β : ℝ) :
+    liftsAt (q:=q) K a n β q = kernelCorrection K n (a:ZMod q) β := by
+  unfold liftsAt
+  rw [kernelCorrection]
+  congr 1
+  ext χ;simp [χ.conductor_dvd_level]
+
+private theorem primitive_at_level {q : ℕ} [NeZero q] (a n : ℕ) (β : ℝ) :
+    levelTransform K true q 1 a n β = fibreAt (q:=q) K a n β q := by
+  simp only [levelTransform_eq K,ite_true,Nat.cast_one,map_one,mul_one,fibreAt,isPrimitive_def]
+
+/-- Both directions of descent hold as complex equalities before taking norms.
+The inverse has the squared Möbius coefficient. -/
+theorem conductor_descent_pair {q : ℕ} [NeZero q] (a n : ℕ) (ha : a.Coprime q) (β : ℝ) :
+    ((q.totient:ℂ)*kernelCorrection K n (a:ZMod q) β =
+      ∑ d ∈ q.divisors, (ArithmeticFunction.moebius (q/d):ℂ)*(d.totient:ℂ)*levelTransform K true d (q/d) a n β) ∧
+    ((q.totient:ℂ)*levelTransform K true q 1 a n β =
+      ∑ d ∈ q.divisors,(ArithmeticFunction.moebius (q/d):ℂ)^2*(d.totient:ℂ)*levelTransform K false d (q/d) a n β) := by
+  have hq := NeZero.pos q
+  constructor
+  · rw [←all_lifts K,←sum_fibres K a n β q hq,Finset.mul_sum]
+    refine sum_congr rfl fun d hd => ?_
+    let : NeZero d := ⟨(Nat.pos_of_mem_divisors hd).ne'⟩
+    simpa only [fibreAt,ite_true] using transport_fibre K true (Nat.dvd_of_mem_divisors hd) a n ha β
+  · have inv := ArithmeticFunction.sum_eq_iff_sum_mul_moebius_eq.mp (sum_fibres (q:=q) K a n β) q hq
+    rw [primitive_at_level K,←inv,Finset.mul_sum]
+    rw [Nat.sum_divisorsAntidiagonal' (fun m d => (q.totient:ℂ)*((ArithmeticFunction.moebius m:ℂ)*liftsAt (q:=q) K a n β d))]
+    refine sum_congr rfl fun d hd => ?_
+    let : NeZero d := ⟨(Nat.pos_of_mem_divisors hd).ne'⟩
+    have e : (q.totient:ℂ)*liftsAt (q:=q) K a n β d =
+        (ArithmeticFunction.moebius (q/d):ℂ)*(d.totient:ℂ)*levelTransform K false d (q/d) a n β := by
+      simpa only [liftsAt,Bool.false_eq_true,ite_false] using transport_fibre K false (Nat.dvd_of_mem_divisors hd) a n ha β
+    linear_combination (ArithmeticFunction.moebius (q/d):ℂ)*e
+
+
+/-- A unit quotient is absorbed by changing the numerator at the inducing level.
+The twist vanishes identically when the quotient is a nonunit. -/
+theorem conductor_twist {d : ℕ} [NeZero d] (p : Bool) (m a n : ℕ) (ha : a.Coprime d) (β : ℝ) :
+    levelTransform K p d m a n β =
+      if h : IsUnit (m:ZMod d) then
+        levelTransform K p d 1 ((a:ZMod d)*(h.unit⁻¹ : (ZMod d)ˣ)).val n β else 0 := by
+  classical
+  split_ifs with hm
+  · rw [levelTransform_eq K,levelTransform_eq K]
+    obtain ⟨u,hu⟩ := (ZMod.isUnit_iff_coprime a d).mpr ha
+    let v := u*hm.unit⁻¹
+    have ev : (((a:ZMod d)*(hm.unit⁻¹ : (ZMod d)ˣ)).val : ZMod d) = v := by
+      rw [ZMod.natCast_zmod_val,←hu];rfl
+    have inv (ψ : DirichletCharacter ℂ d) : ψ⁻¹ (m:ZMod d)=ψ ((hm.unit⁻¹ : (ZMod d)ˣ):ZMod d) := by
+      rw [MulChar.inv_apply_eq_inv']
+      apply inv_eq_of_mul_eq_one_right
+      simpa using (ψ.map_mul (hm.unit:ZMod d) ((hm.unit⁻¹ : (ZMod d)ˣ):ZMod d)).symm
+    refine sum_congr rfl fun ψ _ => ?_
+    rw [ev,←hu,additiveWeight_unit u,additiveWeight_unit v,inv]
+    simp only [v,Units.val_mul,map_mul,Nat.cast_one,map_one,mul_one]
+    ring
+  · rw [levelTransform_eq K]
+    exact sum_eq_zero fun ψ _ => by rw [MulChar.map_nonunit ψ⁻¹ hm,mul_zero,zero_mul]
+
+theorem conductor_shift_bound {d : ℕ} [NeZero d] (p : Bool) (m a n : ℕ) (ha : a.Coprime d)
+    (β B : ℝ) (hB : 0≤B) (all : ∀ b : ℕ, b<d → b.Coprime d → ‖levelTransform K p d 1 b n β‖≤B) :
+    ‖levelTransform K p d m a n β‖≤B := by
+  rw [conductor_twist K p m a n ha β]
+  split_ifs with h
+  · let v : ZMod d := (a:ZMod d)*(h.unit⁻¹ : (ZMod d)ˣ)
+    have hv : IsUnit v := ((ZMod.isUnit_iff_coprime a d).mpr ha).mul (h.unit⁻¹).isUnit
+    exact all v.val (ZMod.val_lt _) ((ZMod.isUnit_iff_coprime _ _).mp (by simpa only [ZMod.natCast_zmod_val] using hv))
+  · simpa using hB
+
+/-- Uniform bounds transfer between primitive and full transforms, with loss
+at most q/φ(q), at the same ordinate offset. Divisor levels are all that occur. -/
+theorem conductor_two_way_bound {q : ℕ} [NeZero q] (p : Bool) (a n : ℕ) (ha : a.Coprime q)
+    (β B : ℝ) (hB : 0≤B)
+    (estimate : ∀ d ∈ q.divisors, ∀ b : ℕ, b<d → b.Coprime d → ‖levelTransform K p d 1 b n β‖≤B) :
+    ‖levelTransform K (!p) q 1 a n β‖ ≤ ((q:ℝ)/q.totient)*B := by
+  let c (m : ℕ) : ℂ := if p then (ArithmeticFunction.moebius m:ℂ) else (ArithmeticFunction.moebius m:ℂ)^2
+  have e : (q.totient:ℂ)*levelTransform K (!p) q 1 a n β =
+      ∑ d ∈ q.divisors,c (q/d)*(d.totient:ℂ)*levelTransform K p d (q/d) a n β := by
+    cases p
+    · simpa only [c,Bool.not_false,Bool.false_eq_true,ite_false] using (conductor_descent_pair K a n ha β).2
+    · simpa only [c,Bool.not_true,ite_true,all_level K] using (conductor_descent_pair K a n ha β).1
+  have normc (m : ℕ) : ‖c m‖≤1 := by
+    have h : ‖(ArithmeticFunction.moebius m:ℂ)‖≤1 := by
+      rw [Complex.norm_intCast];exact_mod_cast ArithmeticFunction.abs_moebius_le_one (n:=m)
+    cases p
+    · simpa [c] using pow_le_one₀ (norm_nonneg _) h (n:=2)
+    · simpa [c] using h
+  have hφ : 0<(q.totient:ℝ) := by exact_mod_cast Nat.totient_pos.mpr (NeZero.pos q)
+  have lhs : (q.totient:ℝ)*‖levelTransform K (!p) q 1 a n β‖ ≤ (q:ℝ)*B := by
+    rw [←Complex.norm_natCast,←norm_mul,e]
+    apply (norm_sum_le ..).trans
+    calc
+      _ ≤ ∑ d ∈ q.divisors,(d.totient:ℝ)*B := by
+        refine sum_le_sum fun d hd => ?_
+        let : NeZero d := ⟨(Nat.pos_of_mem_divisors hd).ne'⟩
+        have hc := Nat.Coprime.of_dvd_right (Nat.dvd_of_mem_divisors hd) ha
+        have bound := conductor_shift_bound K p (q/d) a n hc β B hB (estimate d hd)
+        simp only [norm_mul,Complex.norm_natCast]
+        exact (mul_le_mul (mul_le_mul_of_nonneg_right (normc _) (Nat.cast_nonneg _)) bound (norm_nonneg _) (by positivity)).trans_eq (by ring)
+      _ = _ := by rw [←Finset.sum_mul,←Nat.cast_sum,Nat.sum_totient]
+  calc
+    _ ≤ ((q:ℝ)*B)/q.totient := (le_div_iff₀ hφ).mpr (by rw [mul_comm];exact lhs)
+    _ = _ := by ring
+
+end GoldbachTwistedMellin
+end
+end
+
+section
+open Complex Finset Set Goldbach GoldbachGRHWindow DeepThreeQuarters DirichletCharacter Filter
+open scoped Classical
+noncomputable section
+namespace GoldbachTwistedMellin
+
+/-- Hold the ambient denominator scale fixed while descending the actual
+character. This preserves the frequency and real-part threshold of every block. -/
+def keptBlock {d : ℕ} [NeZero d] (Q n : ℕ) (χ : DirichletCharacter ℂ d) (p : ℕ×ℕ) (γ : ℝ) : ℂ :=
+  ∑ z ∈ (exceptionalZeros χ (heightCut p.1)).filter (fun z => (n:ℝ)^(3/4:ℝ) < localZeroScale Q p.1 γ z.re),
+    (analyticOrderNatAt (regularizedL χ) z:ℂ)*transform p.1 p.2 γ z
+
+private theorem keptBlock_inflate {d q : ℕ} [NeZero d] [NeZero q] (hd : d∣q) (Q n : ℕ)
+    (ψ : DirichletCharacter ℂ d) (p : ℕ×ℕ) (γ : ℝ) :
+    keptBlock Q n (changeLevel hd ψ) p γ = keptBlock Q n ψ p γ := by
+  unfold keptBlock
+  rw [zeros_changeLevel]
+  refine sum_congr rfl fun z hz => ?_
+  have h := ((mem_exceptionalZeros ψ _ z).mp (mem_filter.mp hz).1).1
+  rw [order_changeLevel hd ψ (show 0<z.re by linarith)]
+
+def keptSpectrum (Q : ℕ) : DescendingKernel where
+  coeff := fun {d} _ n χ β => if projectedThreshold n Q < (χ.conductor:ℝ) then
+    ((prefixBlocks (n-2)).map fun p => keptBlock Q n χ p (2*Real.pi*β)).sum else 0
+  compatible := by
+    intro d q _ _ hd ψ n β
+    simp only [conductor_changeLevel,keptBlock_inflate]
+
+theorem kept_full_eq {q : ℕ} [NeZero q] (n : ℕ) (v : ZMod q) (β : ℝ) :
+    kernelCorrection (keptSpectrum q) n v β = adaptiveCorrection n v β := by
+  simp only [kernelCorrection,keptSpectrum,adaptiveCorrection,Finset.sum_filter]
+  refine sum_congr rfl fun χ _ => ?_
+  split_ifs <;> simp only [upperWindowTerm,keptBlock,mul_zero]
+
+def primitiveRemainder (q n a : ℕ) (β : ℝ) : ℂ :=
+  (∑ d ∈ q.divisors, (ArithmeticFunction.moebius (q/d):ℂ)*(d.totient:ℂ)*
+    levelTransform (keptSpectrum q) true d (q/d) a n β)/(q.totient:ℂ)
+
+theorem primitiveRemainder_eq {q : ℕ} [NeZero q] (a n : ℕ) (ha : a.Coprime q) (β : ℝ) :
+    primitiveRemainder q n a β = adaptiveCorrection n (a:ZMod q) β := by
+  unfold primitiveRemainder
+  have h := (conductor_descent_pair (keptSpectrum q) a n ha β).1
+  rw [←h,kept_full_eq,mul_div_cancel_left₀ _ (show (q.totient:ℂ)≠0 by exact_mod_cast (Nat.totient_pos.mpr (NeZero.pos q)).ne')]
+
+/-- A uniform estimate for primitive sums on the divisor levels is sufficient
+for the original pointwise target; the total normalization loss is q/φ(q). -/
+theorem deep_of_conductor_primitive_bounds
+    (h : ∀ η : ℝ, 0<η → ∃ N : ℕ, ∀ n : ℕ, N≤n → ∀ t ∈ Icc (0:ℝ) 1, t ∉ wideArcs n →
+      ∀ (a q : ℕ) [NeZero q], a≤q → a.Coprime q → (q:ℝ)≤Real.sqrt n →
+      |t-(a:ℝ)/q| ≤ 1/((q:ℝ)*Real.sqrt n) →
+      ∀ d ∈ q.divisors, ∀ b : ℕ, b<d → b.Coprime d →
+        ‖levelTransform (keptSpectrum q) true d 1 b n (t-(a:ℝ)/q)‖ ≤ (n:ℝ)^(3/4+η)) :
+    ∀ η : ℝ, 0<η → ∃ N : ℕ, ∀ n : ℕ, N≤n → ∀ t ∈ Icc (0:ℝ) 1, t ∉ wideArcs n →
+      ‖weightedSum n primeWeight t‖ ≤ (n:ℝ)^(3/4+η) := by
+  intro η hη
+  let e := η/4
+  have he : 0<e := by dsimp [e];positivity
+  obtain ⟨N,hN⟩ := h e he
+  obtain ⟨M,hM⟩ := deep_adaptive_model (η/2) (half_pos hη)
+  obtain ⟨P,hP⟩ := eventually_atTop.mp (eventually_absorb (1+(8+4/e)) η hη)
+  refine ⟨max 1 (max N (max M P)),?_⟩
+  intro n hn t ht hdeep
+  have hnR : 1≤(n:ℝ) := by exact_mod_cast (show 1≤n by omega)
+  have hn0 := zero_lt_one.trans_le hnR
+  obtain ⟨a,q,hq,ha,hc,hqs,hβ⟩ := exists_dirichlet n (by omega) t ht
+  let : NeZero q := ⟨by omega⟩
+  let β := t-(a:ℝ)/q
+  let Z := adaptiveCorrection n (a:ZMod q) β
+  have estimate := hN n (by omega) t ht hdeep a q ha hc hqs hβ
+  have bound := conductor_two_way_bound (keptSpectrum q) true a n hc β ((n:ℝ)^(3/4+e)) (by positivity) estimate
+  have eq : levelTransform (keptSpectrum q) false q 1 a n β = Z := by
+    rw [levelTransform_eq,keptSpectrum];simp only [Bool.false_eq_true,ite_false,Nat.cast_one,map_one,mul_one]
+    exact kept_full_eq n (a:ZMod q) β
+  change ‖levelTransform (keptSpectrum q) false q 1 a n β‖≤_ at bound
+  rw [eq] at bound
+  have qn : (q:ℝ)≤n := hqs.trans (Real.sqrt_le_self_iff.mpr (Or.inr hnR))
+  have hratio := (totient_ratio_le_rpow he q hq).trans (mul_le_mul_of_nonneg_left (Real.rpow_le_rpow (Nat.cast_nonneg _) qn he.le) (by positivity))
+  have hz : ‖Z‖ ≤ (8+4/e)*(n:ℝ)^(3/4+η/2) := by
+    apply (bound.trans (mul_le_mul_of_nonneg_right hratio (Real.rpow_nonneg hn0.le _))).trans_eq
+    rw [mul_assoc,←Real.rpow_add hn0]
+    have ee : e+(3/4+e)=3/4+η/2 := by dsimp [e];ring
+    rw [ee]
+  let S := weightedSum n primeWeight t
+  have eqS : S = (S+Z)-Z := by abel
+  change ‖S‖≤_
+  rw [eqS]
+  exact (norm_sub_le ..).trans ((add_le_add (hM n (by omega) t ht hdeep a q ha hc hqs hβ) hz).trans
+    ((le_of_eq (by ring)).trans (hP n (by omega))))
+end GoldbachTwistedMellin
+end
+end
+
 open Goldbach GoldbachTwistedMellin
 theorem PEqualNP.Outside.L_goldbach_deep_three_quarters_filtered_zero_criterion :
 let w := fun k : ℕ => if Nat.Prime k then Real.log (k:ℝ) else 0
@@ -7645,12 +8059,21 @@ let g := fun (q : ℕ) [NeZero q] (v : ZMod q) (χ : DirichletCharacter ℂ q) =
   (∀ m, blocks m = if m<2 then [] else (m/2+2,m+2)::blocks (m/2)) ∧
   (∀ (q : ℕ) [NeZero q] (χ : DirichletCharacter ℂ q) (B : ℝ) (z : ℂ),
     z ∈ zeros q χ B ↔ 1/2 < z.re ∧ |z.im| ≤ B ∧ f q χ z = 0) ∧
-  let R := fun (q : ℕ) [NeZero q] (n a : ℕ) (β : ℝ) =>
-    ∑ χ ∈ (Finset.univ : Finset (DirichletCharacter ℂ q)).filter (fun χ =>
-      (q:ℝ)/(n:ℝ)^(1/4:ℝ) < (χ.conductor:ℝ)), g q (a:ZMod q) χ *
-      ((blocks (n-2)).map fun p =>
-        ∑ z ∈ (zeros q χ ((2*(p.1:ℝ))^8)).filter (fun z =>
-          (n:ℝ)^(3/4:ℝ) < (p.1:ℝ)^z.re * Real.sqrt q * Real.sqrt (1+4*|2*Real.pi*β| *p.1)), (analyticOrderNatAt (f q χ) z:ℂ)*W p.1 p.2 β z).sum
+  let K := fun (Q d : ℕ) [NeZero d] (n : ℕ) (χ : DirichletCharacter ℂ d) (β : ℝ) =>
+    if (Q:ℝ)/(n:ℝ)^(1/4:ℝ) < (χ.conductor:ℝ) then ((blocks (n-2)).map fun p =>
+      ∑ z ∈ (zeros d χ ((2*(p.1:ℝ))^8)).filter (fun z =>
+        (n:ℝ)^(3/4:ℝ) < (p.1:ℝ)^z.re * Real.sqrt Q * Real.sqrt (1+4*|2*Real.pi*β| *p.1)),
+        (analyticOrderNatAt (f d χ) z:ℂ)*W p.1 p.2 β z).sum else 0
+  let U := fun (p : Bool) (Q d m a n : ℕ) (β : ℝ) => if h : d=0 then (0:ℂ) else
+    let _ : NeZero d := ⟨h⟩
+    ∑ χ : DirichletCharacter ℂ d, @ite ℂ (p=false ∨ χ.IsPrimitive) (Classical.propDecidable _)
+      (g d (a:ZMod d) χ*χ⁻¹ (m:ZMod d)*K Q d n χ β) 0
+  let R := fun (q : ℕ) (n a : ℕ) (β : ℝ) =>
+    (∑ d ∈ q.divisors,(ArithmeticFunction.moebius (q/d):ℂ)*(d.totient:ℂ)*U true q d (q/d) a n β)/(q.totient:ℂ)
+  (∀ (q : ℕ) [NeZero q] (a n : ℕ), a.Coprime q → ∀ β : ℝ,
+    U false q q 1 a n β = R q n a β ∧
+    (q.totient:ℂ)*U true q q 1 a n β =
+      ∑ d ∈ q.divisors,(ArithmeticFunction.moebius (q/d):ℂ)^2*(d.totient:ℂ)*U false q d (q/d) a n β) ∧
   (∀ η : ℝ, 0 < η → ∃ N : ℕ, ∀ n : ℕ, N ≤ n → ∀ t ∈ Set.Icc (0:ℝ) 1, t ∉ wideArcs n →
     ∀ (a q : ℕ) [NeZero q], a ≤ q → a.Coprime q → (q:ℝ) ≤ Real.sqrt n →
       |t-(a:ℝ)/q| ≤ 1/((q:ℝ)*Real.sqrt n) →
@@ -7670,12 +8093,56 @@ let g := fun (q : ℕ) [NeZero q] (v : ZMod q) (χ : DirichletCharacter ℂ q) =
     have hf : f q χ = regularizedL χ := by by_cases h : χ=1 <;> simp [f,regularizedL,h]
     rw [hf]
     exact mem_exceptionalZeros χ B z
-  · intro R
-    have hf (q : ℕ) [NeZero q] (χ : DirichletCharacter ℂ q) : f q χ = regularizedL χ := by
-      by_cases h : χ=1 <;> simp [f,regularizedL,h]
-    have eqR (q : ℕ) [NeZero q] (n a : ℕ) (β : ℝ) : R q n a β = adaptiveCorrection n (a:ZMod q) β := by
-      dsimp only [R,adaptiveCorrection,upperWindowTerm]
+  · intro K U R
+    have eqK (Q d : ℕ) [NeZero d] (n : ℕ) (χ : DirichletCharacter ℂ d) (β : ℝ) :
+        K Q d n χ β = (keptSpectrum Q).coeff n χ β := by
+      have hf : f d χ = regularizedL χ := by by_cases h : χ=1 <;> simp [f,regularizedL,h]
+      dsimp only [K,keptSpectrum,keptBlock]
       simp_rw [hf]
       rfl
-    simp_rw [eqR]
-    exact ⟨deep_adaptive_model,deep_iff_adaptive_cancellation⟩
+    have eqU (p : Bool) (Q d m a n : ℕ) (β : ℝ) :
+        U p Q d m a n β = levelTransform (keptSpectrum Q) p d m a n β := by
+      by_cases hd : d=0
+      · simp [U,levelTransform,hd]
+      · let : NeZero d := ⟨hd⟩
+        cases p
+        · simp only [U,dite_eq_right hd,true_or,ite_true,levelTransform_eq,Bool.false_eq_true,ite_false]
+          simp_rw [eqK]
+          rfl
+        · simp only [U,dite_eq_right hd,Bool.true_eq_false,false_or,levelTransform_eq,ite_true,Finset.sum_filter]
+          simp_rw [eqK]
+          rfl
+    have eqR (q : ℕ) [NeZero q] (n a : ℕ) (β : ℝ) (hc : a.Coprime q) :
+        R q n a β = adaptiveCorrection n (a:ZMod q) β := by
+      dsimp only [R]
+      simp_rw [eqU]
+      exact primitiveRemainder_eq a n hc β
+    constructor
+    · intro q _ a n hc β
+      simp_rw [eqU]
+      refine ⟨?_,(conductor_descent_pair (keptSpectrum q) a n hc β).2⟩
+      rw [eqR q n a β hc,levelTransform_eq]
+      simp only [Bool.false_eq_true,ite_false,Nat.cast_one,map_one,mul_one]
+      exact kept_full_eq n (a:ZMod q) β
+    constructor
+    · intro η hη
+      obtain ⟨N,hN⟩ := deep_adaptive_model η hη
+      refine ⟨N,?_⟩
+      intro n hn t ht hdeep a q _ ha hc hq hβ
+      rw [eqR q n a _ hc]
+      exact hN n hn t ht hdeep a q ha hc hq hβ
+    · constructor
+      · intro target η hη
+        obtain ⟨N,hN⟩ := deep_iff_adaptive_cancellation.mp target η hη
+        refine ⟨N,?_⟩
+        intro n hn t ht hdeep a q _ ha hc hq hβ
+        rw [eqR q n a _ hc]
+        exact hN n hn t ht hdeep a q ha hc hq hβ
+      · intro h
+        apply deep_iff_adaptive_cancellation.mpr
+        intro η hη
+        obtain ⟨N,hN⟩ := h η hη
+        refine ⟨N,?_⟩
+        intro n hn t ht hdeep a q _ ha hc hq hβ
+        rw [←eqR q n a _ hc]
+        exact hN n hn t ht hdeep a q ha hc hq hβ
