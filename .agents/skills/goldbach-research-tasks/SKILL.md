@@ -66,6 +66,6 @@ description: 为哥德巴赫研究台及分站自动盘点剩余困难命题，�
 
 1. 运行 `python -B -m unittest research.test_catalogue deploy.test_landau` 和 `git diff --check`。人工核对中英文描述与 Lean 类型是否一致，尤其是自然数减法、整除、求和括号和存在量词。若实际需要导入其他已证引理，核对它已存在于受信基线，提交者能够按导入规则使用。
 2. 参照 [Desk 测试](../../../deploy/test_desk.py)，用临时 SQLite 初始化各受影响的 Desk，调用 `/api/desk/claim`，逐一验证新增 ID 返回 201 且领取对应题目。验证过程使用隔离租约。
-3. 创建 PR 后核对目录 CI，修正在预检中发现的问题。管理员审核后用项目所有者的 GitHub 账号合并到 main。
+3. 创建 PR 后核对目录 CI，修正在预检中发现的问题。管理员审核后，由项目所有者或获授权的数学任务发布者用自己的 GitHub 账号合并到 main。
 4. 合并后查看该 SHA 的 push 目录 CI 和网站 `research-changes`，检查生产快照里的新增 ID 和冻结声明。需要诊断发布时参见[自动发布运维](../../../deploy/catalogue-release.md)。不要把 PR 检查通过或合并动作单独报告为已上线。
 5. 给出 PR、CI、受影响研究台与任务链接。区分声明通过类型检查与提交的证明通过权威核验。

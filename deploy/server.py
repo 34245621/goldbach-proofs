@@ -8,13 +8,14 @@ import re
 import sqlite3
 import ssl
 import time
+from collections import OrderedDict
 from contextlib import closing
 from datetime import datetime
 from functools import lru_cache
 from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from threading import BoundedSemaphore
+from threading import BoundedSemaphore, Lock
 from urllib.parse import parse_qs, urlsplit
 
 from desk import Desk, QUEUE_BATCH
@@ -96,49 +97,48 @@ def compressed_asset(content):
 DISCUSSION_EXPIRES = datetime.fromisoformat("2026-12-02T00:00:00+08:00")
 
 
-def discussion_widget(lang, prefix):
+def discussion_copy(lang):
     if time.time() >= DISCUSSION_EXPIRES.timestamp():
-        return ""
+        return None
     zh = lang == "zh"
-    label = "扫码进群 讨论进度" if zh else "Join WeChat group"
-    name = "知乎 AI4S 讨论组（哥猜 3 群）" if zh else "Zhihu AI4S Goldbach discussion group 3"
-    instructions = "微信扫码，讨论研究进度" if zh else "Scan in WeChat to discuss research progress"
     cutoff = DISCUSSION_EXPIRES.date()
-    validity = f"{cutoff.month} 月 {cutoff.day} 日前有效" if zh else f"Valid before {cutoff:%Y-%m-%d} (UTC+8)"
-    alt = "知乎 AI4S 讨论组（哥猜 3 群）微信群二维码" if zh else "WeChat QR code for the Zhihu AI4S Goldbach discussion group 3"
-    return f"""<details class="discussion-widget" id="wechat-discussion" name="research-qr" aria-label="{name}"><summary><img class="wechat-mark" src="{prefix}wechat.svg" width="34" height="34" alt="">{label}<span aria-hidden="true"></span></summary>
-<div class="discussion-body"><strong>{name}</strong><p>{instructions}</p>
-<div class="discussion-code"><img loading="lazy" src="{prefix}discussion-qr.png" alt="{alt}" width="800" height="1198"></div>
-<small>{validity}</small></div></details>"""
+    return {
+        "short": "扫码进群" if zh else "WeChat group",
+        "label": "扫码进群 · 讨论进度" if zh else "Join WeChat group",
+        "name": "知乎 AI4S 讨论组（哥猜 3 群）" if zh else "Zhihu AI4S Goldbach group 3",
+        "instructions": "微信扫码，讨论研究进度" if zh else "Scan in WeChat to discuss progress",
+        "validity": f"{cutoff.month} 月 {cutoff.day} 日前有效" if zh else f"Valid before {cutoff:%Y-%m-%d} (UTC+8)",
+        "alt": "知乎 AI4S 讨论组（哥猜 3 群）微信群二维码" if zh else "WeChat QR code for the Zhihu AI4S Goldbach discussion group 3",
+    }
 
 
-def core_team_signup(lang, prefix):
+def core_team_copy(lang):
     if lang == "zh":
-        title = "中心组报名"
-        intro = "中心组由数学界专业人士和软件开发者组成。"
-        research = "数学专业研究者负责制定研究路线、拆解子命题证明任务，并动态调整证明路线。"
-        development = "软件开发者负责维护网站的基础设施。"
-        caption = "扫码报名中心组"
-    else:
-        title = "Join the core team"
-        intro = "The core team brings together professional mathematics researchers and software developers."
-        research = "Mathematics researchers set the research direction, break it into proof tasks, and adjust the roadmap as results come in."
-        development = "Software developers maintain the website infrastructure."
-        caption = "Scan to apply"
-    return f"""<details class="discussion-widget" id="core-team" name="research-qr">
-<summary>{title}<span aria-hidden="true"></span></summary>
-<div class="core-team-signup"><p>{intro}</p>
-<p><strong>{research}</strong> {development}</p>
-<figure><img loading="lazy" src="{prefix}core-team-signup.png" width="176" height="176" alt="{caption}">
-<figcaption>{caption}</figcaption></figure></div></details>"""
+        return {
+            "title": "中心组报名",
+            "short_desc": "数学研究者制定路线 · 开发者维护设施",
+            "intro": "中心组由数学界专业人士和软件开发者组成。",
+            "research": "数学专业研究者负责制定研究路线、拆解子命题证明任务，并动态调整证明路线。",
+            "development": "软件开发者负责维护网站的基础设施。",
+            "caption": "扫码报名中心组",
+        }
+    return {
+        "title": "Join the core team",
+        "short_desc": "Math researchers plan routes · developers maintain the site",
+        "intro": "The core team brings together professional mathematics researchers and software developers.",
+        "research": "Mathematics researchers set the research direction, break it into proof tasks, and adjust the roadmap as results come in.",
+        "development": "Software developers maintain the website infrastructure.",
+        "caption": "Scan to apply",
+    }
 
 
-def site_dock(lang, prefix):
+def presence_widget(lang, prefix, *, variant="inline"):
     zh = lang == "zh"
-    visitors = "在线访客" if zh else "Visitors online"
-    agents = "在研 Agent" if zh else "Working agents"
-    views = "累计浏览量" if zh else "Total page views"
-    ips = "累计独立 IP" if zh else "Unique IP addresses"
+    visitors = "在线访客" if zh else "Visitors"
+    agents = "在研 Agent" if zh else "Agents"
+    views = "累计浏览" if zh else "Views"
+    ips = "独立 IP" if zh else "Unique IPs"
+    heading = "研究台实时统计" if zh else "Live desk stats"
     detail = ("累计浏览量统计首页、问题目录和研究页的成功访问，刷新也计一次。近 90 秒内浏览可见页面的浏览器，同一域名多标签合计一次。"
               "累计独立 IP 包含历史日志中可确认的页面访问，两个域名下同一来源 IP 合计一次。"
               "在研 Agent 按尚未提交且有效的任务租约计，每份一席。每 30 秒刷新。" if zh else
@@ -146,15 +146,73 @@ def site_dock(lang, prefix):
               "Online visitors have a visible page in the last 90 seconds. Tabs on the same domain count once. "
               "Unique IPs include historical page visits matched to access logs. Each source IP counts once across both domains. "
               "Each active, unsubmitted research lease counts as one agent seat. Updates every 30 seconds.")
-    return f"""<aside class="discussion-dock" aria-label="{'研究台动态' if zh else 'Research desk activity'}">
-<details class="presence-widget" data-endpoint="{prefix}api/presence" hidden>
-<summary><span><i aria-hidden="true"></i>{visitors} <b data-count="visitors">—</b></span>
-<span>{agents} <b data-count="agents">—</b></span>
-<span class="total-views">{views} <b data-count="page_views">—</b></span>
-<span class="total-views">{ips} <b data-count="unique_ips">—</b></span></summary>
-<p>{detail}</p></details>
-{discussion_widget(lang, prefix)}{core_team_signup(lang, prefix)}</aside>
-<script src="{prefix}discussion.js" defer></script><script src="{prefix}presence.js" defer></script>"""
+    title_html = f'<strong class="presence-heading">{heading}</strong>' if variant == "footer" else ""
+    return (
+        f'<details class="presence-widget presence-{variant}" data-endpoint="{prefix}api/presence" hidden>'
+        f'<summary>{title_html}<span class="presence-items">'
+        f'<span><i aria-hidden="true"></i>{visitors} <b data-count="visitors">—</b></span>'
+        f'<span>{agents} <b data-count="agents">—</b></span>'
+        f'<span>{views} <b data-count="page_views">—</b></span>'
+        f'<span>{ips} <b data-count="unique_ips">—</b></span>'
+        f'</span></summary><p>{detail}</p></details>'
+    )
+
+
+def hero_community_card(lang, prefix):
+    zh = lang == "zh"
+    disc = discussion_copy(lang)
+    core = core_team_copy(lang)
+    items = []
+    if disc:
+        items.append(
+            f'<details class="community-item" id="wechat-discussion" open aria-label="{disc["name"]}">'
+            f'<summary class="community-summary"><img class="wechat-mark" src="{prefix}wechat.svg" width="22" height="22" alt="">'
+            f'<span>{disc["short"]}</span><i aria-hidden="true"></i></summary>'
+            f'<div class="community-item-body"><div class="community-copy">'
+            f'<strong class="community-title"><img class="wechat-mark" src="{prefix}wechat.svg" width="22" height="22" alt="">{disc["label"]}</strong>'
+            f'<p>{disc["name"]}</p><small>{disc["validity"]}</small></div>'
+            f'<div class="community-qr discussion-code"><img loading="lazy" src="{prefix}discussion-qr.png" alt="{disc["alt"]}" width="800" height="1198"></div>'
+            f'</div></details>'
+        )
+    items.append(
+        f'<details class="community-item" id="core-team" open aria-label="{core["title"]}">'
+        f'<summary class="community-summary"><span class="core-mark" aria-hidden="true">✦</span>'
+        f'<span>{core["title"]}</span><i aria-hidden="true"></i></summary>'
+        f'<div class="community-item-body"><div class="community-copy">'
+        f'<strong class="community-title"><span class="core-mark" aria-hidden="true">✦</span>{core["title"]}</strong>'
+        f'<p>{core["short_desc"]}</p><small>{core["caption"]}</small></div>'
+        f'<div class="community-qr core-qr"><img loading="lazy" src="{prefix}core-team-signup.png" width="176" height="176" alt="{core["caption"]}"></div>'
+        f'</div></details>'
+    )
+    label = "社区交流与中心组报名" if zh else "Community discussion and core team signup"
+    return f'<aside class="hero-community desk-rail" aria-label="{label}">{"".join(items)}</aside>'
+
+
+def site_dock(lang, prefix, *, inline=False):
+    zh = lang == "zh"
+    disc = discussion_copy(lang)
+    core = core_team_copy(lang)
+    cells = [f'<div class="community-band-cell band-stats">{presence_widget(lang, prefix, variant="footer")}</div>']
+    if disc:
+        cells.append(
+            f'<div class="community-band-cell band-qr">'
+            f'<div class="community-copy"><strong class="community-title"><img class="wechat-mark" src="{prefix}wechat.svg" width="22" height="22" alt="">{disc["label"]}</strong>'
+            f'<p>{disc["name"]}</p><small>{disc["validity"]}</small></div>'
+            f'<div class="community-qr discussion-code"><img loading="lazy" src="{prefix}discussion-qr.png" alt="{disc["alt"]}" width="800" height="1198"></div>'
+            f'</div>'
+        )
+    cells.append(
+        f'<div class="community-band-cell band-qr">'
+        f'<div class="community-copy"><strong class="community-title"><span class="core-mark" aria-hidden="true">✦</span>{core["title"]}</strong>'
+        f'<p>{core["short_desc"]}</p><small>{core["intro"]}</small></div>'
+        f'<div class="community-qr core-qr"><img loading="lazy" src="{prefix}core-team-signup.png" width="176" height="176" alt="{core["caption"]}"></div>'
+        f'</div>'
+    )
+    label = "研究台动态与社区交流" if zh else "Research desk stats and community"
+    return (
+        f'<aside class="community-band{" community-band-inline" if inline else " shell"}" aria-label="{label}">{"".join(cells)}</aside>'
+        f'<script src="{prefix}discussion.js" defer></script><script src="{prefix}presence.js" defer></script>'
+    )
 
 
 def research_status(desk=DESK, *, compact=False, board=False):
@@ -216,6 +274,7 @@ def research_status(desk=DESK, *, compact=False, board=False):
         **extra,
         "catalogue_revision": RELEASE_SHA,
         "gaps": gaps,
+        **({"tracks": GOLDBACH_CATALOGUE.get("tracks", [])} if desk is DESK else {}),
         "results": results,
         "desk": desk_status,
         "counts": {
@@ -231,21 +290,47 @@ STATUS_BUILD = BoundedSemaphore(1)
 WEB_SNAPSHOTS = {}
 
 
-def status_body(desk, web_view, board=False):
-    key = (desk, board)
-    # A cache hit for one desk need not wait for another desk to build its snapshot.
-    cached = WEB_SNAPSHOTS.get(key) if web_view else None
+RAW_STATUS_CLIENTS = OrderedDict()
+RAW_STATUS_LOCK = Lock()
+
+
+def raw_status_allowed(ip):
+    now = time.monotonic()
+    with RAW_STATUS_LOCK:
+        credit, last = RAW_STATUS_CLIENTS.pop(ip, (4, now))
+        credit = min(4, credit + (now - last) / 30)
+        allowed = credit >= 1
+        RAW_STATUS_CLIENTS[ip] = (credit - int(allowed), now)
+        if len(RAW_STATUS_CLIENTS) > 4096:
+            RAW_STATUS_CLIENTS.popitem(last=False)
+        return allowed
+
+
+def accepts_gzip(value):
+    for item in value.split(","):
+        coding, _, params = item.strip().lower().partition(";")
+        if coding.strip() == "gzip":
+            return not params or bool(re.fullmatch(r"\s*q\s*=\s*(?:1(?:\.0{0,3})?|0\.\d{0,2}[1-9]\d{0,2})\s*", params))
+    return False
+
+
+def status_body(desk, web_view, board=False, compress=False, delta=False):
+    key = (desk, web_view, board, delta)
+    cached = WEB_SNAPSHOTS.get(key) if compress else None
     if cached and cached[0] > time.monotonic():
         return cached[1]
     with STATUS_BUILD:
-        if web_view:
+        if compress:
             cached = WEB_SNAPSHOTS.get(key)
             if cached and cached[0] > time.monotonic():
                 return cached[1]
         status = research_status(desk, compact=web_view, board=board)
+        if delta:
+            status["gaps"] = [{k: gap[k] for k in ("id", "latest", "proved")} for gap in status["gaps"]]
+            status.pop("tracks", None)
         body = json.dumps(status, ensure_ascii=False, separators=(",", ":")).encode()
-        if web_view:
-            body = gzip.compress(body, compresslevel=3)
+        if compress:
+            body = gzip.compress(body, compresslevel=5, mtime=0)
             WEB_SNAPSHOTS[key] = (time.monotonic() + 10, body)
         return body
 
@@ -275,12 +360,37 @@ def desk_routes(slug, lang):
 # Shared by the map, claim receipt and public verification records.
 TASK_ROUTE = {task: key for slug in DESKS for key, _, _, tasks, _ in desk_routes(slug, "en") for task in tasks}
 
+def route_refutations(slug, tasks, lang):
+    labels = {"pending": ("反证待核验", "Refutation under review"), "verified": ("已证伪", "Refuted")}
+    notes = []
+    for task in tasks:
+        ref = DESKS[slug].gaps[task].get("refutation")
+        if ref:
+            notes.append(f'{labels[ref["status"]][lang != "zh"]} · #{int(ref["pr"])}')
+    return f'<small class="route-meta">{escape(" · ".join(notes))}</small>' if notes else ""
+
+
 def route_filters(slug, lang):
     return "".join(
         f'<button type="button" class="map-program-button" data-program="{escape(key)}" aria-pressed="false">'
-        f'<strong class="program-name">{escape(title)}</strong><span class="program-count">{len(tasks)} '
+        f'<strong class="program-name">{escape(title)}</strong>{route_refutations(slug, tasks, lang)}<span class="program-count">{len(tasks)} '
         f'{"题" if lang == "zh" else "tasks"}</span></button>'
         for key, title, _, tasks, _ in desk_routes(slug, lang)
+    )
+
+
+def goldbach_program_filters(lang):
+    zh = lang == "zh"
+    programs = (
+        ("foundation", "素数权重" if zh else "Prime weights"),
+        ("grh", "黎曼猜想与素数分布" if zh else "GRH & prime distribution"),
+        ("correlation", "二元加法相关" if zh else "Binary correlations"),
+        ("exceptions", "例外集合" if zh else "Exceptional sets"),
+    )
+    return "".join(
+        f'<button type="button" class="map-program-button" data-program="{key}" aria-pressed="false">'
+        f'<strong class="program-name">{title}</strong><span class="program-count">—</span></button>'
+        for key, title in programs
     )
 
 
@@ -299,17 +409,28 @@ def route_panels(slug, lang):
         targets = " · ".join(f'<a href="#track-{escape(k)}">{escape(v)}</a>' for k, v in feeds)
         following = f'<p>{"用于" if zh else "Feeds into"}　{targets}</p>' if targets else ""
         sections.append(f'<details class="route-panel" id="track-{escape(key)}"><summary>'
-                        f'<strong>{escape(title)}</strong><span class="route-meta">{len(tasks)} '
+                        f'<strong>{escape(title)}</strong>{route_refutations(slug, tasks, lang)}<span class="route-meta">{len(tasks)} '
                         f'{"题" if zh else "tasks"}<span data-route-status></span></span></summary>'
                         f'<p>{escape(description)}</p>{following}<div class="roadmap-tasks">{"".join(links)}</div></details>')
     return '<div class="goldbach-tracks"><h3>' + ("按子命题领取" if zh else "Choose a proof task") + '</h3>' + "".join(sections) + '</div>'
 
 
 def goldbach_roadmap_page(page, lang):
+    # The research map shows every catalogue route, so the home page keeps only the story under #roadmap.
     if RELEASE_SHA:
         page = page.replace("</head>", f'<meta name="catalogue-revision" content="{escape(RELEASE_SHA)}"></head>', 1)
-    return page.replace("<!-- catalogue filters -->", route_filters("goldbach", lang)).replace(
-        "<!-- catalogue roadmap -->", route_panels("goldbach", lang))
+    zh = lang == "zh"
+    changes = "研究路线变更记录" if zh else "Research change history"
+    full = "查看完整路线" if zh else "Read the full roadmap"
+    links = (f'<div class="heading-links"><a class="text-link" href="research-changes?lang={lang}">{changes}</a>'
+             '<a class="text-link" href="https://github.com/CGandGameEngineLearner/goldbach-proofs/blob/main/research/ROADMAP.md">'
+             f'{full} <span aria-hidden="true">↗</span></a></div>')
+    page = page.replace("<!-- map links -->", links, 1)
+    page = re.sub(r'(<nav class="navigation"[^>]*>.*?)<a href="#roadmap">[^<]*</a>',
+                  lambda m: m[1] + f'<a href="#research-story">{"背景故事" if zh else "Story"}</a>', page, count=1, flags=re.S)
+    page = re.sub(r'(<header class="target-header">.*?)<a href="#roadmap">',
+                  lambda m: m[1] + '<a href="#lemmas">', page, count=1, flags=re.S)
+    return page.replace("<!-- catalogue filters -->", goldbach_program_filters(lang))
 
 
 def problem_page(page, slug, lang):
@@ -387,6 +508,7 @@ def problem_page(page, slug, lang):
                   lambda _: f'<aside class="method-note"><h2>{note_title}</h2><p>{note_body}</p>{references}</aside>',
                   page, count=1, flags=re.S)
     page = page.replace("<!-- catalogue filters -->", route_filters(slug, lang))
+    page = page.replace("<!-- map links -->", "", 1)
     stages = route_panels(slug, lang)
     page = re.sub(r'<section class="section road-section" id="roadmap".*?</section>',
                   lambda _: f'<section class="section road-section" id="roadmap"><div class="section-heading"><div>'
@@ -413,7 +535,8 @@ def problem_card(slug, data, lang):
             "当前无活跃路线" if zh else "No active routes")
         progress += f'<span class="desk-running">{escape(activity)}</span>'
     url = "../" if slug == "goldbach" else slug + "/"
-    return (f'<a class="problem-card" href="{url}?lang={lang}#roadmap"><span class="problem-formula">{escape(data["formula"])}</span>'
+    anchor = "#lemmas" if slug == "goldbach" else "#roadmap"
+    return (f'<a class="problem-card" href="{url}?lang={lang}{anchor}"><span class="problem-formula">{escape(data["formula"])}</span>'
             f'<h2>{escape(data["title"][lang])}</h2><p>{escape(data["question"][lang])}</p>'
             f'<p class="problem-progress">{progress}</p></a>')
 
@@ -619,7 +742,7 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def reply(self, status, body, content_type="application/json", language=None, encoding=None, static=False):
+    def reply(self, status, body, content_type="application/json", language=None, encoding=None, static=False, cache=None, etag=None, vary=False, retry_after=None):
         if status == 200 and self.command == "GET" and content_type == "text/html":
             try:
                 with closing(sqlite3.connect(PAGE_VIEWS_DB)) as conn, conn:
@@ -635,18 +758,30 @@ class Handler(BaseHTTPRequestHandler):
         if content_type == "application/json" or content_type.startswith("text/"):
             content_type += "; charset=utf-8"
         self.send_header("Content-Type", content_type)
-        if static:
+        if static or vary:
             self.send_header("Vary", "Accept-Encoding")
+        if etag:
+            self.send_header("ETag", etag)
+        if retry_after:
+            self.send_header("Retry-After", str(retry_after))
         if encoding:
             self.send_header("Content-Encoding", encoding)
-        self.send_header("Cache-Control", "public, max-age=300" if static else "no-store")
+        self.send_header("Cache-Control", cache or ("public, max-age=300" if static else "no-store"))
         self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Content-Length", str(len(body)))
+        if status != 304:
+            self.send_header("Content-Length", str(len(body)))
         if language:
             self.send_header("Content-Language", language)
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(body)
+
+    def public_conditional(self, body, content_type="application/json", encoding=None, cache="public, max-age=10", vary=False):
+        etag = '"' + hashlib.sha256(body).hexdigest() + '"'
+        validators = {item.strip().removeprefix("W/") for item in self.headers.get("If-None-Match", "").split(",")}
+        if etag in validators or "*" in validators:
+            return self.reply(304, b"", content_type, cache=cache, etag=etag, vary=vary)
+        return self.reply(200, body, content_type, encoding=encoding, cache=cache, etag=etag, vary=vary)
 
     def client_ip(self):
         peer = ipaddress.ip_address(self.client_address[0])
@@ -690,7 +825,7 @@ class Handler(BaseHTTPRequestHandler):
         logo = re.fullmatch(r"/sponsors/logo/([1-9][0-9]{0,15})\.png", url.path)
         if logo:
             image = sponsors.public_logo(ZHIHU.db, logo[1])
-            return self.reply(200, image, "image/png") if image else self.reply(404, b'{}')
+            return self.public_conditional(image, "image/png", cache="public, max-age=3600") if image else self.reply(404, b'{}')
         if url.path == ZHIHU_PATH or url.path.startswith(ZHIHU_PATH + "/"):
             return self.zhihu_request(url.path, url.query)
         twin_primes_path = f"/problems/{TWIN_PRIMES_SLUG}"
@@ -735,10 +870,16 @@ class Handler(BaseHTTPRequestHandler):
                 nav.append(f'<a href="?lang={lang}&amp;end={min(end+20,len(entries))}">{"上一页" if zh else "Previous"}</a>')
             if start:
                 nav.append(f'<a href="?lang={lang}&amp;end={start}">{"下一页" if zh else "Next"}</a>')
+            def run_url(row):
+                run = int(row["run"])
+                if row.get("provider") == "circleci":
+                    return f"https://app.circleci.com/pipelines/github/CGandGameEngineLearner/goldbach-proofs/{run}"
+                return f"{repo}/actions/runs/{run}"
+
             rows = "".join(
                 f'<li><time>{escape(row["at"])}</time> · <a href="{repo}/pull/{int(row["pr"])}">'
                 f'{escape(row["title"])}</a> · {escape(row["actor"])} · '
-                f'<a href="{repo}/actions/runs/{int(row["run"])}">CI</a></li>'
+                f'<a href="{run_url(row)}">CI</a></li>'
                 for row in reversed(entries[start:end]))
             empty = "尚无自动发布记录。" if zh else "No automated releases yet."
             page = (f'<!doctype html><html lang="{"zh" if zh else "en"}"><meta charset="utf-8">'
@@ -772,15 +913,19 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/status":
             try:
                 view = parse_qs(url.query).get("view")
-                board = view == ["board-gzip"]
+                delta = view == ["board-delta-gzip"]
+                board = delta or view == ["board-gzip"]
                 web_view = board or view == ["web-gzip"]
-                body = status_body(desk, web_view, board)
+                compress = web_view or accepts_gzip(self.headers.get("Accept-Encoding", ""))
+                if (not compress and self.command == "GET" and not self.client_ip().is_loopback
+                        and not raw_status_allowed(self.client_ip())):
+                    return self.reply(429, b'{"error":"Use Accept-Encoding: gzip for frequent status requests"}',
+                                      vary=True, retry_after=30)
+                body = status_body(desk, web_view, board, compress=compress, delta=delta)
             except sqlite3.Error as error:
                 self.log_error("Unable to read verdicts: %s", error)
                 return self.reply(503, b'{"error":"verdicts unavailable"}')
-            if web_view:
-                return self.reply(200, body, encoding="gzip")
-            return self.reply(200, body)
+            return self.public_conditional(body, encoding="gzip" if compress else None, vary=True)
         if path == "/platform-logo.svg":
             path = "/goldbach-icon.svg"
         if path in ASSETS:
@@ -839,9 +984,14 @@ class Handler(BaseHTTPRequestHandler):
             page = goldbach_roadmap_page(page, lang)
         prefix = "" if slug == "goldbach" else "../../"
         page = page.replace("<!-- account -->", ZHIHU.account_link(self.headers, lang), 1)
+        page = page.replace("<!-- presence strip -->", presence_widget(lang, prefix, variant="inline"), 1)
+        page = page.replace("<!-- hero community -->", hero_community_card(lang, prefix), 1)
         hero = '<section class="hero" aria-labelledby="page-title">'
         page = page.replace(hero, sponsors.wall(ZHIHU.db, lang, prefix) + hero, 1)
-        page = page.replace("</body>", site_dock(lang, prefix) + "</body>", 1)
+        if "<!-- site dock -->" in page:
+            page = page.replace("<!-- site dock -->", site_dock(lang, prefix, inline=True), 1)
+        else:
+            page = page.replace("</main>", "</main>" + site_dock(lang, prefix), 1)
         self.reply(200, page.encode(), "text/html", lang)
 
     do_HEAD = do_GET
