@@ -1,3 +1,4 @@
+import bisect
 import hashlib
 import hmac
 import ipaddress
@@ -7,6 +8,7 @@ import os
 import re
 import sqlite3
 import ssl
+import sys
 import time
 from collections import Counter
 from contextlib import closing
@@ -106,7 +108,9 @@ if not IP_KEY_PATH.exists():
 IP_KEY = IP_KEY_PATH.read_bytes()
 if len(IP_KEY) != 32:
     raise ValueError("Invalid IP statistics key")
-with closing(sqlite3.connect(PAGE_VIEWS_DB)) as conn, conn:
+with closing(sqlite3.connect(PAGE_VIEWS_DB, timeout=10)) as conn, conn:
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("CREATE TABLE IF NOT EXISTS visitor_ips (digest BLOB PRIMARY KEY) WITHOUT ROWID")
     conn.execute("CREATE TABLE IF NOT EXISTS page_views (source TEXT PRIMARY KEY, total INTEGER NOT NULL)")
     conn.execute("INSERT OR IGNORE INTO page_views VALUES ('live', 0)")
@@ -114,7 +118,7 @@ with closing(sqlite3.connect(PAGE_VIEWS_DB)) as conn, conn:
 def read_presence_counts(visitor=None):
     counts = PRESENCE.snapshot(visitor)
     try:
-        with closing(sqlite3.connect(PAGE_VIEWS_DB)) as conn:
+        with closing(sqlite3.connect(PAGE_VIEWS_DB, timeout=10)) as conn:
             counts["page_views"] = conn.execute("SELECT sum(total) FROM page_views").fetchone()[0]
             counts["unique_ips"] = conn.execute("SELECT count(*) FROM visitor_ips").fetchone()[0]
     except sqlite3.Error:
@@ -385,39 +389,54 @@ def research_status(desk=DESK, *, compact=False, board=False, index=False):
             if desk is DESKS.get("quadratic-primes"):
                 extra["lpf_record"] = exponent_record(desk, conn)
             if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='verdicts'").fetchone():
-                projection = verdict_summary() if board else "body"
-                results = [json.loads(body) for (body,) in conn.execute(
-                    f"SELECT {projection} FROM verdicts ORDER BY run_id DESC, attempt DESC LIMIT ?", (1 if board else 12,)
-                )]
-                payload = "json_remove(CAST(v.body AS TEXT), '$.manifest')" if compact else "v.body"
-                if index:
-                    payload = verdict_summary("v.")
-                rows = conn.execute(f"""
-                    WITH runs AS (
-                        SELECT run_id, attempt,
-                               json_extract(CAST(body AS TEXT), '$.lemma_id') AS lemma,
-                               json_extract(CAST(body AS TEXT), '$.verdict') AS verdict,
-                               coalesce(json_extract(CAST(body AS TEXT), '$.kind'),'prove') AS kind
-                        FROM verdicts
-                    ), ranked AS (
-                        SELECT run_id, attempt, lemma,
-                               ROW_NUMBER() OVER (
-                                   PARTITION BY lemma ORDER BY run_id DESC, attempt DESC
-                               ) AS position,
-                               MAX(verdict = 'ACCEPTED' AND kind = 'prove') OVER (PARTITION BY lemma) AS proved,
-                               COUNT(*) OVER (PARTITION BY lemma) AS attempts
-                        FROM runs
-                    )
-                    SELECT lemma, {payload}, proved, attempts FROM ranked
-                    JOIN verdicts AS v USING (run_id, attempt) WHERE position = 1
-                """)
-                for lemma, body, proved, count in rows:
-                    latest[lemma] = (json.loads(body), bool(proved))
-                    attempts += count
-                if not board:
-                    desk.annotate_verdicts(results, conn)
-                if not index:
-                    desk.annotate_verdicts([result for result, _ in latest.values()], conn)
+                cache_key = None
+                cached_verdicts = None
+                if board and index:
+                    sig = conn.execute("SELECT COUNT(*), MAX(run_id), MAX(attempt) FROM verdicts").fetchone()
+                    with VERDICT_SUMMARY_LOCK:
+                        cache_key = (desk, DESK_VERDICT_GEN.get(desk, 0), sig[0], sig[1], sig[2])
+                        entry = VERDICT_SUMMARY_CACHE.get(desk)
+                        if entry and entry[0] == cache_key:
+                            cached_verdicts = entry[1]
+                if cached_verdicts is not None:
+                    results, latest, attempts = cached_verdicts
+                else:
+                    projection = verdict_summary() if board else "body"
+                    results = [json.loads(body) for (body,) in conn.execute(
+                        f"SELECT {projection} FROM verdicts ORDER BY run_id DESC, attempt DESC LIMIT ?", (1 if board else 12,)
+                    )]
+                    payload = "json_remove(CAST(v.body AS TEXT), '$.manifest')" if compact else "v.body"
+                    if index:
+                        payload = verdict_summary("v.")
+                    rows = conn.execute(f"""
+                        WITH runs AS (
+                            SELECT run_id, attempt,
+                                   json_extract(CAST(body AS TEXT), '$.lemma_id') AS lemma,
+                                   json_extract(CAST(body AS TEXT), '$.verdict') AS verdict,
+                                   coalesce(json_extract(CAST(body AS TEXT), '$.kind'),'prove') AS kind
+                            FROM verdicts
+                        ), ranked AS (
+                            SELECT run_id, attempt, lemma,
+                                   ROW_NUMBER() OVER (
+                                       PARTITION BY lemma ORDER BY run_id DESC, attempt DESC
+                                   ) AS position,
+                                   MAX(verdict = 'ACCEPTED' AND kind = 'prove') OVER (PARTITION BY lemma) AS proved,
+                                   COUNT(*) OVER (PARTITION BY lemma) AS attempts
+                            FROM runs
+                        )
+                        SELECT lemma, {payload}, proved, attempts FROM ranked
+                        JOIN verdicts AS v USING (run_id, attempt) WHERE position = 1
+                    """)
+                    for lemma, body, proved, count in rows:
+                        latest[lemma] = (json.loads(body), bool(proved))
+                        attempts += count
+                    if not board:
+                        desk.annotate_verdicts(results, conn)
+                    if not index:
+                        desk.annotate_verdicts([result for result, _ in latest.values()], conn)
+                    if cache_key is not None:
+                        with VERDICT_SUMMARY_LOCK:
+                            VERDICT_SUMMARY_CACHE[desk] = (cache_key, (results, latest, attempts))
 
             descriptors = list(desk.research_gaps(conn))
             settled = {key for key, (_, proved) in latest.items() if proved}
@@ -485,9 +504,43 @@ def research_status(desk=DESK, *, compact=False, board=False, index=False):
     }
 
 # Bound the memory used by concurrent full-history renders across all problem desks.
-DETAIL_SLOTS = BoundedSemaphore(8)
-STATUS_BUILD = BoundedSemaphore(1)
+DETAIL_SLOTS = BoundedSemaphore(16)
+STATUS_BUILD = BoundedSemaphore(2)
 WEB_SNAPSHOTS = {}
+SNAPSHOT_TTL = 10
+SNAPSHOT_STALE_MAX = 60
+DESK_SNAPSHOT_LOCKS = {}
+DESK_SNAPSHOT_GEN = {}
+DESK_REFRESHING = set()
+DESK_REFRESH_LOCK = Lock()
+CLAIM_COUNTS_CACHE = {}
+CLAIM_COUNTS_TTL = 2
+DESK_VERDICT_GEN = {}
+VERDICT_SUMMARY_CACHE = {}
+VERDICT_SUMMARY_LOCK = Lock()
+
+
+def invalidate_desk_cache(desk, *, verdicts=False):
+    with DESK_REFRESH_LOCK:
+        DESK_SNAPSHOT_GEN[desk] = DESK_SNAPSHOT_GEN.get(desk, 0) + 1
+        WEB_SNAPSHOTS.pop(desk, None)
+    RANKINGS_SNAPSHOTS.pop(desk, None)
+    CLAIM_COUNTS_CACHE.pop(desk, None)
+    if verdicts:
+        with VERDICT_SUMMARY_LOCK:
+            DESK_VERDICT_GEN[desk] = DESK_VERDICT_GEN.get(desk, 0) + 1
+            VERDICT_SUMMARY_CACHE.pop(desk, None)
+
+
+def desk_claim_counts(desk):
+    now_mono = time.monotonic()
+    cached = CLAIM_COUNTS_CACHE.get(desk)
+    if cached and cached[0] > now_mono:
+        return cached[1]
+    with desk.transaction() as conn:
+        counts = desk.claim_counts(conn, int(time.time()))
+    CLAIM_COUNTS_CACHE[desk] = (time.monotonic() + CLAIM_COUNTS_TTL, counts)
+    return counts
 
 
 def accepts_gzip(value):
@@ -569,17 +622,130 @@ def search_task_details(desk, query, lang, scope):
     ]}
 
 
-def board_snapshot(desk):
+def _snapshot_meta(data):
+    gaps = data["gaps"]
+    by_id = {}
+    dependents = {}
+    available_base = []
+    resolved_ids = set()
+    for gap in gaps:
+        gid = gap["id"]
+        by_id[gid] = gap
+        for parent in gap.get("depends_on", ()):
+            dependents.setdefault(parent, []).append(gid)
+        if gap["resolved"]:
+            resolved_ids.add(gid)
+        elif not gap.get("claims_closed") and not gap.get("refutation"):
+            available_base.append(gap)
+    return {
+        "by_id": by_id,
+        "dependents": dependents,
+        "available_base": available_base,
+        "resolved_ids": resolved_ids,
+        "accepted": data["counts"]["accepted"],
+        "published": data["counts"]["published"],
+    }
+
+
+def _desk_lock(desk):
+    with DESK_REFRESH_LOCK:
+        lock = DESK_SNAPSHOT_LOCKS.get(desk)
+        if lock is None:
+            lock = Lock()
+            DESK_SNAPSHOT_LOCKS[desk] = lock
+        return lock
+
+
+def _rebuild_snapshot(desk):
+    with _desk_lock(desk):
+        with DESK_REFRESH_LOCK:
+            gen = DESK_SNAPSHOT_GEN.get(desk, 0)
+        with STATUS_BUILD:
+            data = research_status(desk, compact=True, board=True, index=True)
+            meta = _snapshot_meta(data)
+        with DESK_REFRESH_LOCK:
+            if DESK_SNAPSHOT_GEN.get(desk, 0) == gen:
+                WEB_SNAPSHOTS[desk] = (time.monotonic() + SNAPSHOT_TTL, data, meta)
+        return data, meta
+
+
+def _trigger_background_refresh(desk):
+    with DESK_REFRESH_LOCK:
+        if desk in DESK_REFRESHING:
+            return
+        DESK_REFRESHING.add(desk)
+
+    def refresh():
+        try:
+            _rebuild_snapshot(desk)
+        except sqlite3.Error:
+            pass
+        finally:
+            with DESK_REFRESH_LOCK:
+                DESK_REFRESHING.discard(desk)
+
+    Thread(target=refresh, name=f"snapshot-{desk.slug}", daemon=True).start()
+
+
+def board_snapshot_bundle(desk):
+    now = time.monotonic()
     cached = WEB_SNAPSHOTS.get(desk)
-    if cached and cached[0] > time.monotonic():
-        return cached[1]
-    with STATUS_BUILD:
+    if cached:
+        expires, data, meta = cached
+        if expires > now:
+            return data, meta
+        if now - expires <= SNAPSHOT_STALE_MAX:
+            _trigger_background_refresh(desk)
+            return data, meta
+    with _desk_lock(desk):
+        now = time.monotonic()
         cached = WEB_SNAPSHOTS.get(desk)
-        if cached and cached[0] > time.monotonic():
-            return cached[1]
-        data = research_status(desk, compact=True, board=True, index=True)
-        WEB_SNAPSHOTS[desk] = (time.monotonic() + 10, data)
-        return data
+        if cached and cached[0] > now:
+            return cached[1], cached[2]
+        with DESK_REFRESH_LOCK:
+            gen = DESK_SNAPSHOT_GEN.get(desk, 0)
+        with STATUS_BUILD:
+            data = research_status(desk, compact=True, board=True, index=True)
+            meta = _snapshot_meta(data)
+        with DESK_REFRESH_LOCK:
+            if DESK_SNAPSHOT_GEN.get(desk, 0) == gen:
+                WEB_SNAPSHOTS[desk] = (time.monotonic() + SNAPSHOT_TTL, data, meta)
+        return data, meta
+
+
+def board_snapshot(desk):
+    return board_snapshot_bundle(desk)[0]
+
+
+def available_tasks_cached(desk, limit, offset=0):
+    _, meta = board_snapshot_bundle(desk)
+    assignments = desk_claim_counts(desk)
+    available = [
+        gap for gap in meta["available_base"]
+        if gap["id"] not in assignments or gap.get("parallel") is True
+    ]
+    available.sort(key=lambda gap: (sum(assignments.get(gap["id"], (0, 0))), -(gap["points"] or 0), gap["id"]))
+    fields = ("id", "plain_statement", "track", "role", "challenge_only")
+    tasks = [{**{key: gap[key] for key in fields if key in gap}, "points": gap["points"],
+              "active_claims": assignments.get(gap["id"], (0, 0))[0],
+              "pending_verifications": assignments.get(gap["id"], (0, 0))[1]}
+             for gap in available[offset:offset+limit]]
+    return {"problem": desk.slug, "available": len(available), "tasks": tasks}
+
+
+def task_detail_cached(desk, gap_id):
+    data, meta = board_snapshot_bundle(desk)
+    gap = meta["by_id"].get(gap_id)
+    if gap is None:
+        return None
+    active, pending = desk_claim_counts(desk).get(gap_id, (0, 0))
+    return {
+        **board_task(desk, data, gap),
+        **{key: gap[key] for key in TASK_DETAIL_FIELDS if key in gap},
+        "active_claims": active,
+        "pending_verifications": pending,
+        "dependents": meta["dependents"].get(gap_id, []),
+    }
 
 
 ENDPOINT = "L-goldbach-binary-pointwise-positivity"
@@ -958,7 +1124,15 @@ def problem_page(page, slug, lang):
 def problem_card(slug, data, lang):
     zh = lang == "zh"
     try:
-        verified, published, available, active = DESKS[slug].progress_snapshot()
+        _, meta = board_snapshot_bundle(DESKS[slug])
+        assignments = desk_claim_counts(DESKS[slug])
+        verified = meta["accepted"]
+        published = meta["published"]
+        available = sum(
+            gap["id"] not in assignments or gap.get("parallel") is True
+            for gap in meta["available_base"]
+        )
+        active = assignments.keys() - meta["resolved_ids"]
     except sqlite3.Error:
         progress = "暂时无法读取进度" if zh else "Progress temporarily unavailable"
     else:
@@ -1081,7 +1255,34 @@ def china_networks():
         if kind == "ipv6":
             yield ipaddress.IPv6Network(f"{start}/{size}")
 
+
+def _build_ip_ranges(networks):
+    by_version = {4: [], 6: []}
+    for net in networks:
+        by_version[net.version].append((int(net.network_address), int(net.broadcast_address)))
+    result = {}
+    for version, spans in by_version.items():
+        spans.sort()
+        merged = []
+        for start, end in spans:
+            if merged and start <= merged[-1][1] + 1:
+                if end > merged[-1][1]:
+                    merged[-1] = (merged[-1][0], end)
+            else:
+                merged.append((start, end))
+        result[version] = (tuple(s for s, _ in merged), tuple(e for _, e in merged))
+    return result
+
+
 NETWORKS = tuple(china_networks())
+CN_IP_RANGES = _build_ip_ranges(NETWORKS)
+
+
+def is_china_ip(addr):
+    starts, ends = CN_IP_RANGES[addr.version]
+    value = int(addr)
+    idx = bisect.bisect_right(starts, value) - 1
+    return idx >= 0 and value <= ends[idx]
 
 class Handler(BaseHTTPRequestHandler):
     def log_request(self, code="-", size="-"):
@@ -1179,7 +1380,7 @@ class Handler(BaseHTTPRequestHandler):
     def reply(self, status, body, content_type="application/json", language=None, encoding=None, static=False, cache=None, etag=None, vary=False, retry_after=None):
         if status == 200 and self.command == "GET" and content_type == "text/html":
             try:
-                with closing(sqlite3.connect(PAGE_VIEWS_DB)) as conn, conn:
+                with closing(sqlite3.connect(PAGE_VIEWS_DB, timeout=10)) as conn, conn:
                     conn.execute("UPDATE page_views SET total = total + 1 WHERE source = 'live'")
                     ip = self.client_ip()
                     ip = getattr(ip, "ipv4_mapped", None) or ip
@@ -1243,7 +1444,7 @@ class Handler(BaseHTTPRequestHandler):
         lang = parse_qs(url.query).get("lang", [""])[0]
         if lang in {"zh", "en"}:
             return lang
-        return "zh" if any(self.client_ip() in net for net in NETWORKS) else "en"
+        return "zh" if is_china_ip(self.client_ip()) else "en"
 
     @staticmethod
     def scope(path):
@@ -1262,7 +1463,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply_presence()
         logo = re.fullmatch(r"/sponsors/logo/([1-9][0-9]{0,15})\.png", url.path)
         if logo:
-            record = sponsors.public_logo_record(ZHIHU.db, logo[1])
+            try:
+                record = sponsors.public_logo_record(ZHIHU.db, logo[1])
+            except sqlite3.Error:
+                return self.reply(503, b'{}')
             if not record:
                 return self.reply(404, b'{}')
             image, name = record
@@ -1282,7 +1486,11 @@ class Handler(BaseHTTPRequestHandler):
             return
         if url.path == "/problems/":
             lang = self.language(url)
-            directory = directory_page(lang).replace("</main>", "</main>" + sponsors.wall(ZHIHU.db,lang,"../"), 1)
+            try:
+                wall_html = sponsors.wall(ZHIHU.db, lang, "../")
+            except sqlite3.Error:
+                wall_html = ""
+            directory = directory_page(lang).replace("</main>", "</main>" + wall_html, 1)
             directory = directory.replace('</a></div></header>', '</a>'+ZHIHU.account_link(self.headers,lang)+'</div></header>',1)
             directory = version_assets(directory, "../")
             return self.reply(200, directory.encode(), "text/html", lang)
@@ -1350,7 +1558,7 @@ class Handler(BaseHTTPRequestHandler):
                     or not re.fullmatch(r"[1-9][0-9]{0,2}", limit[0]) or not 1 <= int(limit[0]) <= 100):
                 return self.reply(400, b'{"error":"invalid limit"}')
             try:
-                return self.public_json(available_tasks(desk, int(limit[0]), int(offset[0])))
+                return self.public_json(available_tasks_cached(desk, int(limit[0]), int(offset[0])))
             except sqlite3.Error:
                 return self.reply(503, b'{"error":"tasks unavailable"}')
         if path == "/api/task":
@@ -1362,14 +1570,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(429, b'{"error":"detail_busy"}', retry_after=5)
             try:
                 started = time.monotonic()
-                detail = task_detail(desk, key[0])
-                if detail is not None:
-                    data = board_snapshot(desk)
-                    gap = next((g for g in data["gaps"] if g["id"] == key[0]), None)
-                    if gap is not None:
-                        detail = {**board_task(desk, data, gap), **detail, "dependents": [
-                            other["id"] for other in data["gaps"] if key[0] in other.get("depends_on", [])
-                        ]}
+                detail = task_detail_cached(desk, key[0])
             except sqlite3.Error:
                 return self.reply(503, b'{"error":"task unavailable"}')
             finally:
@@ -1649,7 +1850,10 @@ class Handler(BaseHTTPRequestHandler):
             page = page.replace("<!-- site dock -->", site_dock(lang, prefix, inline=True), 1)
         else:
             page = page.replace("</main>", "</main>" + site_dock(lang, prefix), 1)
-        supporting = sponsors.wall(ZHIHU.db, lang, prefix)
+        try:
+            supporting = sponsors.wall(ZHIHU.db, lang, prefix)
+        except sqlite3.Error:
+            supporting = ""
         if "<!-- sponsor wall -->" in page:
             page = page.replace("<!-- sponsor wall -->", supporting, 1)
         else:
@@ -1694,6 +1898,8 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError()
                 with scope.transaction(write=True) as conn:
                     stored = reductions.complete(conn, scope, body)
+                if stored:
+                    invalidate_desk_cache(scope, verdicts=True)
                 status, result = (200, {"status": "stored"}) if stored else (409, {"error": "stale_plan"})
             elif path == "/api/desk/check-failed" and slug == "goldbach":
                 if not desk.signed(self.headers.get("X-Goldbach-Signature", ""), raw):
@@ -1705,6 +1911,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError()
                 for scope in DESKS.values():
                     scope.record_check_failure(pr, head, run, int(time.time()))
+                    invalidate_desk_cache(scope)
                 status, result = 200, {"status": "stored"}
             elif path == "/api/desk/pending" and slug == "goldbach":
                 status, result = queue_pending(raw, self.headers)
@@ -1720,6 +1927,16 @@ class Handler(BaseHTTPRequestHandler):
                     if isinstance(gap, str):
                         desk = gap_desk(gap) or DESK
                 status, result = desk.dispatch(path, body, self.headers, str(self.client_ip()), raw)
+                if path == "/api/desk/published" and status == 200:
+                    invalidate_desk_cache(desk, verdicts=True)
+                elif status in (200, 201) and path in {
+                    "/api/desk/claim",
+                    "/api/desk/submit",
+                    "/api/desk/release",
+                    "/api/desk/authorize",
+                    "/api/desk/recover",
+                }:
+                    CLAIM_COUNTS_CACHE.pop(desk, None)
                 if path == "/api/desk/claim" and status == 201:
                     task = result["gap"]
                     result["route_id"] = TASK_ROUTE.get(task.get("route_parent", task["id"]), "unclassified")
@@ -1800,50 +2017,60 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError()
         except (ValueError, KeyError, TypeError, OSError):
             return self.reply(400, b'{}')
-        with closing(sqlite3.connect(desk.db_path)) as conn, conn:
-            conn.row_factory = sqlite3.Row
-            conn.execute("BEGIN IMMEDIATE")
-            lease_row = conn.execute(
-                "SELECT pr, published_sha FROM goldbach_leases WHERE run_id = ? AND gap = ? AND kind = ? AND (? IS NULL OR head = ? OR published_sha = ?)"
-                " AND NOT EXISTS (SELECT 1 FROM goldbach_check_failures f WHERE f.run_id=goldbach_leases.run_id)"
-                " AND ((? = 'prove' AND (? IS NULL OR target_module IS NULL)) OR target_module = ?)",
-                (run_id, lemma, kind, head_sha, head_sha, head_sha, kind, record.get("module"), record.get("module")),
-            ).fetchone()
-            if (desk is not DESK or head_sha is not None) and lease_row is None:
-                return self.reply(409, b'{"error":"no matching authorized run"}')
-            stored_record = record
-            stored_body = body
-            if lease_row is not None and lease_row["pr"] == 0 and verdict != "ACCEPTED":
-                stored_record = {k: v for k, v in record.items() if k not in {"head_sha", "check_id"}}
-                stored_body = json.dumps(stored_record, ensure_ascii=False, separators=(",", ":")).encode()
-            conn.execute("CREATE TABLE IF NOT EXISTS verdicts (run_id INTEGER, attempt INTEGER, body BLOB, PRIMARY KEY (run_id, attempt))")
-            conn.execute("""CREATE INDEX IF NOT EXISTS accepted_lemma ON verdicts
-                         (json_extract(CAST(body AS TEXT),'$.lemma_id'), run_id, attempt)
-                         WHERE json_extract(CAST(body AS TEXT),'$.verdict')='ACCEPTED'""")
-            inserted = conn.execute("INSERT OR IGNORE INTO verdicts VALUES (?, ?, ?)", (run_id, attempt, stored_body))
-            if inserted.rowcount == 1:
-                desk.record_verdict(record, conn)
-            else:
-                existing = json.loads(conn.execute("SELECT body FROM verdicts WHERE run_id=? AND attempt=?",
-                                                   (run_id, attempt)).fetchone()[0])
-                published_match = (
-                    lease_row is not None
-                    and lease_row["published_sha"]
-                    and existing.get("head_sha") == lease_row["published_sha"]
-                    and {k: v for k, v in existing.items() if k not in {"head_sha", "check_id"}}
-                    == {k: v for k, v in stored_record.items() if k not in {"head_sha", "check_id"}}
-                )
-                if existing != stored_record and not published_match:
-                    return self.reply(409, b'{"error":"conflicting verdict for this attempt"}')
+        try:
+            with closing(sqlite3.connect(desk.db_path, timeout=15)) as conn, conn:
+                conn.row_factory = sqlite3.Row
+                conn.execute("BEGIN IMMEDIATE")
+                lease_row = conn.execute(
+                    "SELECT pr, published_sha FROM goldbach_leases WHERE run_id = ? AND gap = ? AND kind = ? AND (? IS NULL OR head = ? OR published_sha = ?)"
+                    " AND NOT EXISTS (SELECT 1 FROM goldbach_check_failures f WHERE f.run_id=goldbach_leases.run_id)"
+                    " AND ((? = 'prove' AND (? IS NULL OR target_module IS NULL)) OR target_module = ?)",
+                    (run_id, lemma, kind, head_sha, head_sha, head_sha, kind, record.get("module"), record.get("module")),
+                ).fetchone()
+                if (desk is not DESK or head_sha is not None) and lease_row is None:
+                    return self.reply(409, b'{"error":"no matching authorized run"}')
+                stored_record = record
+                stored_body = body
+                if lease_row is not None and lease_row["pr"] == 0 and verdict != "ACCEPTED":
+                    stored_record = {k: v for k, v in record.items() if k not in {"head_sha", "check_id"}}
+                    stored_body = json.dumps(stored_record, ensure_ascii=False, separators=(",", ":")).encode()
+                conn.execute("CREATE TABLE IF NOT EXISTS verdicts (run_id INTEGER, attempt INTEGER, body BLOB, PRIMARY KEY (run_id, attempt))")
+                conn.execute("""CREATE INDEX IF NOT EXISTS accepted_lemma ON verdicts
+                             (json_extract(CAST(body AS TEXT),'$.lemma_id'), run_id, attempt)
+                             WHERE json_extract(CAST(body AS TEXT),'$.verdict')='ACCEPTED'""")
+                conn.execute("""CREATE INDEX IF NOT EXISTS accepted_proved_lemma ON verdicts
+                             (json_extract(CAST(body AS TEXT),'$.lemma_id'))
+                             WHERE json_extract(CAST(body AS TEXT),'$.verdict')='ACCEPTED'
+                               AND COALESCE(json_extract(CAST(body AS TEXT),'$.kind'),'prove')='prove'""")
+                inserted = conn.execute("INSERT OR IGNORE INTO verdicts VALUES (?, ?, ?)", (run_id, attempt, stored_body))
+                if inserted.rowcount == 1:
+                    desk.record_verdict(record, conn)
+                else:
+                    existing = json.loads(conn.execute("SELECT body FROM verdicts WHERE run_id=? AND attempt=?",
+                                                       (run_id, attempt)).fetchone()[0])
+                    published_match = (
+                        lease_row is not None
+                        and lease_row["published_sha"]
+                        and existing.get("head_sha") == lease_row["published_sha"]
+                        and {k: v for k, v in existing.items() if k not in {"head_sha", "check_id"}}
+                        == {k: v for k, v in stored_record.items() if k not in {"head_sha", "check_id"}}
+                    )
+                    if existing != stored_record and not published_match:
+                        return self.reply(409, b'{"error":"conflicting verdict for this attempt"}')
+        except sqlite3.Error as error:
+            self.log_error("Verdict store unavailable: %s", error)
+            return self.reply(503, b'{"error":"verdict store temporarily unavailable"}')
+        if inserted.rowcount == 1:
+            invalidate_desk_cache(desk, verdicts=True)
         self.reply(200, b'{"status":"stored"}')
 
 class Server(ThreadingHTTPServer):
-    request_queue_size = 256
+    request_queue_size = 512
 
     def __init__(self, address, handler):
         self.tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         self.tls.load_cert_chain(CREDS / "fullchain.pem", CREDS / "privkey.pem")
-        self.slots = BoundedSemaphore(16)
+        self.slots = BoundedSemaphore(64)
         super().__init__(address, handler)
 
     def process_request(self, request, address):
@@ -1864,6 +2091,12 @@ class Server(ThreadingHTTPServer):
         request.settimeout(8)
         with self.tls.wrap_socket(request, server_side=True) as connection:
             super().finish_request(connection, address)
+
+    def handle_error(self, request, client_address):
+        _, exc, _ = sys.exc_info()
+        if isinstance(exc, (ssl.SSLEOFError, ConnectionResetError, BrokenPipeError, TimeoutError)):
+            return
+        super().handle_error(request, client_address)
 
 if __name__ == "__main__":
     Server(("127.0.0.1", 8443), Handler).serve_forever()
