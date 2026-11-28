@@ -1,5 +1,6 @@
 jenkins-hook.goldbach.tech {
     handle /verified-imports.json {
+        encode gzip
         root * /var/lib/goldbach-public-imports
         file_server
     }
