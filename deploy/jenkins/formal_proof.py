@@ -55,7 +55,7 @@ def record_refusal(db, job_id, reason):
 
 def _judge_bundle(db, job_id, run_id, head, work, base, toolchain, ownership_check, *,
                   desk_url, secret, submissions_dir, kproof_worker, slow_slots,
-                  on_container, cancelled):
+                  throttled_slots, on_container, cancelled):
     bundle_dir = Path(submissions_dir) / head
     if not bundle_dir.is_dir():
         raise ValueError(f"Missing private submission bundle directory for {head}")
@@ -114,6 +114,7 @@ def _judge_bundle(db, job_id, run_id, head, work, base, toolchain, ownership_che
 
     stage1_passed = False
     fast_track = False
+    throttled = bool(ticket.get("throttled"))
     has_kproof = (work / "proof.kproof").is_file()
     if has_kproof and kproof_worker is not None:
         try:
@@ -141,7 +142,6 @@ def _judge_bundle(db, job_id, run_id, head, work, base, toolchain, ownership_che
             (work / "proof.kproof").unlink(missing_ok=True)
 
         stage1_passed = True
-        throttled = bool(ticket.get("throttled"))
         if desk_url:
             kv = _safe_desk_call(report_kernel_verified, desk_url, secret, run_id=run_id, gap=gap, head=head)
             if isinstance(kv, dict) and kv.get("throttled"):
@@ -151,7 +151,14 @@ def _judge_bundle(db, job_id, run_id, head, work, base, toolchain, ownership_che
         (bundle_dir / "proof.kproof").unlink(missing_ok=True)
         (work / "proof.kproof").unlink(missing_ok=True)
 
-    slot_guard = nullcontext() if (fast_track or slow_slots is None) else slow_slots
+    if fast_track:
+        slot_guard = nullcontext()
+    elif throttled and throttled_slots is not None:
+        slot_guard = throttled_slots
+    elif slow_slots is not None:
+        slot_guard = slow_slots
+    else:
+        slot_guard = nullcontext()
     with slot_guard:
         try:
             manifest = verify(file, work, base / "lean", toolchain, ownership_check,
@@ -207,7 +214,7 @@ def _judge_bundle(db, job_id, run_id, head, work, base, toolchain, ownership_che
 
 def judge(db, app, job_id, work, base, toolchain, ownership_check, *, desk_url, secret,
           on_revision=None, on_container=None, cancelled=None,
-          submissions_dir=None, kproof_worker=None, slow_slots=None):
+          submissions_dir=None, kproof_worker=None, slow_slots=None, throttled_slots=None):
     row = db.execute(
         "SELECT sha,pr,trigger FROM ci_jobs WHERE id=? AND kind='authoritative'", (job_id,),
     ).fetchone()
@@ -234,6 +241,7 @@ def judge(db, app, job_id, work, base, toolchain, ownership_check, *, desk_url, 
             db, job_id, run_id, head, work, base, toolchain, ownership_check,
             desk_url=desk_url, secret=secret, submissions_dir=resolved_submissions,
             kproof_worker=kproof_worker, slow_slots=slow_slots,
+            throttled_slots=throttled_slots,
             on_container=on_container, cancelled=cancelled,
         )
 

@@ -120,25 +120,29 @@ class PrivateSubmissionPipelineTests(unittest.TestCase):
                 )
             self.assertEqual(ctx2.exception.code, "invalid_kproof_magic")
 
-    def test_fast_track_priority_and_two_slot_slow_cap_in_jenkins_dispatch(self):
+    def test_fast_track_priority_and_adaptive_slow_cap_in_jenkins_dispatch(self):
+        # Verify dynamic slow-pool headroom schedule across fast_inflight = 0..12
+        expected_caps = {0: 8, 1: 7, 2: 6, 3: 5, 4: 4, 5: 3, 6: 2, 7: 2, 8: 2, 9: 2, 10: 2, 11: 1, 12: 0}
+        for fast_n, cap in expected_caps.items():
+            self.assertEqual(jenkins_dispatch.slow_authoritative_cap(fast_n), cap)
+
+        # Case 1: 2 fast + 2 private_slow + 6 legacy_pr -> 2 fast, 2 private_slow, 4 legacy_pr (6 slow total, 4 free headroom)
         db = sqlite3.connect(":memory:")
         event_jobs.initialize(db)
         jenkins_dispatch.initialize(db)
         with db:
-            # Job 1, 2: legacy PR registrations (lowest priority, pr > 0)
-            for idx in (1, 2):
+            for idx in range(1, 7):
                 db.execute(
                     "INSERT INTO ci_jobs VALUES (?, 'authoritative', ?, ?, ?, ?)",
                     (idx, f"{idx:040x}", 4000 + idx, str(9000 + idx), f"pr:{idx}"),
                 )
-            # Job 3: Desk private source-only (medium priority, pr == 0, slow pool)
-            sub3 = f"{3:040x}"
-            db.execute(
-                "INSERT INTO ci_jobs VALUES (3, 'authoritative', ?, 0, ?, 'upload:3')",
-                (sub3, f"bundle:slow:{sub3}"),
-            )
-            # Job 4, 5: Desk private + KProof (highest priority, pr == 0, full 12-slot fast pool)
-            for idx in (4, 5):
+            for idx in (7, 8):
+                sub = f"{idx:040x}"
+                db.execute(
+                    "INSERT INTO ci_jobs VALUES (?, 'authoritative', ?, 0, ?, ?)",
+                    (idx, sub, f"bundle:slow:{sub}", f"upload:{idx}"),
+                )
+            for idx in (9, 10):
                 sub = f"{idx:040x}"
                 db.execute(
                     "INSERT INTO ci_jobs VALUES (?, 'authoritative', ?, 0, ?, ?)",
@@ -153,8 +157,36 @@ class PrivateSubmissionPipelineTests(unittest.TestCase):
             "authoritative": "goldbach-formal-isolated",
             "authoritative-pr": "goldbach-formal-isolated",
         })
-        # Fast Desk jobs (4, 5) dispatch FIRST, then Desk source-only (3), then 1 legacy PR (1); 2nd PR (2) waits on 2-slot cap!
-        self.assertEqual(enqueued_order, [4, 5, 3, 1])
+        self.assertEqual(enqueued_order, [9, 10, 7, 8, 1, 2, 3, 4])
+
+        # Case 2: Under heavy Fast-Track load (6 fast inflight), slow pool automatically shrinks back to 2-slot floor
+        db2 = sqlite3.connect(":memory:")
+        event_jobs.initialize(db2)
+        jenkins_dispatch.initialize(db2)
+        with db2:
+            for idx in range(1, 7):
+                sub = f"{idx:040x}"
+                db2.execute(
+                    "INSERT INTO ci_jobs VALUES (?, 'authoritative', ?, 0, ?, ?)",
+                    (idx, sub, f"bundle:fast:{sub}", f"upload:{idx}"),
+                )
+                db2.execute(
+                    "INSERT INTO jenkins_dispatches VALUES (?, 'goldbach-formal-isolated', ?, ?, NULL)",
+                    (idx, 200 + idx, 300 + idx),
+                )
+            for idx in range(11, 15):
+                db2.execute(
+                    "INSERT INTO ci_jobs VALUES (?, 'authoritative', ?, ?, ?, ?)",
+                    (idx, f"{idx:040x}", 5000 + idx, str(9000 + idx), f"pr:{idx}"),
+                )
+        enqueued_heavy = []
+        client2 = MagicMock()
+        client2.enqueue.side_effect = lambda name, params: (enqueued_heavy.append(params["CI_JOB_ID"]) or (500 + params["CI_JOB_ID"]))
+        jenkins_dispatch.dispatch(db2, client2, {
+            "authoritative": "goldbach-formal-isolated",
+            "authoritative-pr": "goldbach-formal-isolated",
+        })
+        self.assertEqual(enqueued_heavy, [11, 12])
 
     def test_two_stage_formal_judge_kproof_short_circuit_and_moderation(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -281,6 +313,36 @@ class PrivateSubmissionPipelineTests(unittest.TestCase):
                 )
             self.assertFalse((bdir3 / "proof.kproof").exists())
             self.assertTrue((bdir3 / "proof.lean").is_file())
+
+            # Case 4: Throttled actor uses dedicated throttled_slots instead of borrowed slow_slots!
+            sub4 = "4" * 40
+            bdir4 = setup_bundle(4, sub4)
+            work4 = root / "w4"
+            work4.mkdir()
+            entered = []
+
+            class TrackedSlot:
+                def __init__(self, label):
+                    self.label = label
+                def __enter__(self):
+                    entered.append(self.label)
+                def __exit__(self, *exc):
+                    return False
+
+            with patch("formal_proof.precheck"), \
+                 patch("formal_proof.prepare_bundle", side_effect=fake_prepare), \
+                 patch("formal_proof.authorize"), \
+                 patch("formal_proof.report_kernel_verified", return_value={"throttled": True}), \
+                 patch("formal_proof.report_diagnostic"), \
+                 patch("formal_proof.verify", return_value=accepted_manifest):
+                judge(
+                    db, None, 4, work4, root, root, root,
+                    desk_url="https://desk.example", secret=SECRET,
+                    submissions_dir=submissions, kproof_worker=kp_worker2,
+                    slow_slots=TrackedSlot("slow"),
+                    throttled_slots=TrackedSlot("throttled"),
+                )
+            self.assertEqual(entered, ["throttled"])
 
     def test_merge_private_commits_directly_to_main_reports_published_and_cleans_bundle(self):
         with tempfile.TemporaryDirectory() as folder:
