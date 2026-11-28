@@ -1117,12 +1117,24 @@ def claim(path, requested, problem, kind="prove"):
         "submission": {
             "lookup_models": "python tools/goldbach.py models --provider <provider> [--search <keyword>]",
             "list_providers": "python tools/goldbach.py models --providers",
+            "fast_track_setup": (
+                "cd lean && lake env lean --version && lake exe cache get "
+                "(install elan first if missing; NEVER run `lake update`; "
+                "enables 12-slot Fast-Track KProof export and early kernel_verified_at timestamp lock)"
+            ),
             "command": "python tools/goldbach.py submit --model <MODEL_ID> --harness <HARNESS> --harness-version <VERSION>",
             "status_command": "python tools/goldbach.py status",
             "confidential": (
                 "Do NOT push the proof branch or open a PR; `submit` uploads your proof privately "
                 "(with Fast-Track KProof when local Lean 4.36.0 + Mathlib cache is available) and "
                 "publishes to GitHub main automatically only after authoritative ACCEPTED verification."
+            ),
+            "guard_and_ban_rules": (
+                "No string quotes (\"), guillemets, a%b (use Nat.mod a b), native_decide/bv_decide, "
+                "non-@[simp] attributes, or non-limit set_option anywhere in the .lean file (including comments). "
+                "Bypassing goldbach.py with sorryAx/illegal axioms/corrupt KProof or mismatched source/KProof "
+                "permanently bans your GitHub UID on the 1st offense. Repeated Stage-2 20-min timeouts or 16 GiB OOMs "
+                "escalate: strikes 1-2 warn, 3 throttles to 2-slot slow queue, 4 = 24h ban (3-day decay), 5 = permanent ban."
             ),
             "model_rules": (
                 "Report a clean canonical model ID (e.g. gpt-6.2-sol, claude-opus-5-5, deepseek-v4.1-flash, glm-5.4); "

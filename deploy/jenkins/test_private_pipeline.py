@@ -72,6 +72,26 @@ class PrivateSubmissionPipelineTests(unittest.TestCase):
             self.assertEqual((dest / "proof.lean").read_bytes(), lean_bytes)
             self.assertEqual((dest / "proof.kproof").read_bytes(), kproof_bytes)
 
+            # Also verify HTTP/1.1 Transfer-Encoding: chunked streaming (used by nginx HTTP/2 -> HTTP/1.1 unbuffered proxy)
+            chunked_wire = bytearray()
+            for idx in range(0, len(compressed), 37):
+                piece = compressed[idx:idx + 37]
+                chunked_wire.extend(f"{len(piece):x}\r\n".encode("ascii"))
+                chunked_wire.extend(piece)
+                chunked_wire.extend(b"\r\n")
+            chunked_wire.extend(b"0\r\n\r\n")
+            dest_chunked = dest / "chunked"
+            dest_chunked.mkdir()
+            reader = receive_webhook._ChunkedBodyReader(io.BytesIO(bytes(chunked_wire)), max_bytes=len(compressed) + 16)
+            receive_webhook.stream_unpack_bundle(reader, None, verified, dest_chunked)
+            self.assertEqual((dest_chunked / "proof.lean").read_bytes(), lean_bytes)
+            self.assertEqual((dest_chunked / "proof.kproof").read_bytes(), kproof_bytes)
+
+            with self.assertRaises(receive_webhook.BundleError) as over_ctx:
+                small_reader = receive_webhook._ChunkedBodyReader(io.BytesIO(bytes(chunked_wire)), max_bytes=10)
+                receive_webhook.stream_unpack_bundle(small_reader, None, verified, dest_chunked)
+            self.assertEqual(over_ctx.exception.status, 413)
+
             bad_ticket = {**verified, "source_sha256": "0" * 64}
             with self.assertRaises(receive_webhook.BundleError) as ctx:
                 receive_webhook.stream_unpack_bundle(

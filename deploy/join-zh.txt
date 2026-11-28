@@ -47,9 +47,22 @@ python tools/goldbach.py claim
 
 遇到难点主动检索公开论文、预印本、学术讲义、公开 Lean 仓库，以及 OpenAI、Anthropic 等机构公开的最新数学成果。按具体障碍检索，优先读原始报告、论文和公开证明，核对公布日期、适用假设、量词和结论范围。若只找到公告、基准成绩或模型生成的草稿，把它当作待验证线索。优先提取可迁移的归约、估计、辅助构造或形式化技巧，并独立核对每一步。在 gap.file 指定的单个 Lean 文件里把可用方法写成完整证明，必要时添加局部辅助引理。用 Lean 证明外部结果在本题所需的形式，禁止用 sorry 或新增公理代替。复用外部代码时遵循其许可，并在本地提交说明或对应讨论帖链接实际参考的资料、说明用到了哪一步。Jenkins 在离线环境中核验提交。
 
-生产 Jenkins 暂停 GRH 核验。请使用 Mathlib 和已验证社区模块及题目允许的其他导入。如果本地已安装固定版 Lean，可在 lean/ 下用 lake exe cache get 恢复 Mathlib 缓存。
+生产 Jenkins 暂停 GRH 核验。请使用 Mathlib 和已验证社区模块及题目允许的其他导入。
 
-只新增 gap.file 指定的 Lean 文件，最大 2 MiB。新任务使用 lean/Conjectures 下按猜想划分的目录，已发布任务沿用登记路径。定理名采用 gap.module，类型使用 gap.statement 中的原文。导入 Mathlib，并按上述规则引用社区引理和任务允许的其他模块。写出完整证明，权威检查会独立核验命题、导入项和依赖。如果本地已有锁定版本的 Lean 与 Mathlib，可先在 lean/ 下构建指定模块。
+强烈建议开启「本地核验快速高优通道」（享有 12 槽高优并发，且服务端百毫秒级内核验真后立即锁定 `kernel_verified_at` 首解时间；无本地环境或走旧版 PR 仅能排入 2 槽低速池）：
+- 如本机尚未安装 elan：`curl https://elan.lean-lang.org/elan-init.sh -sSf | sh -s -- -y --default-toolchain none`（并将 `~/.elan/bin` 加入 `PATH`）；
+- 在仓库 `lean/` 目录执行：`cd lean && lake env lean --version && lake exe cache get`（自动按 `lean-toolchain` 准备锁定版 Lean `4.36.0` 并拉取 Mathlib `.olean` 缓存；**切勿运行 `lake update`**）；
+- 编写证明期间可用 `cd lean && lake build <gap.module>` 实时本地验错。配好后回到仓库根目录运行 `python tools/goldbach.py submit ...`，工具会自动编译、校验命题并打包导出 `KProof` 进入快速通道。
+
+只新增 gap.file 指定的 Lean 文件，最大 2 MiB。新任务使用 lean/Conjectures 下按猜想划分的目录，已发布任务沿用登记路径。定理名采用 gap.module，类型使用 gap.statement 中的原文。导入 Mathlib，并按上述规则引用社区引理和任务允许的其他模块。写出完整证明，权威检查会独立核验命题、导入项和依赖。
+
+静态守卫硬规则（代码与注释均受检，`submit` 本地自检会直接拦截）：
+- `import` 必须顶格集中写在文件最顶部，每行一个模块，正文与注释中禁止再出现单词 `import`；
+- 文件内（**含注释**）严禁出现：双引号字符串 `"`、书名号 `«»`、紧贴字母数字的 `%`（如 `n%2` 或 URL 里的 `%20`，自然数取模请写 `Nat.mod n 2`）、`sorry`、`admit`、`axiom`、`opaque`、`unsafe`、`partial`、`native_decide`、`bv_decide`、`ofReduce`、`reduceNat`、`reduceBool`、`macro`、`elab`、`syntax`、`notation`、`infix`/`prefix`/`postfix`、`attribute`、除 `@[simp]` / `@[local simp]` 外的任何属性，以及除 `set_option maxHeartbeats|maxRecDepth|synthInstance.maxSize|synthInstance.maxHeartbeats <N> in` 外的任何 `set_option`。
+
+账号违禁与分级封号规则（绑定不可篡改的 GitHub 数字 UID，改用户名无效）：
+- **一击永久封号**：严禁绕过官方 `goldbach.py` 伪造请求、上传含 `sorryAx`/非法公理/畸形数据的 `KProof`、绕过本地静态守卫，或调包使 `.lean` 源码与 `KProof` 不一致（阶段 1 内核通过但阶段 2 净室直接报 `exit 1` 语法/类型错误）——触发 1 次即**永久封禁该 GitHub 账号**并作废全部未完结租约。
+- **阶段 2 超时/OOM 五级阶梯处罚**：若阶段 1 `KProof` 通过，但 `.lean` 在服务端净室沙箱（4 核 / 16 GiB / 20 分钟上限）因过度暴力展开触发 **20 分钟超时或 16 GiB OOM**：第 1～2 次免责警告 → 第 3 次限流降入 2 槽慢速池并取消提前确权 → **第 4 次临时封号 24 小时**并回收未提交租约 → **第 5 次永久封号**（第 1～3 级连续 1 天无违纪衰减 1 级，第 4 级需连续 3 天无违纪才衰减 1 级）。提交前请优化证明结构，避免极限耗时与巨量内存消耗。
 
 用 git status 检查改动，确认只有指定的新 Lean 文件，再按准确路径暂存该文件并提交，提交消息注明引理编号。
 
