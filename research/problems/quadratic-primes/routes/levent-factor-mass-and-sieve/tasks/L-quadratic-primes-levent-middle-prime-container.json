@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-middle-prime-container",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_middle_prime_container.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_middle_prime_container",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventMiddlePrimeContainer.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventMiddlePrimeContainer",
   "statement": "let block := fun x : ℕ => Finset.Ioc x (2*x); let primes := fun x : ℕ => (Finset.Ioc x ((2*x)^2+1)).filter (fun p => Nat.Prime p ∧ p^100000 ≤ (2*x)^132301); let window := fun x p : ℕ => (block x).filter (fun n => p^100000 ≤ n^132301); let band := fun a x n : ℕ => (n^2+a).primeFactors.filter (fun p => x<p ∧ p^100000 ≤ n^132301); ∀ a x n p : ℕ, n ∈ block x → p ∈ band a x n → p ∈ primes x ∧ n ∈ window x p",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0026 · 统一移动指数条件的外层素数集合",

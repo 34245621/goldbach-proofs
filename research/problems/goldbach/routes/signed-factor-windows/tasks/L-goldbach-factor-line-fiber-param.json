@@ -1,7 +1,7 @@
 {
   "id": "L-goldbach-factor-line-fiber-param",
-  "file": "lean/PEqualNP/Outside/L_goldbach_factor_line_fiber_param.lean",
-  "module": "PEqualNP.Outside.L_goldbach_factor_line_fiber_param",
+  "file": "lean/Conjectures/Goldbach/FactorLineFiberParam.lean",
+  "module": "Conjectures.Goldbach.FactorLineFiberParam",
   "statement": "∀ (a b N r₀ s₀ : ℤ), 0 < a → 0 < b → a*r₀+b*s₀=N → let g := (Int.gcd a b : ℤ); ∀ r s : ℤ, a*r+b*s=N ↔ ∃ j : ℤ, r=r₀+(b/g)*j ∧ s=s₀-(a/g)*j",
   "plain_statement": {
     "zh": "新路线 · 有符号因子与移位窗 · FW-8006 · 参数化固定因子线上的整数解",

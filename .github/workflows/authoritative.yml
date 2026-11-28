@@ -126,8 +126,15 @@ jobs:
             "$GITHUB_REPOSITORY" "$DEFAULT_BRANCH" "$W/in"
           [ ! -e "$W/base/$(cat "$W/in/pr.file")" ] || { echo "REFUSED: the file already exists in the base"; exit 1; }
           printf 'head=%s\n' "$head" >> "$GITHUB_OUTPUT"
+          # Jenkins resolves generated task receipts and replays their prove/cut/refute mode.
+          file=$(cat "$W/in/pr.file")
+          if [[ "$file" =~ ^lean/Conjectures/Cuts/(Task|Cut|Refute)[a-f0-9]{24}\.lean$ ]]; then
+            echo "jenkins_only=true" >> "$GITHUB_OUTPUT"
+            echo "Generated task: follow the Jenkins formal Lean verdict on the submitted commit." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Download that one file as data
+        if: steps.pr.outputs.jenkins_only != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -144,6 +151,7 @@ jobs:
           [ "$(git hash-object "$W/in/proof.lean")" = "$blob" ] || { echo "REFUSED: the downloaded bytes are not the file of the pull request"; exit 1; }
 
       - name: The posted statement for the gap, and the import rule
+        if: steps.pr.outputs.jenkins_only != 'true'
         run: |
           set -eu
           exec > >(tee -a "$RUNNER_TEMP/steps.log") 2>&1   # kept for the verdict step
@@ -153,7 +161,7 @@ jobs:
           node "$W/base/.github/scripts/outside-guard.mjs" gap "$W/in/gaps.json" "$GAP" "$(cat "$W/in/pr.file")" "$W/in"
           # Before anything is built: the file may import Mathlib and the modules the gap lists.
           node "$W/base/.github/scripts/outside-guard.mjs" imports "$W/in/proof.lean" "$W/in/imports.json" "$W/in/build-imports.json"
-          # A listed module may itself be outside-written (under PEqualNP.Outside, merged on the
+          # A listed module may itself be outside-written (under Conjectures, merged on the
           # base). Such a module runs code when it compiles, like the judged file, so it is never
           # built before the locked step. This splits what the listed modules import, read as
           # text: base modules (in/base-imports.txt, built in the next step) and outside modules
@@ -163,7 +171,7 @@ jobs:
           node "$W/base/.github/scripts/outside-guard.mjs" closure "$W/base" "$W/in/build-imports.json" "$(cat "$W/in/pr.file")" "$W/in"
 
       - name: Authorize the author's submitted lease
-        if: github.event_name == 'issue_comment' || inputs.desk
+        if: steps.pr.outputs.jenkins_only != 'true' && (github.event_name == 'issue_comment' || inputs.desk)
         env:
           GH_TOKEN: ${{ github.token }}
           DESK_URL: ${{ vars.GOLDBACH_DESK_URL }}
@@ -228,6 +236,7 @@ jobs:
           PY
 
       - name: Install the pinned Lean toolchain
+        if: steps.pr.outputs.jenkins_only != 'true'
         run: |
           set -eu
           export ELAN_HOME="$W/elan"
@@ -240,6 +249,7 @@ jobs:
           echo "TC_BIN=$tc" >> "$GITHUB_ENV"
 
       - name: Fetch the prebuilt Mathlib and build the trusted parts
+        if: steps.pr.outputs.jenkins_only != 'true'
         run: |
           set -eu
           cd "$W/base/lean"
@@ -254,7 +264,7 @@ jobs:
           # keeps beside a module, and Lake writes a missing one the first time it replays that
           # module. That must happen here, as this account, because the locked account cannot
           # write under the library (it failed there on two modules: permission denied).
-          set -- checklemma +Mathlib +PEqualNP.Defs
+          set -- checklemma +Mathlib +ResearchSupport.Defs
           while IFS= read -r m; do if [ -n "$m" ]; then set -- "$@" "+$m"; fi; done < "$W/in/base-imports.txt"
           # CONTAINMENT: during this build the folder of outside-written files is not in the tree
           # (moved aside, one rename on the same disk; the guard step has already read it). Should
@@ -266,25 +276,26 @@ jobs:
           # Put back onto an empty place only: were a folder of that name there (something made it
           # during the build), mv would nest the saved folder inside it and the check would pass.
           restore() {
-            if [ -e "$aside/Outside" ]; then
-              if [ -e PEqualNP/Outside ] || [ -L PEqualNP/Outside ]; then echo "FAULT: a folder of outside files appeared during the base build; the saved one was not put back"; exit 1; fi
-              mv "$aside/Outside" PEqualNP/Outside
+            if [ -e "$aside/Conjectures" ]; then
+              if [ -e Conjectures ] || [ -L Conjectures ]; then echo "FAULT: a folder of outside files appeared during the base build; the saved one was not put back"; exit 1; fi
+              mv "$aside/Conjectures" Conjectures
             fi
           }
           trap restore EXIT
-          moved=no; if [ -e PEqualNP/Outside ]; then mv PEqualNP/Outside "$aside/Outside"; moved=yes; fi
-          [ ! -e PEqualNP/Outside ] || { echo "FAULT: the folder of outside files could not be moved aside"; exit 1; }
+          moved=no; if [ -e Conjectures ]; then mv Conjectures "$aside/Conjectures"; moved=yes; fi
+          [ ! -e Conjectures ] || { echo "FAULT: the folder of outside files could not be moved aside"; exit 1; }
           ../tools/bin/lake build "$@"
           restore; trap - EXIT
           if [ "$moved" = yes ]; then
-            [ -d PEqualNP/Outside ] && [ ! -e "$aside/Outside" ] || { echo "FAULT: the folder of outside files was not put back"; exit 1; }
+            [ -d Conjectures ] && [ ! -e "$aside/Conjectures" ] || { echo "FAULT: the folder of outside files was not put back"; exit 1; }
           fi
-          # A tripwire as well: nothing under PEqualNP/Outside may have been built here.
-          if [ -n "$(find .lake/build/lib/lean/PEqualNP/Outside .lake/build/ir/PEqualNP/Outside -type f 2>/dev/null | head -n 1)" ]; then
+          # A tripwire as well: nothing under Conjectures may have been built here.
+          if [ -n "$(find .lake/build/lib/lean/Conjectures .lake/build/ir/Conjectures -type f 2>/dev/null | head -n 1)" ]; then
             echo "FAULT: the base step built an outside-written module; stopping before anything else runs"; exit 1
           fi
 
       - name: Swap space for the verifier
+        if: steps.pr.outputs.jenkins_only != 'true'
         run: |
           set -eu
           # The verifier loads the library more than once in one process, and only the first
@@ -306,10 +317,11 @@ jobs:
           free -m
 
       - name: Put the file in place and lock the tree
+        if: steps.pr.outputs.jenkins_only != 'true'
         run: |
           set -eu
           file=$(cat "$W/in/pr.file")
-          install -m 0644 "$W/in/proof.lean" "$W/base/$file"
+          install -D -m 0644 "$W/in/proof.lean" "$W/base/$file"
           # git refuses a tree owned by another account unless told the tree is safe.
           printf '[safe]\n\tdirectory = *\n' > "$W/in/gitconfig"
           # The account the hostile compile runs as. It has no sudo and owns almost nothing.
@@ -318,14 +330,17 @@ jobs:
           chmod -R a+rX,go-w "$W"
           # ... except the output directories of its own module. It cannot create a file
           # anywhere else in the tree, so it cannot plant a setting, a package or a library.
-          # The listed outside modules (in/outside-imports.txt) are flat files of the same
-          # directory (PEqualNP.Outside.L_<gap>), so their compiled results land here too, written
-          # by the locked account, and nothing of the base is: every base module they import was
-          # built in the base step. Whatever is compiled here, the verifier sends every one of
-          # their constants to the kernel again, as it does those of the proof file.
-          for d in lib/lean ir; do
-            mkdir -p "$W/base/lean/.lake/build/$d/PEqualNP/Outside"
-            sudo chown outsider:outsider "$W/base/lean/.lake/build/$d/PEqualNP/Outside"
+          # The judged proof and its allowed dependencies can belong to different desks.
+          # Each validated module has the form Conjectures.<desk>.<theorem>.
+          cat "$W/in/pr.module" "$W/in/outside-imports.txt" | while IFS= read -r module; do
+            [ -n "$module" ] || continue
+            dir=${module%.*}
+            dir=${dir//./\/}
+            for d in lib/lean ir; do
+              destination="$W/base/lean/.lake/build/$d/$dir"
+              mkdir -p "$destination"
+              sudo chown outsider:outsider "$destination"
+            done
           done
           # What the verdict will be about, hashed before the hostile step runs. With it, the
           # source of every listed outside module. The guard writes only validated proof paths
@@ -335,6 +350,7 @@ jobs:
               base/.github/scripts/lake-locked.sh base/.github/scripts/build-ownership.sh $(cat in/outside-sources.txt) ) | tee "$RUNNER_TEMP/before.sha256"
 
       - name: Run the BASE checker on the file (the only step that runs outside code)
+        if: steps.pr.outputs.jenkins_only != 'true'
         id: run
         # A backstop only: the checker's own limit below (20 minutes, and 4 more per listed
         # outside module, at most 45) ends it first, with a recorded exit code, so the verdict
@@ -412,7 +428,7 @@ jobs:
       - name: Print the checker's last line, MANIFEST, and the verdict
         id: verdict
         # Always: whatever stopped the run, its last step says why in one place.
-        if: always()
+        if: always() && steps.pr.outputs.jenkins_only != 'true'
         env:
           CODE: ${{ steps.run.outputs.code }}
           RAN: ${{ steps.run.outcome }}

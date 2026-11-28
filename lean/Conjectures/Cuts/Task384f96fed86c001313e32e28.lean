@@ -1,11 +1,11 @@
 import Mathlib
 
-import PEqualNP.Outside.L_twin_primes_unconditional_short
+import Conjectures.TwinPrimes.UnconditionalShort
 
 import Conjectures.Goldbach.VaughanHighExactSplit
 import Conjectures.Goldbach.VaughanCutoffIdentity
 import Conjectures.Goldbach.AnalyticLargeSieve
-import PEqualNP.Outside.L_goldbach_frontier_type2_b1_b4
+import Conjectures.Goldbach.FrontierType2B1B4
 
 open Finset Filter
 

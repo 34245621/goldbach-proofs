@@ -29,7 +29,7 @@ open scoped BigOperators
 
 noncomputable section
 
-namespace PEqualNP.Outside
+namespace Conjectures.Goldbach
 
 variable {m : ℕ} [NeZero m]
 
@@ -56,7 +56,7 @@ theorem star_apply_units (χ : DirichletCharacter ℂ m) (u : (ZMod m)ˣ) :
     Complex.norm_eq_one_of_pow_eq_one hpow hcard
   rw [Complex.inv_eq_conj hnorm, Complex.star_def]
 
-end PEqualNP.Outside
+end Conjectures.Goldbach
 
 /- PREPUB frozen statement `L-goldbach-reflection-stabilizer-conductor`, under its
 platform module name. -/
@@ -193,7 +193,7 @@ theorem Conjectures.Goldbach.ReflectionStabilizerConductor :
       · exact absurd h2 hψ
     have hχinv : (χ⁻¹ * ψ) (u : ZMod m) = 1 := by
       rw [MulChar.mul_apply, MulChar.inv_apply_eq_inv, Ring.inverse_eq_inv,
-        ← PEqualNP.Outside.star_apply_units χ u]
+        ← Conjectures.Goldbach.star_apply_units χ u]
       exact hK
     rw [MonoidHom.mem_ker]
     refine Units.ext ?_

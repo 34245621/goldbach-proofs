@@ -19,7 +19,7 @@
     "L-twin-primes-unit-class"
   ],
   "imports": [
-    "PEqualNP.Outside.L_twin_primes_ap_short_error",
-    "PEqualNP.Outside.L_twin_primes_unit_class"
+    "Conjectures.TwinPrimes.ApShortError",
+    "Conjectures.TwinPrimes.UnitClass"
   ]
 }

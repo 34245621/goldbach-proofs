@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-theta-error-budget",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_theta_error_budget.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_theta_error_budget",
+  "file": "lean/Conjectures/TwinPrimes/ThetaErrorBudget.lean",
+  "module": "Conjectures.TwinPrimes.ThetaErrorBudget",
   "statement": "∀ (A P M Q N C E e f : ℝ), 0 < A → |(P-Q)/A-4*C| ≤ E → |P/A-M| ≤ e → |Q/A-N| ≤ f → (M-N-E-e-f)/4 ≤ C",
   "plain_statement": {
     "zh": "新路线 · 指定平移的 Θ 提升 · TP-0047 · 在同一归一化下合并两支提升与算术误差",

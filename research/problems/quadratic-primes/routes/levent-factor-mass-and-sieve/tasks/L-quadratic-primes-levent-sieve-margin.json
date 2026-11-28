@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-sieve-margin",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_sieve_margin.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_sieve_margin",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventSieveMargin.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventSieveMargin",
   "statement": "let block := fun x : ℕ => Finset.Ioc x (2*x); let budget := fun x : ℕ => (x : ℝ) * Real.log (x : ℝ); let band := fun a x n : ℕ => (n^2+a).primeFactors.filter (fun p => x<p ∧ p^100000 ≤ n^132301); let excess := fun a x : ℕ => ∑ n ∈ block x, ∑ p ∈ band a x n, (((n^2+a).factorization p - 1 : ℕ) : ℝ) * Real.log (p : ℝ); ∃ X : ℕ, ∀ x ≥ X, excess 1 x ≤ (1/100 : ℝ)*budget x",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0030 · 给中段重复赋值分配 1/100 的统一预算",

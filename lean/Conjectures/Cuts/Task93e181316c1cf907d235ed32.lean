@@ -1,7 +1,7 @@
 import Mathlib
 
-import PEqualNP.Outside.L_twin_primes_window_bridge
-import PEqualNP.Outside.L_twin_primes_divisor_bridge
+import Conjectures.TwinPrimes.WindowBridge
+import Conjectures.TwinPrimes.DivisorBridge
 import Conjectures.TwinPrimes.EnergyBridgeV2
 
 /-! EASY candidate proof: L-twin-primes-cut-93e181316c1cf907d235ed32

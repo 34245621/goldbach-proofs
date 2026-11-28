@@ -19,7 +19,7 @@ result and decides four things:
    any cache the file could write), are inside the allowlist. `sorry` is the axiom `sorryAx`,
    so a `sorry` anywhere under the theorem is caught here, from the compiled proof.
 4. STATEMENT. The recorded statement is elaborated in an environment made of the pinned
-   library and the definitions root (`PEqualNP.Defs` and the modules under it) and nothing else
+   library and the definitions root (`ResearchSupport.Defs` and the modules under it) and nothing else
    of this project, whatever the lemma file imports. So nothing the lemma file or any helper
    module declares (an instance, a notation, a macro) can change what the text means, and a
    statement can only speak of the pinned library and the definitions root. The kernel then
@@ -46,17 +46,17 @@ verifier itself could not run.
 import Lean
 open Lean
 
-namespace PEqualNPChecker
+namespace ResearchChecker
 
 def allowedAxioms : List Name := [``propext, ``Classical.choice, ``Quot.sound]
 
 /-- Roots of the libraries this project owns (lean/lakefile.toml). Everything else is a pinned dependency. -/
-def projectRoots : List Name := [`PEqualNP, `Conjectures, `CheckerSuite]
+def projectRoots : List Name := [`ResearchSupport, `Conjectures, `CheckerSuite]
 
 def isProject (m : Name) : Bool := projectRoots.contains m.getRoot
 
 /-- The definitions root: the one part of this project a recorded statement may speak of. -/
-def defsRoot : Name := `PEqualNP.Defs
+def defsRoot : Name := `ResearchSupport.Defs
 
 def isDefs (m : Name) : Bool := m == defsRoot || defsRoot.isPrefixOf m
 
@@ -83,7 +83,7 @@ def reject (cls msg : String) : IO UInt32 := do
   return 1
 
 /-- No project module may declare a constant under this namespace: it is the checker's own. -/
-def reserved : Name := `PEqualNPChecker
+def reserved : Name := `ResearchChecker
 
 /-- A project constant `c` that carries the name of a constant `l` of the statement environment
 is refused, with one exception, decided here: both are theorems, with the same universe
@@ -332,11 +332,11 @@ unsafe def reduceShape (stmtEnv full : Environment) (libEnv : Kernel.Environment
       match Parser.runParserCategory stmtEnv `term text "<child>" with
       | .error e => return .error s!"prints as `{text}`, which is not one Lean term: {e}"
       | .ok _ => pure ()
-      let src := "set_option autoImplicit false\ntheorem PEqualNPChecker.child :\n(\n" ++ text ++ "\n) := sorry\n"
+      let src := "set_option autoImplicit false\ntheorem ResearchChecker.child :\n(\n" ++ text ++ "\n) := sorry\n"
       let (env', msgs) ← Elab.process src stmtEnv {} (fileName := "<child>")
       if msgs.hasErrors then
         return .error s!"prints as `{text}`, which does not elaborate again in the statement environment"
-      let some back := env'.find? `PEqualNPChecker.child
+      let some back := env'.find? `ResearchChecker.child
         | return .error s!"prints as `{text}`, which did not elaborate to a declaration"
       unless back.levelParams.isEmpty do
         return .error s!"prints as `{text}`, which re-elaborates with universe parameters"
@@ -472,13 +472,13 @@ unsafe def run (modStr stmtPath kind : String) : IO UInt32 := do
   match Parser.runParserCategory stmtEnv `term stmt "<recorded statement>" with
   | .error e => return ← reject "statement" s!"the recorded statement is not one Lean term: {e}"
   | .ok _ => pure ()
-  let src := "set_option autoImplicit false\ntheorem PEqualNPChecker.recorded :\n(\n" ++ stmt ++ "\n) := sorry\n"
+  let src := "set_option autoImplicit false\ntheorem ResearchChecker.recorded :\n(\n" ++ stmt ++ "\n) := sorry\n"
   let (stmtEnv', msgs) ← Elab.process src stmtEnv {} (fileName := "<recorded statement>")
   if msgs.hasErrors then
     for m in msgs.toList do
       if m.severity matches .error then IO.println (← m.toString)
     return ← reject "statement" s!"the recorded statement does not elaborate. A statement may only use the pinned library and the definitions root ({defsRoot}); nothing declared in a lemma file or a helper module exists for it"
-  let some rec := stmtEnv'.find? `PEqualNPChecker.recorded
+  let some rec := stmtEnv'.find? `ResearchChecker.recorded
     | return ← reject "statement" "the recorded statement did not produce a declaration"
   -- Every constant the recorded statement speaks of, however deep, is one the statement
   -- environment held before the statement was read, and one the kernel has accepted: the
@@ -501,7 +501,7 @@ unsafe def run (modStr stmtPath kind : String) : IO UInt32 := do
       children := cs
       goal := cs.foldr (fun (t, _) b => mkForall `h .default t b) recorded
   let witness := Declaration.thmDecl {
-    name := `PEqualNPChecker.witness, levelParams := thm.levelParams, type := goal, value := mkConst mod us }
+    name := `ResearchChecker.witness, levelParams := thm.levelParams, type := goal, value := mkConst mod us }
   match kenv.addDeclCore 0 0 witness (cancelTk? := none) with
   | .ok _ => pure ()
   | .error ex =>
@@ -520,11 +520,11 @@ unsafe def run (modStr stmtPath kind : String) : IO UInt32 := do
   IO.println s!"ACCEPTED ({kind}): {mod}; axioms {w.axioms.toList}; kernel re-checked {consts.size + defsConsts.size} constants of {(defsModules ++ projectModules.filter (!isDefs ·)).toList}"
   return 0
 
-end PEqualNPChecker
+end ResearchChecker
 
 unsafe def main (args : List String) : IO UInt32 := do
   match args with
   | [mod, stmt, kind] =>
-    try PEqualNPChecker.run mod stmt kind
+    try ResearchChecker.run mod stmt kind
     catch e => IO.eprintln s!"checker fault: {e}"; return 3
   | _ => IO.eprintln "usage: CheckLemma <module> <statement file> <check|refute|reduce>"; return 3

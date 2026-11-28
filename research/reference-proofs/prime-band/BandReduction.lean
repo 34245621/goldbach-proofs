@@ -56,7 +56,7 @@ theorem catalogue_trimmed_iff_of_negligible (width : ℕ → ℕ)
       |nearBulk (catalogueCutoff n) n (width n) (high n)| ≤ ε*n) : BulkFloor ↔ ∀ ε:ℝ, 0<ε → ∃ N:ℕ, ∀ n≥N, Even n →
     -(ε*(n:ℝ)) ≤ trimmedBulk (catalogueCutoff n) n (width n) (high n) := by
   obtain ⟨S,hS⟩ : ∃ S:ℕ, ∀ n≥S, 2*(catalogueCutoff n)^2<n :=
-    PEqualNP.Outside.L_goldbach_arc_cutoff_scale
+    Conjectures.Goldbach.ArcCutoffScale
   change (∀ ε:ℝ, 0<ε → ∃ N:ℕ, ∀ n≥N, Even n →
     -(ε*(n:ℝ)) ≤ (deskI n (deskHigh n) (deskHigh n)).re) ↔ _
   constructor <;> intro h ε hε <;>

@@ -19,8 +19,8 @@
     "L-quadratic-primes-levent-abel-reciprocal"
   ],
   "imports": [
-    "PEqualNP.Outside.L_quadratic_primes_levent_mod_four_psi",
-    "PEqualNP.Outside.L_quadratic_primes_levent_mod_four_powers",
-    "PEqualNP.Outside.L_quadratic_primes_levent_abel_reciprocal"
+    "Conjectures.QuadraticPrimes.LeventModFourPsi",
+    "Conjectures.QuadraticPrimes.LeventModFourPowers",
+    "Conjectures.QuadraticPrimes.LeventAbelReciprocal"
   ]
 }

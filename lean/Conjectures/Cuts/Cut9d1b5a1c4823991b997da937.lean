@@ -1,6 +1,6 @@
 import Mathlib
-import PEqualNP.Outside.L_twin_primes_window_bridge
-import PEqualNP.Outside.L_twin_primes_divisor_bridge
+import Conjectures.TwinPrimes.WindowBridge
+import Conjectures.TwinPrimes.DivisorBridge
 import Conjectures.TwinPrimes.EnergyBridgeV2
 
 -- child 1 zh: 粗糙窗内素数或半素数点集占全窗点数的比例有一致正常数下界（筛法硬核）。

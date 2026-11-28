@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-mellin-window-decay",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_mellin_window_decay.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_mellin_window_decay",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventMellinWindowDecay.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventMellinWindowDecay",
   "statement": "∀ f : ℝ → ℂ, (∀ j : ℕ, ContDiff ℝ j f) → Function.support f ⊆ Set.Icc 1 2 → ∀ A : ℕ, ∃ C : ℝ, 0<C ∧ ∀ t : ℝ, ‖mellin f ((1/2 : ℂ) + (t : ℂ)*Complex.I)‖ ≤ C/(1+|t|)^A",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0031 · 估计光滑倍增窗在临界线上的 Mellin 衰减",

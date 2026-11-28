@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-gap-one-control",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_gap_one_control.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_gap_one_control",
+  "file": "lean/Conjectures/TwinPrimes/GapOneControl.lean",
+  "module": "Conjectures.TwinPrimes.GapOneControl",
   "statement": "∀ n : ℕ, ArithmeticFunction.vonMangoldt n * ArithmeticFunction.vonMangoldt (n+1) ≠ 0 → (∃ k : ℕ, n = 2^k) ∨ (∃ k : ℕ, n+1 = 2^k)",
   "plain_statement": {
     "zh": "新路线 · 零点对与相位 · TP-0023 · 证明相邻 Mangoldt 对中偶数端必为二的幂",

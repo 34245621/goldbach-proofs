@@ -7,11 +7,11 @@ Sum over the inverse graph: `Σ_{a} Σ_{u : a*u ≡ 1 mod n} w u = Σ_{u coprime
 (the inverse map is a bijection of the reduced residue classes). Self-contained, Mathlib only.
 -/
 
-namespace PEqualNP.Outside
+namespace Conjectures.Goldbach
 
-end PEqualNP.Outside
+end Conjectures.Goldbach
 
-open PEqualNP.Outside
+open Conjectures.Goldbach
 
 theorem Conjectures.Goldbach.FareyInverseFullWeight :
     ∀ (n : ℕ) (w : ℕ → ℝ), 1 < n →

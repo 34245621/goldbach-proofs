@@ -35,7 +35,7 @@ The estimate applies to every positive even target.
 
 /- Divisor-square mean adapted from OpenAI, openai/math, revision
 3344da59991ed94f9ba711217b29c1d760badfa6, as checked in
-PEqualNP.Outside.L_goldbach_frontier_uncond_deep_second_moment (Apache-2.0). -/
+Conjectures.Goldbach.FrontierUncondDeepSecondMoment (Apache-2.0). -/
 
 /-
 Finite Möbius cancellation and the Wiener–Ikehara argument for coefficients

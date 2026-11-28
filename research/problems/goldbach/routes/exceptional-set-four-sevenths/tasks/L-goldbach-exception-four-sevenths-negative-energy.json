@@ -20,6 +20,6 @@
   "parallel": true,
   "challenge_only": false,
   "imports": [
-    "PEqualNP.Outside.L_goldbach_frontier_uncond_deep_second_moment"
+    "Conjectures.Goldbach.FrontierUncondDeepSecondMoment"
   ]
 }

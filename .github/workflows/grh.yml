@@ -4,8 +4,8 @@ on:
     branches: [ci/grh-compact]
   pull_request:
     paths:
-      - 'lean/PEqualNP/GRH.lean'
-      - 'lean/PEqualNP/GRHSource/**'
+      - 'lean/ResearchSupport/GRH.lean'
+      - 'lean/ResearchSupport/GRHSource/**'
       - 'lean/CheckerSuite/GRHConsumer*'
       - 'lean/CheckLemma.lean'
       - 'lean/lake*'

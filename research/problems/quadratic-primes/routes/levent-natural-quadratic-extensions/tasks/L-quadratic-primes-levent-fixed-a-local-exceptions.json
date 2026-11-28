@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-fixed-a-local-exceptions",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_fixed_a_local_exceptions.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_fixed_a_local_exceptions",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventFixedALocalExceptions.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventFixedALocalExceptions",
   "statement": "∀ a : ℕ, 0<a → (∑ p ∈ (2*a).primeFactors, Real.log (p : ℝ)) ≤ Real.log ((2*a : ℕ) : ℝ)",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0060 · 控制坏素数集合的对数成本",

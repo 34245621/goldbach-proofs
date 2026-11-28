@@ -10,11 +10,11 @@ CATALOGUE_PR = {
     "research/problems.json", ".github/workflows/catalogue.yml",
 }
 GRH_PATHS = {
-    "lean/PEqualNP/GRH.lean", "lean/CheckLemma.lean", "lean/lean-toolchain",
+    "lean/ResearchSupport/GRH.lean", "lean/CheckLemma.lean", "lean/lean-toolchain",
     "deploy/jenkins/check-grh.sh", ".github/workflows/grh.yml",
 }
 PROOF_PATH = re.compile(
-    r"lean/(?:PEqualNP/Outside/L_[a-z0-9_]+|Conjectures/[A-Z][A-Za-z0-9]*/[A-Z][A-Za-z0-9]*)\.lean"
+    r"lean/Conjectures/[A-Z][A-Za-z0-9]*/[A-Z][A-Za-z0-9]*\.lean"
 )
 
 
@@ -35,12 +35,12 @@ def route(event, body, paths=(), *, grh_enabled=True):
             return []
         jobs = []
         if paths is None or any(
-            path.startswith(("lean/PEqualNP/Outside/", "lean/Conjectures/"))
+            path.startswith("lean/Conjectures/")
             and path.endswith(".lean") for path in paths
         ):
             jobs.append("advisory")
         if grh_enabled and (paths is None or any(path in GRH_PATHS or path.startswith((
-            "lean/PEqualNP/GRHSource/", "lean/CheckerSuite/GRHConsumer", "lean/lake",
+            "lean/ResearchSupport/GRHSource/", "lean/CheckerSuite/GRHConsumer", "lean/lake",
         )) for path in paths)):
             jobs.append("grh")
     elif event == "push":

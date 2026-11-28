@@ -13,8 +13,8 @@ class MergeProofTests(unittest.TestCase):
     head = "1" * 40
     main = "2" * 40
     merged = "3" * 40
-    module = "PEqualNP.Outside.L_test"
-    file = "lean/PEqualNP/Outside/L_test.lean"
+    module = "Conjectures.Goldbach.Test"
+    file = "lean/Conjectures/Goldbach/Test.lean"
     proof = b"verified proof bytes"
 
     def setUp(self):

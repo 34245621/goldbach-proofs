@@ -1,7 +1,7 @@
 {
   "id": "L-goldbach-sqrt-arc-separation-scale",
-  "file": "lean/PEqualNP/Outside/L_goldbach_sqrt_arc_separation_scale.lean",
-  "module": "PEqualNP.Outside.L_goldbach_sqrt_arc_separation_scale",
+  "file": "lean/Conjectures/Goldbach/SqrtArcSeparationScale.lean",
+  "module": "Conjectures.Goldbach.SqrtArcSeparationScale",
   "statement": "let Q := fun n : ℕ => (Nat.log 2 (n+2))^2; let Q₁ := fun n : ℕ => ⌊(n:ℝ)^(1/3:ℝ)⌋₊; let Q₂ := fun n : ℕ => ⌊Real.sqrt (n:ℝ)/((Nat.log 2 (n+2):ℝ)^4)⌋₊; ∃ N : ℕ, ∀ n ≥ N, Q₁ n < Q₂ n ∧ 2*(256*Q₂ n*Q n)*Q₂ n < n",
   "plain_statement": {
     "zh": "新路线 · 特征与分母扩窗 · CW-8007 · 核验扩带后的分母增长和 Farey 分离尺度",

@@ -177,7 +177,7 @@ lemma arith_key (N q : ℕ) (h4 : 4 ≤ N) (hq4 : 4 ≤ q) :
     have hc2v : ¬ (N %(2*q) = (4+q)%(2*q)) := fun hh => hr0 (hcond2.mp hh).1
     rw [if_neg hc1v, if_neg hc2v]
 
-namespace PEqualNP.Outside
+namespace Conjectures.Goldbach
 
 
 theorem L_goldbach_dyadic_reflected_prime_two :
@@ -356,7 +356,7 @@ theorem L_goldbach_dyadic_reflected_prime_two :
   · exact hk1case hk1
   · exact hk2case (by omega)
 
-end PEqualNP.Outside
+end Conjectures.Goldbach
 
 /-- Canonical module-named statement (the platform checker requires a declaration named
 exactly after the gap module: `Conjectures.Goldbach.DyadicReflectedPrimeTwo`). -/
@@ -368,4 +368,4 @@ theorem Conjectures.Goldbach.DyadicReflectedPrimeTwo :
     (∑ r ∈ (Finset.range q).filter (fun r => Even r),
       (if (N+2*q-r) % (2*q) < q then (1 : ℝ) else -1) * D r * D ((N+q-r) % q)) =
       (if N % (2*q) = 4 % (2*q) then (1 : ℝ) else if N % (2*q) = (4+q) % (2*q) then -1 else 0) * (Real.log 2)^2 :=
-  PEqualNP.Outside.L_goldbach_dyadic_reflected_prime_two
+  Conjectures.Goldbach.L_goldbach_dyadic_reflected_prime_two

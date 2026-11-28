@@ -1,7 +1,7 @@
 {
   "id": "L-goldbach-dyadic-real-character-mod-eight",
-  "file": "lean/PEqualNP/Outside/L_goldbach_dyadic_real_character_mod_eight.lean",
-  "module": "PEqualNP.Outside.L_goldbach_dyadic_real_character_mod_eight",
+  "file": "lean/Conjectures/Goldbach/DyadicRealCharacterModEight.lean",
+  "module": "Conjectures.Goldbach.DyadicRealCharacterModEight",
   "statement": "∀ (k : ℕ), 3 ≤ k → ∀ χ : DirichletCharacter ℂ (2^k), χ^2 = 1 → ∃ χ₈ : DirichletCharacter ℂ 8, ∀ a : ℕ, χ (a : ZMod (2^k)) = χ₈ (a : ZMod 8)",
   "plain_statement": {
     "zh": "新路线 · 特征与分母扩窗 · CW-8003 · 将二幂塔上的实特征降到模八",

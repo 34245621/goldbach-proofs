@@ -20,6 +20,6 @@
   ],
   "imports": [
     "Conjectures.QuadraticPrimes.SieveEulerCorrection",
-    "PEqualNP.Outside.L_quadratic_primes_levent_root_card_splitting"
+    "Conjectures.QuadraticPrimes.LeventRootCardSplitting"
   ]
 }

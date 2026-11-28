@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-root-prime-harmonic",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_root_prime_harmonic.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_root_prime_harmonic",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventRootPrimeHarmonic.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventRootPrimeHarmonic",
   "statement": "let roots := fun a q : ℕ => (Finset.range q).filter (fun r => q ∣ r^2+a); let primes := fun x : ℕ => (Finset.Ioc x ((2*x)^2+1)).filter (fun p => Nat.Prime p ∧ p^100000 ≤ (2*x)^132301); ∃ X : ℕ, ∀ x ≥ X, (∑ p ∈ primes x, ((roots 1 p).card : ℝ) * Real.log (p : ℝ)/p) ≤ (2/5 : ℝ)*Real.log (x : ℝ)",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0008 · 无条件控制整个中段的根加权素数调和和",

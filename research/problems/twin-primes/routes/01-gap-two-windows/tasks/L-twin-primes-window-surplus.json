@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-window-surplus",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_window_surplus.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_window_surplus",
+  "file": "lean/Conjectures/TwinPrimes/WindowSurplus.lean",
+  "module": "Conjectures.TwinPrimes.WindowSurplus",
   "statement": "let w := fun (X : ℕ) => (Finset.range (2*X+1)).filter (fun n => X < n ∧ 50*n < 51*X); let v := fun (n : ℕ) => ArithmeticFunction.vonMangoldt n * ArithmeticFunction.vonMangoldt (n+2); let M := fun (X : ℕ) => (w X).sum v / (X : ℝ); let e := fun (X : ℕ) => Real.log (2+(X:ℝ))^3 / Real.sqrt X; ∀ (K : ℝ) (B : ℕ), ∃ X : ℕ, B < X ∧ K * e X < M X",
   "plain_statement": {
     "zh": "新路线 · 差二窄窗 · TP-0005 · 沿无界窄窗超过任意固定污染倍数",

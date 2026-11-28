@@ -6,7 +6,7 @@
     "en": "For natural n≥2 and m≤n, deleting primes at most m changes the demodulated square integral by at most 2 log(4) log(n) sqrt(mn) in complex norm, uniformly over all measurable regions of the unit interval and real demodulation frequencies."
   },
   "imports": [
-    "PEqualNP.Outside.L_goldbach_continuous_parseval"
+    "Conjectures.Goldbach.ContinuousParseval"
   ],
   "program": "correlation",
   "brief": {

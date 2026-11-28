@@ -18,10 +18,10 @@ class VerifiedImportTests(unittest.TestCase):
             digest = hashlib.sha256(path.read_bytes()).hexdigest()
             (base / "verified-imports.json").write_text(json.dumps({name: digest, "Conjectures.Other.Unused": digest}))
             permissions = base / "imports.json"
-            permissions.write_text('["PEqualNP.Defs"]')
+            permissions.write_text('["ResearchSupport.Defs"]')
             (base / "proof.lean").write_text("import " + name + "\nimport Conjectures.Other.Pending\n")
             allow_verified_imports(base, base)
-            self.assertEqual(set(json.loads(permissions.read_text())), {name, "PEqualNP.Defs"})
+            self.assertEqual(set(json.loads(permissions.read_text())), {name, "ResearchSupport.Defs"})
             permissions.write_text("[]")
             path.write_bytes(b"changed")
             with self.assertRaisesRegex(ValueError, "differs"):

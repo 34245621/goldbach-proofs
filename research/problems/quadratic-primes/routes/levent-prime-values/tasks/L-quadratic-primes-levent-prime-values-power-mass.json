@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-prime-values-power-mass",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_prime_values_power_mass.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_prime_values_power_mass",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventPrimeValuesPowerMass.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventPrimeValuesPowerMass",
   "statement": "let block := fun x : ℕ => Finset.Ioc x (2*x); let pp := fun x : ℕ => ∑ n ∈ (block x).filter (fun n => ¬ Nat.Prime (n^2+1)), ArithmeticFunction.vonMangoldt (n^2+1); ∀ ε : ℝ, 0<ε → ∃ X : ℕ, ∀ x ≥ X, pp x ≤ ε*x",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0067 · 把二次序列上真幂的 Mangoldt 质量压到 o(x)",

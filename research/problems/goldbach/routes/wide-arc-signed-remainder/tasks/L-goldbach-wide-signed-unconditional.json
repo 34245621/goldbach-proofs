@@ -23,7 +23,7 @@
   "parallel": true,
   "challenge_only": true,
   "imports": [
-    "PEqualNP.Outside.L_goldbach_frontier_skirt_polylog_moduli",
+    "Conjectures.Goldbach.FrontierSkirtPolylogModuli",
     "Conjectures.Goldbach.WideSignedRemainderBridge"
   ]
 }

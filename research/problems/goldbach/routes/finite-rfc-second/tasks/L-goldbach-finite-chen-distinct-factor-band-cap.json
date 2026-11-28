@@ -1,7 +1,7 @@
 {
   "id": "L-goldbach-finite-chen-distinct-factor-band-cap",
-  "file": "lean/PEqualNP/Outside/L_goldbach_finite_chen_distinct_factor_band_cap.lean",
-  "module": "PEqualNP.Outside.L_goldbach_finite_chen_distinct_factor_band_cap",
+  "file": "lean/Conjectures/Goldbach/FiniteChenDistinctFactorBandCap.lean",
+  "module": "Conjectures.Goldbach.FiniteChenDistinctFactorBandCap",
   "statement": "∀ (n D E Q : ℕ) (w : ℕ → ℝ) (B : ℝ), 0 ≤ B → (∀ p ≤ n, w p ≤ B) → let P := (Finset.range (n+1)).filter (fun p => Nat.Prime p ∧ ((Finset.Ioc D E).filter (fun r => Nat.Prime r ∧ ((Finset.Ioc r Q).filter (fun q => Nat.Prime q ∧ p+r*q=n)).Nonempty)).Nonempty); (∑ p ∈ P, w p) ≤ B * (∑ r ∈ (Finset.Ioc D E).filter Nat.Prime, ((min Q (n/r)-r:ℕ):ℝ))",
   "plain_statement": {
     "zh": "新路线 · 小偶数覆盖续批 · FR-8008 · 为明确较小因子带内的平方自由半素数贡献给出上界",

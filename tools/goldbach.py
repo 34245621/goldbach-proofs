@@ -395,7 +395,7 @@ def matching_task(gap, expected, kind, problem):
     else:
         key = hashlib.sha256((problem + "\n" + statement).encode()).hexdigest()[:24]
         if ident != f"L-{problem}-cut-{key}" or not all(re.fullmatch(
-                r"(?:PEqualNP|Conjectures)(?:\.[A-Za-z][A-Za-z0-9_]*)+", name)
+                r"(?:ResearchSupport|Conjectures)(?:\.[A-Za-z][A-Za-z0-9_]*)+", name)
                 for name in gap.get("imports", [])):
             return False
         ordinary_module = "Conjectures.Cuts.Task" + key

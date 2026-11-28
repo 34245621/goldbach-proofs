@@ -1,7 +1,7 @@
 {
   "id": "L-goldbach-exceptional-prime-jacobi",
-  "file": "lean/PEqualNP/Outside/L_goldbach_exceptional_prime_jacobi.lean",
-  "module": "PEqualNP.Outside.L_goldbach_exceptional_prime_jacobi",
+  "file": "lean/Conjectures/Goldbach/ExceptionalPrimeJacobi.lean",
+  "module": "Conjectures.Goldbach.ExceptionalPrimeJacobi",
   "statement": "∀ (p : ℕ) [Fact p.Prime] (χ : DirichletCharacter ℂ p), χ ≠ 1 → χ^2 = 1 → ∀ t : ZMod p, t ≠ 0 → (∑ a : ZMod p, χ a * χ (t-a)) = -χ (-1)",
   "plain_statement": {
     "zh": "新路线 · 特征与分母扩窗 · CW-8002 · 计算素导子与目标互素时的 Jacobi 项",

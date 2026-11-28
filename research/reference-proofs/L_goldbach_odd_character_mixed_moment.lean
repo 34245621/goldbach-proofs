@@ -79,7 +79,7 @@ theorem oddMixedMoment (F G : (ZMod N)ˣ → ℂ) :
 
 end GoldbachOddMoment
 
-theorem PEqualNP.Outside.L_goldbach_odd_character_mixed_moment :
+theorem Conjectures.Goldbach.OddCharacterMixedMoment :
     ∀ (N : ℕ) [NeZero N] (F G : (ZMod N)ˣ → ℂ), let oddChars := @Finset.filter (DirichletCharacter ℂ N) (fun χ => χ.Odd) (fun χ => Classical.propDecidable χ.Odd) Finset.univ; let T := fun (W : (ZMod N)ˣ → ℂ) (χ : DirichletCharacter ℂ N) => Finset.univ.sum (fun a : (ZMod N)ˣ => W a * χ (a : ZMod N)); 2 * oddChars.sum (fun χ => star (T F χ) * T G χ) = (N.totient : ℂ) * Finset.univ.sum (fun a : (ZMod N)ˣ => star (F a) * (G a - G (-a))) := by
   intro N inst F G
   exact GoldbachOddMoment.oddMixedMoment F G

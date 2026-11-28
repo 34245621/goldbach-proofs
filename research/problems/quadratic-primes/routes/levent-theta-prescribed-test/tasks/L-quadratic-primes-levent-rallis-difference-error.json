@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-rallis-difference-error",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_rallis_difference_error.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_rallis_difference_error",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventRallisDifferenceError.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventRallisDifferenceError",
   "statement": "∀ A P Q M N E e f h : ℝ, 0<A → |(P-Q)/A-4*E|≤h → |P/A-M|≤e → |Q/A-N|≤f → |4*E-(M-N)|≤e+f+h",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0050 · 在同一归一化下合并两支范数和匹配误差",

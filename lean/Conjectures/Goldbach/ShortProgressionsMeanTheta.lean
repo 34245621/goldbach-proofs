@@ -1,5 +1,5 @@
 import Mathlib
-import PEqualNP.Outside.L_goldbach_frontier_skirt_polylog_moduli
+import Conjectures.Goldbach.FrontierSkirtPolylogModuli
 
 /-! Formalization of the upper-exponent branch of Theorem 1.2 of
 D. Koukoulopoulos, *Primes in short arithmetic progressions* (arXiv:1405.6592).
@@ -22697,7 +22697,7 @@ section
 /-!
 Principal-character estimates. This fragment expects the existing ShortAP
 definitions and prime-power transfer lemmas, and the certified module
-`PEqualNP.Outside.L_goldbach_frontier_skirt_polylog_moduli` at the file head.
+`Conjectures.Goldbach.FrontierSkirtPolylogModuli` at the file head.
 If the weaker principal-window bridge is already present, replace it with
 this fragment rather than defining the same theorem names twice.
 -/

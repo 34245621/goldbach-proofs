@@ -5,14 +5,14 @@ base=/opt/goldbach-ci
 project=$base/lean-replay/lean
 tc=$base/toolchains/lean-4.36.0
 image=docker.m.daocloud.io/jenkins/jenkins@sha256:4d85f6cf5a8939647921564952d12a5a761f32a3bc520c2f4e5c3cafa7ea660f
-module=PEqualNP.Outside.L_goldbach_prime_weight_extraction
+module=Conjectures.Goldbach.PrimeWeightExtraction
 file=${module//./\/}
 cd "$project"
 scratch=$(mktemp -d)
-trap 'rm -f "$scratch/in/statement.txt" "$scratch/build/$file.olean" "$scratch/marker"; rmdir "$scratch/build/PEqualNP/Outside" "$scratch/build/PEqualNP" "$scratch/build" "$scratch/in" "$scratch"' EXIT
+trap 'rm -f "$scratch/in/statement.txt" "$scratch/build/$file.olean" "$scratch/marker"; rmdir "$scratch/build/Conjectures/Goldbach" "$scratch/build/Conjectures" "$scratch/build" "$scratch/in" "$scratch"' EXIT
 install -d -m 755 "$scratch/in"
-install -d -m 755 "$scratch/build/PEqualNP"
-install -d -m 755 -o 1000 -g 1000 "$scratch/build/PEqualNP/Outside"
+install -d -m 755 "$scratch/build/Conjectures"
+install -d -m 755 -o 1000 -g 1000 "$scratch/build/Conjectures/Goldbach"
 python3 - "$scratch/in/statement.txt" <<'PY'
 import json, pathlib, sys
 gaps = json.loads(pathlib.Path("../research/gaps.json").read_text(encoding="utf-8"))["gaps"]

@@ -16,7 +16,7 @@
     "L-goldbach-cluster-balanced-energy"
   ],
   "imports": [
-    "PEqualNP.Outside.L_goldbach_cluster_balanced_energy"
+    "Conjectures.Goldbach.ClusterBalancedEnergy"
   ],
   "track": "odd-character-interference",
   "role": "lemma",

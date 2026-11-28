@@ -16,8 +16,8 @@
     "L-quadratic-primes-weighted-endpoint-envelope",
     "L-quadratic-primes-fixed-offset-endpoint-count"
   ],
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_high_shift_exponent_extension.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_high_shift_exponent_extension",
+  "file": "lean/Conjectures/QuadraticPrimes/HighShiftExponentExtension.lean",
+  "module": "Conjectures.QuadraticPrimes.HighShiftExponentExtension",
   "imports": [],
   "role": "target",
   "challenge_only": true

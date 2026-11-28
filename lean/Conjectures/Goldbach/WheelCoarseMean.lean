@@ -3852,7 +3852,7 @@ theorem progressionBound_of_smoothedTwistedBound
 end GoldbachProgression
 
 /-- The von Mangoldt discrepancy in a reduced residue class under the Dirichlet GRH. -/
-theorem PEqualNP.Outside.L_goldbach_grh_progression_error :
+theorem Conjectures.Goldbach.GrhProgressionError :
     (∀ (Q : ℕ) [NeZero Q] (χ : DirichletCharacter ℂ Q) (s : ℂ),
       0 < s.re → s.re < 1 → DirichletCharacter.LFunction χ s = 0 → s.re = 1 / 2) →
     ∃ C : ℝ, 0 < C ∧ ∀ q a X : ℕ, 0 < q → Nat.Coprime a q → 2 ≤ X →
@@ -3933,7 +3933,7 @@ private lemma aps_two_sided
     ∃ K : ℝ, 0 < K ∧ ∀ q r n : ℕ, 0 < q → r < q → Nat.Coprime r q → 2 ≤ n →
       |aps n q r - (n : ℝ) / (Nat.totient q : ℝ)|
         ≤ K * Real.sqrt (n : ℝ) * (Real.log (2 * (q : ℝ) * (n : ℝ))) ^ 2 := by
-  obtain ⟨C, hC, hprog⟩ := PEqualNP.Outside.L_goldbach_grh_progression_error hGRH
+  obtain ⟨C, hC, hprog⟩ := Conjectures.Goldbach.GrhProgressionError hGRH
   refine ⟨C + 2, by linarith, ?_⟩
   intro q r n hq hr hcop hn
   have hnR : (2 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn

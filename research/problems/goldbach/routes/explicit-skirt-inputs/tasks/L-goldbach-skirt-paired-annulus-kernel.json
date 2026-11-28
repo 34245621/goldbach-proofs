@@ -1,7 +1,7 @@
 {
   "id": "L-goldbach-skirt-paired-annulus-kernel",
-  "file": "lean/PEqualNP/Outside/L_goldbach_skirt_paired_annulus_kernel.lean",
-  "module": "PEqualNP.Outside.L_goldbach_skirt_paired_annulus_kernel",
+  "file": "lean/Conjectures/Goldbach/SkirtPairedAnnulusKernel.lean",
+  "module": "Conjectures.Goldbach.SkirtPairedAnnulusKernel",
   "statement": "let E := fun x : ℝ => Complex.exp (((2*Real.pi*x:ℝ):ℂ)*Complex.I); ∀ (q : ℕ) (j : ℤ) (h H : ℝ), 0 < q → 0 ≤ h → h ≤ H → let A := (Finset.range q).filter (fun a => Nat.Coprime a q); let T := fun (a : ℕ) (r : ℝ) => intervalIntegral (fun u => E ((j:ℝ)*((a:ℝ)/q+u))) (-r) r MeasureTheory.volume; (∑ a ∈ A, (T a H - T a h)) = (∑ a ∈ A, E ((j:ℝ)*a/q)) * ((if j=0 then 2*(H-h) else (Real.sin (2*Real.pi*j*H)-Real.sin (2*Real.pi*j*h))/(Real.pi*j) : ℝ):ℂ)",
   "plain_statement": {
     "zh": "新路线 · 裙边与显式算术输入 · SI-8003 · 计算一圈既约中心上成对裙边的 Ramanujan–sinc 核",

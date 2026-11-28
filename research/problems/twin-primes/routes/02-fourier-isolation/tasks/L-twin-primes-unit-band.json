@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-unit-band",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_unit_band.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_unit_band",
+  "file": "lean/Conjectures/TwinPrimes/UnitBand.lean",
+  "module": "Conjectures.TwinPrimes.UnitBand",
   "statement": "let f := fun (x n j : ℝ) => x * Real.log (1+j/n); ∀ x n : ℝ, 1000 ≤ x → x ≤ n → 50*n ≤ 51*x → 1/4 < f x n 1 ∧ f x n 1 < 7/4",
   "plain_statement": {
     "zh": "新路线 · Fourier 选频 · TP-0007 · 排除相邻项的频率",

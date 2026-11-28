@@ -60,7 +60,7 @@ private theorem square_count (N z : ℕ) (hz : 1 ≤ z) (D : Finset ℕ)
 
 end GoldbachRoughSquare
 
-theorem PEqualNP.Outside.L_goldbach_rough_fifth_square_error :
+theorem Conjectures.Goldbach.RoughFifthSquareError :
     let C := fun N : ℕ => (Finset.range N).filter (fun p => Nat.Prime p ∧ N < 3*p ∧ 3*p < 2*N ∧ 1 < N-p ∧ N < (N-p).minFac^5); ∀ N z : ℕ, 1 ≤ z → z^5 ≤ N → z*((C N).filter (fun p => ¬ Squarefree (N-p))).card ≤ N := by
   dsimp only
   intro N z hz hzN

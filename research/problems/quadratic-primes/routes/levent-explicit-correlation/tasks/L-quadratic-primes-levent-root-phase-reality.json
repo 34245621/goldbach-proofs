@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-root-phase-reality",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_root_phase_reality.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_root_phase_reality",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventRootPhaseReality.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventRootPhaseReality",
   "statement": "let roots := fun a q : ℕ => (Finset.range q).filter (fun r => q ∣ r^2+a); let angle := fun p k : ℕ => fun t : ℝ => 2 * Real.pi * k * t / p; let phase := fun (p k n : ℕ) => Complex.exp (((angle p k n : ℝ) : ℂ) * Complex.I); ∀ p k : ℕ, 0<p → (∑ r ∈ roots 1 p, phase p k r).im = 0",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0032 · 证明完整根掩码的复系数为实数",

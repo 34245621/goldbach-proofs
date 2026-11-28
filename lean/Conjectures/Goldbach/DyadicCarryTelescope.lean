@@ -13,7 +13,7 @@ Self-contained, Mathlib only.
 
 open scoped BigOperators
 
-namespace PEqualNP.Outside
+namespace Conjectures.Goldbach
 
 /-- The dyadic carry increment (inlined; needed as a step of the telescope). -/
 lemma carry_increment_lemma :
@@ -257,7 +257,7 @@ theorem L_goldbach_dyadic_carry_telescope :
   rw [htel, hR2K, hRM, hR1]
   ring
 
-end PEqualNP.Outside
+end Conjectures.Goldbach
 
 
 /-! Canonical module-named statement (platform checker requires a declaration
@@ -274,4 +274,4 @@ theorem Conjectures.Goldbach.DyadicCarryTelescope :
       (if (N+2*q-r) % (2*q) < q then (1 : ℝ) else -1) * D r * D ((N+q-r) % q)
   (∑ n ∈ Finset.range (N+1), w n * w (N-n)) =
     (∑ n ∈ Finset.range (N+1), w n)^2 / M + ∑ k ∈ Finset.range K, C k :=
-  PEqualNP.Outside.L_goldbach_dyadic_carry_telescope
+  Conjectures.Goldbach.L_goldbach_dyadic_carry_telescope

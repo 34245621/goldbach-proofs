@@ -1,7 +1,7 @@
 import Mathlib
 import Conjectures.Goldbach.EstermannAlmostAllPolylog
-import PEqualNP.Outside.L_goldbach_continuous_parseval
-import PEqualNP.Outside.L_goldbach_frontier_skirt_polylog_moduli
+import Conjectures.Goldbach.ContinuousParseval
+import Conjectures.Goldbach.FrontierSkirtPolylogModuli
 
 /-
 Prime arrivals with a small prime summand in the dyadic square-root window.
@@ -372,7 +372,7 @@ theorem shortSum_eq {X : ℕ} (hY : 2 ≤ Nat.sqrt X) (t : ℝ) :
 theorem long_energy (X : ℕ) :
     (∫ t in (0 : ℝ)..1, ‖primeSum (2*X) t‖^2) ≤
       ((2*X:ℕ)+1 : ℝ) * (Real.log (2*X : ℕ))^2 := by
-  have hParse := PEqualNP.Outside.L_goldbach_continuous_parseval (2*X) primeWeight
+  have hParse := Conjectures.Goldbach.ContinuousParseval (2*X) primeWeight
   change (∫ t in (0:ℝ)..1, ‖primeSum (2*X) t‖^2) = _ at hParse
   rw [hParse]
   calc _ ≤ ∑ _k ∈ range (2*X+1), (Real.log (2*X:ℕ))^2 := by
@@ -577,7 +577,7 @@ theorem weighted_coefficient {X n : ℕ} (hY : 2 ≤ Nat.sqrt X) (hn : n ≤ 2*X
 theorem long_energy_chebyshev (X : ℕ) :
     (∫ t in (0 : ℝ)..1, ‖primeSum (2*X) t‖^2) ≤
       Real.log (2*X:ℕ) * (Real.log 4 * (2*X:ℕ)) := by
-  have hParse := PEqualNP.Outside.L_goldbach_continuous_parseval (2*X) primeWeight
+  have hParse := Conjectures.Goldbach.ContinuousParseval (2*X) primeWeight
   change (∫ t in (0:ℝ)..1, ‖primeSum (2*X) t‖^2) = _ at hParse
   rw [hParse]
   calc _ ≤ ∑ k ∈ range (2*X+1), Real.log (2*X:ℕ) * primeWeight k := by

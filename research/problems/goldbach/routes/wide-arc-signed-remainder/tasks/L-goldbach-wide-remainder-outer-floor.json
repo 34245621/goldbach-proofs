@@ -19,6 +19,6 @@
   "parallel": true,
   "challenge_only": false,
   "imports": [
-    "PEqualNP.Outside.L_goldbach_skirt_paired_annulus_kernel"
+    "Conjectures.Goldbach.SkirtPairedAnnulusKernel"
   ]
 }

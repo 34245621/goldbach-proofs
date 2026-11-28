@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-crt-mask",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_crt_mask.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_crt_mask",
+  "file": "lean/Conjectures/TwinPrimes/CrtMask.lean",
+  "module": "Conjectures.TwinPrimes.CrtMask",
   "statement": "let A := fun (q : ℕ) => ((Finset.range q).filter (fun n => Nat.Coprime n q ∧ Nat.Coprime (n+2) q)).card; ∀ a b : ℕ, 0 < a → 0 < b → Nat.Coprime a b → A (a*b) = A a*A b",
   "plain_statement": {
     "zh": "新路线 · 指定平移的 Θ 提升 · TP-0046 · 用 CRT 拼接互素模数的平移掩码",

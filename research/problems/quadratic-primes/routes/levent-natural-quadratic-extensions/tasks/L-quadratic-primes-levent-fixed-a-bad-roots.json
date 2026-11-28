@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-fixed-a-bad-roots",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_fixed_a_bad_roots.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_fixed_a_bad_roots",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventFixedABadRoots.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventFixedABadRoots",
   "statement": "let roots := fun a q : ℕ => (Finset.range q).filter (fun r => q ∣ r^2+a); ∀ p a k : ℕ, p.Prime → 0<k → p^k ∣ a → (roots a (p^k)).card = p^(k/2)",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0058 · 给出坏素数在低指数层的精确根数",

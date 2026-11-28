@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-window-factorization",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_window_factorization.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_window_factorization",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventWindowFactorization.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventWindowFactorization",
   "statement": "let block := fun x : ℕ => Finset.Ioc x (2*x); let roots := fun a q : ℕ => (Finset.range q).filter (fun r => q ∣ r^2+a); let window := fun x p : ℕ => (block x).filter (fun n => p^100000 ≤ n^132301); let angle := fun p k : ℕ => fun t : ℝ => 2 * Real.pi * k * t / p; let phase := fun (p k n : ℕ) => Complex.exp (((angle p k n : ℝ) : ℂ) * Complex.I); let coef := fun a x p k : ℕ => (∑ r ∈ roots a p, ∑ n ∈ window x p, Real.cos (angle p k ((n : ℝ) - r))) / p; ∀ a x p k : ℕ, coef a x p k = ((∑ n ∈ window x p, phase p k n) * star (∑ r ∈ roots a p, phase p k r)).re / p",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0033 · 把单频系数分解成根和与窗口和的乘积",

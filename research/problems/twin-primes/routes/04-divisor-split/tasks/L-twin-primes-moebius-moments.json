@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-moebius-moments",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_moebius_moments.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_moebius_moments",
+  "file": "lean/Conjectures/TwinPrimes/MoebiusMoments.lean",
+  "module": "Conjectures.TwinPrimes.MoebiusMoments",
   "statement": "RiemannHypothesis → Filter.Tendsto (fun N : ℕ => (Finset.Icc 1 N).sum (fun n => (ArithmeticFunction.moebius n : ℝ)/n)) Filter.atTop (nhds 0) ∧ Filter.Tendsto (fun N : ℕ => (Finset.Icc 1 N).sum (fun n => -(ArithmeticFunction.moebius n : ℝ)*Real.log n/n)) Filter.atTop (nhds 1)",
   "plain_statement": {
     "zh": "新路线 · 短长除数与奇偶 · TP-0033 · 求 Möbius 两个截断对数矩的极限",

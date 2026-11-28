@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-zmod-root-transport",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_zmod_root_transport.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_zmod_root_transport",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventZmodRootTransport.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventZmodRootTransport",
   "statement": "let roots := fun a q : ℕ => (Finset.range q).filter (fun r => q ∣ r^2+a); ∀ (q : ℕ) [NeZero q], ∃ e : {r : ℕ // r ∈ roots 1 q} ≃ {u : ZMod q // u^2+1=0}, ∀ r, (e r).1.val = r.1",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0010 · 在标准代表与模环根集之间保留根标签",

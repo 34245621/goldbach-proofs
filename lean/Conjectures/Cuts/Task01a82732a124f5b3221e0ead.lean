@@ -1,6 +1,6 @@
 import Mathlib
 
-/- Adapted from the community proof PEqualNP.Outside.L_goldbach_central_sieve_upper in CGandGameEngineLearner/goldbach-proofs. The finite Selberg sieve and its original credit are retained below. The final estimate here counts pairs on the full range. -/
+/- Adapted from the community proof Conjectures.Goldbach.CentralSieveUpper in CGandGameEngineLearner/goldbach-proofs. The finite Selberg sieve and its original credit are retained below. The final estimate here counts pairs on the full range. -/
 
 
 /-!

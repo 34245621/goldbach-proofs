@@ -6,7 +6,7 @@ import Conjectures.Goldbach.FareyHyperbolaRectangles
 import Conjectures.Goldbach.MajorFixed144
 import Conjectures.Goldbach.ThreeQuartersExceptionalDirichletWindows
 import Mathlib
-import PEqualNP.Outside.L_goldbach_frontier_no_siegel_zero
+import Conjectures.Goldbach.FrontierNoSiegelZero
 
 /- The arithmetic foundation is adapted from muxkin's goldbach-proofs PR #2458,
    commit 25c1ef60495052eb22212b5560f90bbc6a4a0917 (Apache-2.0).
@@ -45,7 +45,7 @@ adapted there from goldbach-proofs PR #2468, revision
 
 /- Divisor-square mean adapted from OpenAI, openai/math, revision
 3344da59991ed94f9ba711217b29c1d760badfa6, as checked in
-PEqualNP.Outside.L_goldbach_frontier_uncond_deep_second_moment (Apache-2.0). -/
+Conjectures.Goldbach.FrontierUncondDeepSecondMoment (Apache-2.0). -/
 section
 /-!
 Criterion for the frozen pointwise three-quarters bound on deep arcs.
@@ -40699,7 +40699,7 @@ theorem Conjectures.Goldbach.FixedModulusZeroClassSquare :
         (Finset.sum S fun p => Finset.sum S fun r =>
           if (p.1 / r.1).conductor ∣ K.factorial then a p * a r else 0) ≤ θ := by
   classical
-  obtain ⟨θ,hθ₀,hθ₁,hB⟩ := fixedModulusClassBound_of_no_siegel PEqualNP.Outside.L_goldbach_frontier_no_siegel_zero
+  obtain ⟨θ,hθ₀,hθ₁,hB⟩ := fixedModulusClassBound_of_no_siegel Conjectures.Goldbach.FrontierNoSiegelZero
   refine ⟨θ,hθ₀,hθ₁,?_⟩
   intro K H T
   obtain ⟨q₀,hq₀⟩ := hB K H T

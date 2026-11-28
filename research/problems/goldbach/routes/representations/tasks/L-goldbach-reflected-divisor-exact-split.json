@@ -16,7 +16,7 @@
     "L-goldbach-reflected-divisor-unit-progression"
   ],
   "imports": [
-    "PEqualNP.Outside.L_goldbach_reflected_divisor_unit_progression"
+    "Conjectures.Goldbach.ReflectedDivisorUnitProgression"
   ],
   "track": "representations",
   "role": "lemma",

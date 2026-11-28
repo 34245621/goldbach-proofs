@@ -39,7 +39,7 @@ private theorem prime_minus_triples {m : ℕ} (hm : 1 < m) (h4 : cardFactors m �
 
 end GoldbachRoughFifth
 
-theorem PEqualNP.Outside.L_goldbach_rough_fifth_bridge :
+theorem Conjectures.Goldbach.RoughFifthBridge :
     let C := fun N : ℕ => (Finset.range N).filter (fun p => Nat.Prime p ∧ N < 3*p ∧ 3*p < 2*N ∧ 1 < N-p ∧ N < (N-p).minFac^5); ∀ N : ℕ, 2*(((C N).filter (fun p => Nat.Prime (N-p))).card:ℝ) = ((C N).card:ℝ) - (C N).sum (fun p => (ArithmeticFunction.liouville (N-p) : ℝ)) - 2*(((C N).filter (fun p => ArithmeticFunction.cardFactors (N-p) = 3)).card:ℝ) := by
   dsimp only
   intro N

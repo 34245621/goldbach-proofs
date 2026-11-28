@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-root-count-multiplicative",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_root_count_multiplicative.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_root_count_multiplicative",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventRootCountMultiplicative.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventRootCountMultiplicative",
   "statement": "let roots := fun a q : ℕ => (Finset.range q).filter (fun r => q ∣ r^2+a); ∀ q : ℕ, 0<q → Squarefree q → (roots 1 q).card = ∏ p ∈ q.primeFactors, (if p=2 then 1 else if p%4=1 then 2 else 0)",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0014 · 把互素分解推广到任意无平方因子模数",

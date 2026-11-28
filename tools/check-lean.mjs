@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Lean checker used by the GitHub Actions workflows for legacy-path proofs.
+// Lean checker used by the GitHub Actions workflows for community proofs.
 //
 //   node tools/check-lean.mjs <lean file> <statement file> [check|refute]
 //
@@ -9,7 +9,7 @@
 //   3. the theorem (named after its module, one lemma one file) rests on no `sorry` and on no
 //      axiom outside propext, Classical.choice, Quot.sound;
 //   4. the theorem is a proof of the recorded statement (of its negation for `refute`), where the
-//      statement is read against the pinned library and the definitions root (PEqualNP.Defs)
+//      statement is read against the pinned library and the definitions root (ResearchSupport.Defs)
 //      and nothing else of this project, whatever the file imports.
 // On acceptance it prints, before the last line, one line recorded with the result:
 //   MANIFEST {"rests_on":[{"module","sha256"}...],"defs":[{"module","sha256"}...]}
@@ -41,10 +41,10 @@ import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const CHECKER_VERSION = 'check-lean 3';   // 2026-11-22: stricter (one name, one meaning; fixed inputs; faults told apart from rejections)
-const DEFS_ROOT = 'PEqualNP.Defs';
+const DEFS_ROOT = 'ResearchSupport.Defs';
 const CHECKER_LEAN_DIR = join(dirname(dirname(fileURLToPath(import.meta.url))), 'lean');
 const LEAN_DIR = process.env.PEQUALNP_REPO_ROOT ? join(process.env.PEQUALNP_REPO_ROOT, 'lean') : CHECKER_LEAN_DIR;
-const LIBRARIES = ['PEqualNP', 'CheckerSuite'];  // roots accepted by this Actions checker
+const LIBRARIES = ['Conjectures', 'CheckerSuite'];  // roots accepted by this Actions checker
 const BUILD_TIMEOUT_MS = 30 * 60 * 1000;
 const LOCK = join(LEAN_DIR, '.lake', 'check.lock');
 const LOCK_STALE_MS = 2 * BUILD_TIMEOUT_MS;

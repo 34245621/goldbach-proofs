@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-dyadic-scale",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_dyadic_scale.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_dyadic_scale",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventDyadicScale.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventDyadicScale",
   "statement": "let psi := fun (q a x : ℕ) => ∑ n ∈ (Finset.Icc 1 x).filter (fun n => n%q=a%q), ArithmeticFunction.vonMangoldt n; ∀ (E : ℕ → ℝ) (x : ℕ), |psi 4 1 x - (x : ℝ)/2| ≤ E x → |psi 4 1 (2*x) - (2*x : ℕ)/ (2 : ℝ)| ≤ E (2*x) → |(psi 4 1 (2*x) - psi 4 1 x) - (x : ℝ)/2| ≤ E (2*x) + E x",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0003 · 从模 4 的累积误差得到倍增区间误差",

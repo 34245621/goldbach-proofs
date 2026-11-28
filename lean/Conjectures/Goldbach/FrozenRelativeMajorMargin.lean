@@ -4,7 +4,7 @@ namespace Conjectures.Goldbach.FrozenRelativeMajorMargin_aux.C1
 noncomputable def gbPhase (t : ℝ) : ℂ :=
   Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I)
 
-theorem L_goldbach_circle_coefficient :
+theorem CircleCoefficient :
     ∀ (n : ℕ) (w : ℕ → ℝ), let phase : ℝ → ℂ := fun t => Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I); let S : ℝ → ℂ := fun t => Finset.sum (Finset.range (n + 1)) (fun k => (w k : ℂ) * phase ((k : ℝ) * t)); let f : ℝ → ℂ := fun t => (S t) ^ 2 * phase (-(n : ℝ) * t); intervalIntegral f (0 : ℝ) 1 MeasureTheory.volume = ((Finset.sum (Finset.range (n + 1)) (fun p => w p * w (n - p)) : ℝ) : ℂ) := by
   intro n w
   dsimp only
@@ -154,7 +154,7 @@ theorem split_arc_integral {A : Set ℝ} {g : ℝ → ℂ}
 end Conjectures.Goldbach.FrozenRelativeMajorMargin_aux.C2
 
 namespace Conjectures.Goldbach.FrozenRelativeMajorMargin_aux.C3
-theorem L_goldbach_minor_bilinear_split :
+theorem MinorBilinearSplit :
     let w := fun k : ℕ => if Nat.Prime k then Real.log (k : ℝ) else 0;
     let E := fun x : ℝ => Complex.exp (((2 * Real.pi * x : ℝ) : ℂ) * Complex.I);
     let S := fun (n : ℕ) (w : ℕ → ℝ) (t : ℝ) => Finset.sum (Finset.range (n + 1)) (fun k => (w k : ℂ) * E ((k : ℝ) * t));
@@ -274,7 +274,7 @@ end Conjectures.Goldbach.FrozenRelativeMajorMargin_aux.C3
 namespace Conjectures.Goldbach.FrozenRelativeMajorMargin_aux.C4
 open Filter
 
-theorem L_goldbach_small_small_saving : let w := fun k : ℕ => if Nat.Prime k then Real.log (k:ℝ) else 0; let E := fun x : ℝ => Complex.exp (((2*Real.pi*x:ℝ):ℂ)*Complex.I); let S := fun (n : ℕ) (w : ℕ → ℝ) (t : ℝ) => Finset.sum (Finset.range (n+1)) (fun k => (w k:ℂ)*E ((k:ℝ)*t)); let Q := fun n : ℕ => (Nat.log 2 (n+2))^2; let arcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (Q n:ℝ)/((q:ℝ)*(n:ℝ))}; let low := fun (n k : ℕ) => if k^3≤n then w k else 0; let high := fun (n k : ℕ) => w k-low n k; let I := fun (n:ℕ) (a b:ℕ→ℝ) => intervalIntegral (fun t => (arcs n)ᶜ.indicator (fun u => S n a u*S n b u*E (-(n:ℝ)*u)) t) (0:ℝ) 1 MeasureTheory.volume; ∀ e:ℝ, 0<e → ∃ N:ℕ, ∀ n≥N, ‖I n (low n) (low n)‖≤e*(n:ℝ) := by
+theorem SmallSmallSaving : let w := fun k : ℕ => if Nat.Prime k then Real.log (k:ℝ) else 0; let E := fun x : ℝ => Complex.exp (((2*Real.pi*x:ℝ):ℂ)*Complex.I); let S := fun (n : ℕ) (w : ℕ → ℝ) (t : ℝ) => Finset.sum (Finset.range (n+1)) (fun k => (w k:ℂ)*E ((k:ℝ)*t)); let Q := fun n : ℕ => (Nat.log 2 (n+2))^2; let arcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (Q n:ℝ)/((q:ℝ)*(n:ℝ))}; let low := fun (n k : ℕ) => if k^3≤n then w k else 0; let high := fun (n k : ℕ) => w k-low n k; let I := fun (n:ℕ) (a b:ℕ→ℝ) => intervalIntegral (fun t => (arcs n)ᶜ.indicator (fun u => S n a u*S n b u*E (-(n:ℝ)*u)) t) (0:ℝ) 1 MeasureTheory.volume; ∀ e:ℝ, 0<e → ∃ N:ℕ, ∀ n≥N, ‖I n (low n) (low n)‖≤e*(n:ℝ) := by
   intro w E S Q arcs low high I e he
   have cap (n : ℕ) (t : ℝ) (hn : 2 ≤ n) :
       ‖S n (low n) t‖ ≤ ((n : ℝ) ^ (1 / 3 : ℝ) + 1) * Real.log n := by
@@ -590,7 +590,7 @@ theorem unitMeanSq (f : ℝ → ℝ) (hf : Continuous f) :
     nlinarith
   all_goals apply Continuous.intervalIntegrable; fun_prop
 
-theorem L_goldbach_small_bulk_saving :
+theorem SmallBulkSaving :
     let w := fun k : ℕ => if Nat.Prime k then Real.log (k:ℝ) else 0; let E := fun x : ℝ => Complex.exp (((2*Real.pi*x:ℝ):ℂ)*Complex.I); let S := fun (n : ℕ) (w : ℕ → ℝ) (t : ℝ) => Finset.sum (Finset.range (n+1)) (fun k => (w k:ℂ)*E ((k:ℝ)*t)); let Q := fun n : ℕ => (Nat.log 2 (n+2))^2; let arcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (Q n:ℝ)/((q:ℝ)*(n:ℝ))}; let low := fun (n k : ℕ) => if k^3≤n then w k else 0; let high := fun (n k : ℕ) => w k-low n k; let I := fun (n:ℕ) (a b:ℕ→ℝ) => intervalIntegral (fun t => (arcs n)ᶜ.indicator (fun u => S n a u*S n b u*E (-(n:ℝ)*u)) t) (0:ℝ) 1 MeasureTheory.volume; ∀ e:ℝ, 0<e → ∃ N:ℕ, ∀ n≥N, ‖I n (low n) (high n)‖≤e*(n:ℝ) := by
   intro w E S Q arcs low high I e he
   have hsmall := (isLittleO_log_rpow_rpow_atTop (2 : ℝ) (s := 1/6) (by norm_num)).comp_tendsto

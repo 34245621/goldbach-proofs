@@ -51,6 +51,6 @@ theorem Conjectures.Goldbach.FiniteRoughSeventynineConstants :
   · linarith
   · linarith
 
-theorem PEqualNP.Outside.L_goldbach_finite_rough_seventynine_constants :
+theorem Conjectures.Goldbach.L_goldbach_finite_rough_seventynine_constants :
     Real.exp (19/5) < 11*Real.log 79 ∧ Real.exp 5 < 34*Real.log 79 ∧ (19495926505 : ℕ) < 11^11 :=
   Conjectures.Goldbach.FiniteRoughSeventynineConstants

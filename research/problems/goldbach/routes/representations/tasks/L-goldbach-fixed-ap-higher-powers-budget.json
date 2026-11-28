@@ -16,8 +16,8 @@
     "L-goldbach-pp-base-cutoff",
     "L-goldbach-pp-exp-cutoff"
   ],
-  "file": "lean/PEqualNP/Outside/L_goldbach_fixed_ap_higher_powers_budget.lean",
-  "module": "PEqualNP.Outside.L_goldbach_fixed_ap_higher_powers_budget",
+  "file": "lean/Conjectures/Goldbach/FixedApHigherPowersBudget.lean",
+  "module": "Conjectures.Goldbach.FixedApHigherPowersBudget",
   "imports": [],
   "track": "representations",
   "role": "lemma"

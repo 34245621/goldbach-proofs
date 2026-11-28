@@ -4,7 +4,7 @@ import Mathlib.Tactic.Ring
 
 /-
 The elementary divisor_progression helper is adapted from the public proof
-PEqualNP.Outside.L_goldbach_reflected_divisor_unit_progression,
+Conjectures.Goldbach.ReflectedDivisorUnitProgression,
 public check 45628303960, source SHA256
 4767099eb1a047738a9ac78080c0ec9477bbdb7be89568aed93eac9c49c2e918.
 The weighted finite partition and transposition below keep all original

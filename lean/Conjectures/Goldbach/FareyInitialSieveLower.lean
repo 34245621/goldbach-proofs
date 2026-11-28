@@ -2028,7 +2028,7 @@ The proof splits the prime factors `p ≤ √n` into those dividing `n` (local f
 open scoped BigOperators
 open Finset
 
-namespace PEqualNP.Outside
+namespace Conjectures.Goldbach
 
 /-- The Wallis-type factor `m²/((m-1)(m+1)) = 1 + 1/(m²-1)`. -/
 noncomputable def wallisFac (m : ℕ) : ℝ := (m:ℝ)^2 / (((m:ℝ)-1)*((m:ℝ)+1))
@@ -2384,7 +2384,7 @@ theorem L_goldbach_farey_sieve_terminal_floor :
         mul_le_mul_of_nonneg_left hmain hIpos.le
     _ = (Iz.card:ℝ) * (n.totient:ℝ) / (n:ℝ) * (∏ p ∈ Tz, (1 - 2/(p:ℝ))) := by ring
 
-end PEqualNP.Outside
+end Conjectures.Goldbach
 
 
 /-! ## Platform module-name alias (the live guard requires the theorem named `<module>`) -/
@@ -2398,7 +2398,7 @@ theorem Conjectures.Goldbach.FareySieveTerminalFloor :
     let M := fun z : ℕ => ∏ p ∈ P z, (1-(p:ℝ)⁻¹);
     let V := fun n z : ℕ => ((I n).card:ℝ)*(n.totient:ℝ)/n * ∏ p ∈ (P z).filter (fun p => ¬ p ∣ n), (1-2/(p:ℝ));
     ∀ n : ℕ, 12 ≤ n → Even n → (2/3:ℝ)*((I n).card:ℝ)*(M (Nat.sqrt n))^2 ≤ V n (Nat.sqrt n) :=
-  PEqualNP.Outside.L_goldbach_farey_sieve_terminal_floor
+  Conjectures.Goldbach.L_goldbach_farey_sieve_terminal_floor
 
 namespace FareyBrun
 open Finset Real Filter

@@ -83,9 +83,9 @@ def verify(file, work, project, toolchain, ownership_check):
     ]
     # Only the guarded closure is visible to the submission and independent replay.
     compiled = work / "compiled"
-    for root in ("PEqualNP/Outside", "Conjectures"):
-        (compiled / root).mkdir(parents=True)
-        flags += ["--mount", f"type=bind,source={compiled / root},target=/project/.lake/build/lib/lean/{root},readonly"]
+    community = compiled / "Conjectures"
+    community.mkdir(parents=True)
+    flags += ["--mount", f"type=bind,source={community},target=/project/.lake/build/lib/lean/Conjectures,readonly"]
 
     def compile_module(source, seconds, *, submission=False):
         artifact = Path(source).with_suffix(".olean").name

@@ -18,9 +18,9 @@
     "L-goldbach-small-bulk-saving"
   ],
   "imports": [
-    "PEqualNP.Outside.L_goldbach_arc_major_floor",
-    "PEqualNP.Outside.L_goldbach_small_small_saving",
-    "PEqualNP.Outside.L_goldbach_small_bulk_saving"
+    "Conjectures.Goldbach.ArcMajorFloor",
+    "Conjectures.Goldbach.SmallSmallSaving",
+    "Conjectures.Goldbach.SmallBulkSaving"
   ],
   "track": "minor-truncation",
   "role": "conditional",

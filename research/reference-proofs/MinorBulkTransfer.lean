@@ -23,7 +23,7 @@ private theorem of_minor_parts {total low mixed bulk : ℕ → ℂ}
   simp only [two_mul, Complex.add_re]
   linarith
 
-theorem PEqualNP.Outside.L_goldbach_minor_bulk_transfer :
+theorem Conjectures.Goldbach.MinorBulkTransfer :
     let w := fun k : ℕ => if Nat.Prime k then Real.log (k:ℝ) else 0;
     let E := fun x : ℝ => Complex.exp (((2*Real.pi*x:ℝ):ℂ)*Complex.I);
     let S := fun (n : ℕ) (w : ℕ → ℝ) (t : ℝ) => Finset.sum (Finset.range (n+1)) (fun k => (w k:ℂ)*E ((k:ℝ)*t));

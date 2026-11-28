@@ -34,3 +34,6 @@ goldbach-lease.json
 *.sqlite3
 *.sqlite3-wal
 *.sqlite3-shm
+
+# Python bytecode
+__pycache__/

@@ -1,5 +1,5 @@
 import Mathlib
-import PEqualNP.Outside.L_goldbach_frontier_skirt_polylog_moduli
+import Conjectures.Goldbach.FrontierSkirtPolylogModuli
 import Conjectures.Goldbach.WideSignedRemainderBridge
 
 -- child 1 zh: 低模主弧裙边带（q ≤ (log₂ n)²，半径扩至 H/(qn)）的积分实部无条件下界 −εn。

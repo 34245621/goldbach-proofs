@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-sifted-correlation",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_sifted_correlation.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_sifted_correlation",
+  "file": "lean/Conjectures/TwinPrimes/SiftedCorrelation.lean",
+  "module": "Conjectures.TwinPrimes.SiftedCorrelation",
   "statement": "let w := fun (X : ℕ) => (Finset.range (2*X+1)).filter (fun n => X < n ∧ 50*n < 51*X); ∀ X : ℕ, 9 ≤ X → let Q := ((Finset.range (Nat.sqrt (2*X+2)+1)).filter Nat.Prime).prod id; ((w X).filter (fun n => Nat.Coprime n Q ∧ Nat.Coprime (n+2) Q)) = ((w X).filter (fun n => n.Prime ∧ (n+2).Prime))",
   "plain_statement": {
     "zh": "新路线 · 指定平移的 Θ 提升 · TP-0048 · 在平方根筛界准确识别真正的差二相关",

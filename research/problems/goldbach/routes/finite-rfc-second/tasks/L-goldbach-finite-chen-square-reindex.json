@@ -1,7 +1,7 @@
 {
   "id": "L-goldbach-finite-chen-square-reindex",
-  "file": "lean/PEqualNP/Outside/L_goldbach_finite_chen_square_reindex.lean",
-  "module": "PEqualNP.Outside.L_goldbach_finite_chen_square_reindex",
+  "file": "lean/Conjectures/Goldbach/FiniteChenSquareReindex.lean",
+  "module": "Conjectures.Goldbach.FiniteChenSquareReindex",
   "statement": "let P := fun n : ℕ => (Finset.range (n+1)).filter (fun p => Nat.Prime p ∧ Nat.Prime (Nat.sqrt (n-p)) ∧ (Nat.sqrt (n-p))^2=n-p); ∀ (n : ℕ) (v : ℕ → ℝ), (∑ p ∈ P n, v p) = ∑ a ∈ (Finset.Icc 2 (Nat.sqrt n)).filter (fun a => Nat.Prime a ∧ Nat.Prime (n-a^2)), v (n-a^2)",
   "plain_statement": {
     "zh": "新路线 · 小偶数覆盖续批 · FR-8006 · 在同一权下精确移除陈氏候选中的素数平方余项",

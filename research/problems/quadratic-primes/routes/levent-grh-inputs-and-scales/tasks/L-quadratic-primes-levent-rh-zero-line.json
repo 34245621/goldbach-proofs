@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-rh-zero-line",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_rh_zero_line.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_rh_zero_line",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventRhZeroLine.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventRhZeroLine",
   "statement": "RiemannHypothesis → ∀ (ρ : ℂ) (u : ℝ), 0 < ρ.re → ρ.re < 1 → riemannZeta ρ = 0 → 1 ≤ u → ‖(u : ℂ)^ρ / ρ‖ = Real.sqrt u / ‖ρ‖",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0001 · 用 RH 控制单个 ζ 零点的截断项",

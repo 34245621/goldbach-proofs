@@ -1,5 +1,5 @@
 import Mathlib
-import PEqualNP.Outside.L_goldbach_frontier_skirt_polylog_moduli
+import Conjectures.Goldbach.FrontierSkirtPolylogModuli
 
 -- child 1 zh: 分母截断从 Q 扩至 min(B,Q²) 后，新增区域的完整相位积分具有最终单侧下界 −εn。
 -- child 1 en: The full-phase region newly covered when the denominator cap rises from Q to min(B,Q²) has eventual signed floor −εn.
@@ -63,7 +63,7 @@ theorem Conjectures.Cuts.Cutc04cdc8f2268a337c6b7538d
   let mid := fun n => A n (C n) (H n)
   have hLow : ∀ e : ℝ, 0 < e → ∃ N : ℕ, ∀ n : ℕ, N ≤ n → Even n →
       -(e * (n : ℝ)) ≤ J n (low n \ arcs n) :=
-    PEqualNP.Outside.L_goldbach_frontier_skirt_polylog_moduli
+    Conjectures.Goldbach.FrontierSkirtPolylogModuli
   change (∀ e : ℝ, 0 < e → ∃ N : ℕ, ∀ n : ℕ, N ≤ n → Even n →
     -(e * (n : ℝ)) ≤ J n (mid n \ low n)) at hMid
   change (∀ e : ℝ, 0 < e → ∃ N : ℕ, ∀ n : ℕ, N ≤ n → Even n →

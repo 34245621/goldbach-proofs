@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-power-count",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_power_count.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_power_count",
+  "file": "lean/Conjectures/TwinPrimes/PowerCount.lean",
+  "module": "Conjectures.TwinPrimes.PowerCount",
   "statement": "∃ C : ℝ, 0 < C ∧ ∀ Y : ℕ, 2 ≤ Y → (((Finset.range (Y+1)).filter (fun n => IsPrimePow n ∧ ¬n.Prime)).card : ℝ) ≤ C * Real.sqrt Y * Real.log (2+(Y:ℝ))",
   "plain_statement": {
     "zh": "新路线 · 差二窄窗 · TP-0001 · 计数不超过 Y 的高次素数幂",

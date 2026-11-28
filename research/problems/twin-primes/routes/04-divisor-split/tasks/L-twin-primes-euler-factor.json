@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-euler-factor",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_euler_factor.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_euler_factor",
+  "file": "lean/Conjectures/TwinPrimes/EulerFactor.lean",
+  "module": "Conjectures.TwinPrimes.EulerFactor",
   "statement": "∀ (p : ℕ) (u : ℝ), 2 < p → u ≠ (p:ℝ) → (1-u/((p:ℝ)-1))/(1-u/p) = 1-u/((p:ℝ)*((p:ℝ)-1)*(1-u/p))",
   "plain_statement": {
     "zh": "新路线 · 短长除数与奇偶 · TP-0031 · 拆开奇素数的修正 Euler 因子",

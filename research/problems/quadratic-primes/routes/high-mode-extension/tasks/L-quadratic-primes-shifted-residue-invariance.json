@@ -17,6 +17,6 @@
     "L-quadratic-primes-residue-invariance"
   ],
   "imports": [
-    "PEqualNP.Outside.L_quadratic_primes_residue_invariance"
+    "Conjectures.QuadraticPrimes.ResidueInvariance"
   ]
 }

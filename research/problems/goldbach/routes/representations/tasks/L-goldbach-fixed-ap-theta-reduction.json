@@ -13,8 +13,8 @@
   "program": "correlation",
   "parallel": true,
   "depends_on": [],
-  "file": "lean/PEqualNP/Outside/L_goldbach_fixed_ap_theta_reduction.lean",
-  "module": "PEqualNP.Outside.L_goldbach_fixed_ap_theta_reduction",
+  "file": "lean/Conjectures/Goldbach/FixedApThetaReduction.lean",
+  "module": "Conjectures.Goldbach.FixedApThetaReduction",
   "imports": [],
   "track": "representations",
   "role": "conditional"

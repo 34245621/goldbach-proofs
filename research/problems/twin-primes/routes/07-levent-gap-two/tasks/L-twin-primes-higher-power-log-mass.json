@@ -17,6 +17,6 @@
     "L-twin-primes-power-count"
   ],
   "imports": [
-    "PEqualNP.Outside.L_twin_primes_window_contamination"
+    "Conjectures.TwinPrimes.WindowContamination"
   ]
 }

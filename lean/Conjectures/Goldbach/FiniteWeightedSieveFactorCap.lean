@@ -176,7 +176,7 @@ lemma weighted_cap_core (n z y s r : ℕ) (hz : 2 ≤ z) (hzy : z < y)
 end WCap
 
 /-- 冻结 statement 的 wrapper。 -/
-theorem PEqualNP.Outside.L_goldbach_finite_weighted_sieve_factor_cap :
+theorem Conjectures.Goldbach.L_goldbach_finite_weighted_sieve_factor_cap :
     let W := fun (z y s : ℕ) => let P := (Finset.Ico z y).filter Nat.Prime; (2:ℤ)-((P.filter (fun p => p∣s)).card:ℤ)-((P.filter (fun p => p^2∣s)).card:ℤ); ∀ (n z y s r : ℕ), 2 ≤ z → z < y → 2 ≤ s → s < n → (∀ p : ℕ, p.Prime → (p ∣ s) → z ≤ p) → n ≤ y^(r+1) → n ≤ z*y^r → 0 < W z y s → s.primeFactorsList.length ≤ r := by
   dsimp only
   intro n z y s r hz hzy hs hsn hprime hny hzn hW
@@ -185,4 +185,4 @@ theorem PEqualNP.Outside.L_goldbach_finite_weighted_sieve_factor_cap :
 /-- 新批提交口径的 module 名（Lead 裁定：module 名必须存在）。 -/
 theorem Conjectures.Goldbach.FiniteWeightedSieveFactorCap :
     let W := fun (z y s : ℕ) => let P := (Finset.Ico z y).filter Nat.Prime; (2:ℤ)-((P.filter (fun p => p∣s)).card:ℤ)-((P.filter (fun p => p^2∣s)).card:ℤ); ∀ (n z y s r : ℕ), 2 ≤ z → z < y → 2 ≤ s → s < n → (∀ p : ℕ, p.Prime → (p ∣ s) → z ≤ p) → n ≤ y^(r+1) → n ≤ z*y^r → 0 < W z y s → s.primeFactorsList.length ≤ r :=
-  PEqualNP.Outside.L_goldbach_finite_weighted_sieve_factor_cap
+  Conjectures.Goldbach.L_goldbach_finite_weighted_sieve_factor_cap

@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-hensel-root-unique",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_hensel_root_unique.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_hensel_root_unique",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventHenselRootUnique.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventHenselRootUnique",
   "statement": "∀ p k r : ℕ, Nat.Prime p → p≠2 → 0<k → p^k ∣ r^2+1 → ∃! t : Fin p, p^(k+1) ∣ (r+t.val*p^k)^2+1",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0012 · 求出每一层 Hensel 提升的唯一数字",

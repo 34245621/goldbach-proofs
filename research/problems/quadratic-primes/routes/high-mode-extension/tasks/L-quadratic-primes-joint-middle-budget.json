@@ -20,8 +20,8 @@
     "L-quadratic-primes-levent-theta-margin",
     "L-quadratic-primes-levent-sieve-margin"
   ],
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_joint_middle_budget.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_joint_middle_budget",
+  "file": "lean/Conjectures/QuadraticPrimes/JointMiddleBudget.lean",
+  "module": "Conjectures.QuadraticPrimes.JointMiddleBudget",
   "imports": [],
   "role": "lemma"
 }

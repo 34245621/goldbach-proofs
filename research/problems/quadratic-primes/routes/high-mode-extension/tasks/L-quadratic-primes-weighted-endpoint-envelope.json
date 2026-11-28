@@ -13,8 +13,8 @@
   "program": "correlation",
   "parallel": true,
   "depends_on": [],
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_weighted_endpoint_envelope.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_weighted_endpoint_envelope",
+  "file": "lean/Conjectures/QuadraticPrimes/WeightedEndpointEnvelope.lean",
+  "module": "Conjectures.QuadraticPrimes.WeightedEndpointEnvelope",
   "imports": [],
   "role": "lemma"
 }

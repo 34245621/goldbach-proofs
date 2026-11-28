@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-mellin-tail",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_mellin_tail.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_mellin_tail",
+  "file": "lean/Conjectures/TwinPrimes/MellinTail.lean",
+  "module": "Conjectures.TwinPrimes.MellinTail",
   "statement": "∀ C : ℝ, 0 ≤ C → ∃ D : ℝ, 0 ≤ D ∧ ∀ (L : ℕ) (m : ℕ → ℝ), (∀ n, 0 ≤ m n ∧ m n ≤ C*Real.log (2+(n:ℝ))) → (∑' n : ℕ, m (L+n)/(1+(L:ℝ)+n)^6) ≤ D/(1+(L:ℝ))^4",
   "plain_statement": {
     "zh": "新路线 · 零点对与相位 · TP-0022 · 由单位窗计数控制衰减核的远零点尾",

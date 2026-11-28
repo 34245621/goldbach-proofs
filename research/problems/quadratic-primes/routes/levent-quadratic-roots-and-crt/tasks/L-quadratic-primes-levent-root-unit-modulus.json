@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-root-unit-modulus",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_root_unit_modulus.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_root_unit_modulus",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventRootUnitModulus.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventRootUnitModulus",
   "statement": "let block := fun x : ℕ => Finset.Ioc x (2*x); let roots := fun a q : ℕ => (Finset.range q).filter (fun r => q ∣ r^2+a); let psi := fun (q a x : ℕ) => ∑ n ∈ (Finset.Icc 1 x).filter (fun n => n%q=a%q), ArithmeticFunction.vonMangoldt n; ∀ q x : ℕ, 0<q → (∑ n ∈ (block x).filter (fun n => q ∣ n^2+1), ArithmeticFunction.vonMangoldt n) = ∑ r ∈ (roots 1 q).filter (fun r => Nat.Coprime r q), (psi q r (2*x) - psi q r x)",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0015 · 把窗口中的 Mangoldt 质量重排为可逆根余类和",

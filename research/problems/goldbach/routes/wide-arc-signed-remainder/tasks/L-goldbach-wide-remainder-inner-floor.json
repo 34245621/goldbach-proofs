@@ -19,6 +19,6 @@
   "parallel": true,
   "challenge_only": false,
   "imports": [
-    "PEqualNP.Outside.L_goldbach_frontier_medcore_model_floor"
+    "Conjectures.Goldbach.FrontierMedcoreModelFloor"
   ]
 }

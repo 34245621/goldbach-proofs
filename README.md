@@ -20,9 +20,9 @@ Mathematicians guide the research and review formal statements. Anyone can bring
 - [研究成果核对与卡片技能](.agents/skills/goldbach-result-cards/SKILL.md) · 调用 `$goldbach-result-cards` 核对 Lean 裁决并制作带网站二维码的成果卡片
 - [部署更新技能 / Deployment skill](.agents/skills/goldbach-deploy/SKILL.md) · 在支持仓库技能的 Codex 中用 `$goldbach-deploy` 调用
 
-项目的命题以默认分支的清单为准。证明可以位于 `Conjectures.*` 或已登记的 `PEqualNP.Outside.*` 路径。后者保留原名，以便现有导入和验证记录继续指向同一份证明。
+社区证明使用 `Conjectures.<课题>.<引理>`。任务 ID 标识登记命题，清单中的 `module` 和 `file` 给出该版本的定理名和文件路径。若要将历史引用定位到迁移后的证明，可按任务 ID 比对两个版本的清单。
 
-The default-branch catalogue identifies each statement. Proofs use `Conjectures.*` and registered `PEqualNP.Outside.*` paths. The latter keep their published names so existing imports and verification records still resolve.
+Community proofs live under `Conjectures`. Each task keeps its ID and statement across the namespace migration. To look up a historical module in a newer checkout, run `python3 tools/migrations/catalogue-crosswalk.py 51fab61e` from the repository root. Historical verification records identify the source at the revision they checked.
 
 Apache-2.0. [Upstream](https://github.com/brilliant-hq/pequalnp-proofs).
 

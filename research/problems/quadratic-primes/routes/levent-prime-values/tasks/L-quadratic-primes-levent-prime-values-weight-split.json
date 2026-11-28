@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-prime-values-weight-split",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_prime_values_weight_split.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_prime_values_weight_split",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventPrimeValuesWeightSplit.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventPrimeValuesWeightSplit",
   "statement": "let block := fun x : ℕ => Finset.Ioc x (2*x); let lam := fun x : ℕ => ∑ n ∈ block x, ArithmeticFunction.vonMangoldt (n^2+1); let pp := fun x : ℕ => ∑ n ∈ (block x).filter (fun n => ¬ Nat.Prime (n^2+1)), ArithmeticFunction.vonMangoldt (n^2+1); let primeMass := fun x : ℕ => ∑ n ∈ (block x).filter (fun n => Nat.Prime (n^2+1)), Real.log ((n^2+1 : ℕ) : ℝ); ∀ x : ℕ, lam x = primeMass x + pp x",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0068 · 把二次 Mangoldt 质量精确分成素数与真幂",

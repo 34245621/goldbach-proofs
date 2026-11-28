@@ -1,7 +1,7 @@
 {
   "id": "L-goldbach-finite-chen-square-numeric-loss",
-  "file": "lean/PEqualNP/Outside/L_goldbach_finite_chen_square_numeric_loss.lean",
-  "module": "PEqualNP.Outside.L_goldbach_finite_chen_square_numeric_loss",
+  "file": "lean/Conjectures/Goldbach/FiniteChenSquareNumericLoss.lean",
+  "module": "Conjectures.Goldbach.FiniteChenSquareNumericLoss",
   "statement": "let P := fun n : ℕ => (Finset.range (n+1)).filter (fun p => Nat.Prime p ∧ Nat.Prime (Nat.sqrt (n-p)) ∧ (Nat.sqrt (n-p))^2=n-p); ∀ n : ℕ, 4000000000000000000 ≤ n → ((P n).card:ℝ) ≤ (n:ℝ)/(10^6*(Real.log n)^2)",
   "plain_statement": {
     "zh": "新路线 · 小偶数覆盖续批 · FR-8007 · 给无权陈氏计数中的平方损失一个百万分之一预算",

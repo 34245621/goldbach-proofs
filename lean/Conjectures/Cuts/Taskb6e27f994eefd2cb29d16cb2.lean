@@ -1,7 +1,7 @@
 import Mathlib
-import PEqualNP.Outside.L_goldbach_frontier_skirt_polylog_moduli
+import Conjectures.Goldbach.FrontierSkirtPolylogModuli
 import Conjectures.Goldbach.EstermannAlmostAllPolylog
-import PEqualNP.Outside.L_goldbach_frontier_uncond_deep_second_moment
+import Conjectures.Goldbach.FrontierUncondDeepSecondMoment
 
 /-! Fixed-row estimate for missed even frequencies with middle real part at least -X/32.
 The Fourier orthogonality argument is adapted from SaladDay's PR 3079
@@ -634,7 +634,7 @@ theorem short_row_energy (η : ℝ) (hη : 0 < η) :
       abs_of_nonneg (Real.rpow_nonneg hpos.le _)] using hL
   let U := (N:ℝ)^(43/48+η/4)
   have hsup : ∀ t ∈ Set.Icc (0:ℝ) 1, t ∉ actualArcs N → ‖spectrum N t‖ ≤ U := hN₀ N hn
-  have hb := PEqualNP.Outside.frontierSourceBesselCap N (N+1) w (actualArcs N) U
+  have hb := Conjectures.Goldbach.frontierSourceBesselCap N (N+1) w (actualArcs N) U
     (measurable_actualArcs N) (Real.rpow_nonneg hpos.le _) hsup
   have hw : (∑ k ∈ range (N+1), (w k)^2) ≤ (N:ℝ)*(N:ℝ)^(η/2) := by
     calc

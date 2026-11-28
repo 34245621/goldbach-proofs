@@ -10,14 +10,14 @@
     "en": "Reduce 8010 orbits to two without weakening the detection quantifiers. A refutation needs arbitrarily large counterexamples."
   },
   "program": "correlation",
-  "source": "https://github.com/CGandGameEngineLearner/goldbach-proofs/blob/1133bda2e6/lean/PEqualNP/Outside/L_log_rank_cyclic_detector_family.lean",
+  "source": "https://github.com/CGandGameEngineLearner/goldbach-proofs/blob/1133bda2e6/lean/Conjectures/LogRank/CyclicDetectorFamily.lean",
   "parallel": true,
   "depends_on": [
     "L-log-rank-cyclic-detector-family",
     "L-log-rank-cyclic-small-rows"
   ],
   "imports": [
-    "PEqualNP.Outside.L_log_rank_cyclic_detector_family",
+    "Conjectures.LogRank.CyclicDetectorFamily",
     "Conjectures.LogRank.CyclicSmallRows"
   ]
 }

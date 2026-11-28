@@ -13,8 +13,8 @@
   "program": "correlation",
   "parallel": true,
   "depends_on": [],
-  "file": "lean/PEqualNP/Outside/L_goldbach_fixed_ap_bmor_psi.lean",
-  "module": "PEqualNP.Outside.L_goldbach_fixed_ap_bmor_psi",
+  "file": "lean/Conjectures/Goldbach/FixedApBmorPsi.lean",
+  "module": "Conjectures.Goldbach.FixedApBmorPsi",
   "imports": [],
   "track": "representations",
   "role": "lemma"

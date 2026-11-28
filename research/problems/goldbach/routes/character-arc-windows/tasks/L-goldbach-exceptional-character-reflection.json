@@ -1,7 +1,7 @@
 {
   "id": "L-goldbach-exceptional-character-reflection",
-  "file": "lean/PEqualNP/Outside/L_goldbach_exceptional_character_reflection.lean",
-  "module": "PEqualNP.Outside.L_goldbach_exceptional_character_reflection",
+  "file": "lean/Conjectures/Goldbach/ExceptionalCharacterReflection.lean",
+  "module": "Conjectures.Goldbach.ExceptionalCharacterReflection",
   "statement": "∀ (d n : ℕ) [NeZero d] (χ : DirichletCharacter ℂ d), d ∣ n → χ^2 = 1 → (∑ a : (ZMod d)ˣ, χ (a : ZMod d) * χ ((n : ZMod d) - (a : ZMod d))) = (Nat.totient d : ℂ) * χ (-1)",
   "plain_statement": {
     "zh": "新路线 · 特征与分母扩窗 · CW-8001 · 计算导子整除目标时实特征对的反射项",

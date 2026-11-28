@@ -9,7 +9,7 @@ open scoped BigOperators
 `∏_{m=2}^{M}(1 - 1/m^2) = (M+1)/(2M) ≥ 1/2` 控制）。Self-contained, Mathlib only.
 -/
 
-namespace PEqualNP.Outside
+namespace Conjectures.Goldbach
 
 /-! ### `ℝ` 乘积比较工具（`MulLeftMono ℝ` 不存在，需自带非负前提） -/
 
@@ -465,10 +465,10 @@ theorem L_goldbach_farey_sieve_cutoff_ratio :
         mul_le_mul_of_nonneg_left hcore hCnonneg
     _ = 2 * (Bz / By)^2 * (C * Fy) := by ring
 
-end PEqualNP.Outside
+end Conjectures.Goldbach
 
 /-! Canonical module-named statement (platform checker requires a declaration
 named exactly after the gap module). -/
 theorem Conjectures.Goldbach.FareySieveCutoffRatio :
     let I := fun n : ℕ => Finset.Icc ((n+2)/3) ((2*n)/3); let P := fun z : ℕ => (Finset.Icc 2 z).filter Nat.Prime; let M := fun z : ℕ => ∏ p ∈ P z, (1-(p:ℝ)⁻¹); let V := fun n z : ℕ => ((I n).card:ℝ)*(n.totient:ℝ)/n * ∏ p ∈ (P z).filter (fun p => ¬ p ∣ n), (1-2/(p:ℝ)); ∀ n z y : ℕ, 12 ≤ n → Even n → 2 ≤ z → z ≤ y → V n z ≤ 2*(M z/M y)^2 * V n y
-  := PEqualNP.Outside.L_goldbach_farey_sieve_cutoff_ratio
+  := Conjectures.Goldbach.L_goldbach_farey_sieve_cutoff_ratio

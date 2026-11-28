@@ -1,7 +1,7 @@
 {
   "id": "L-goldbach-finite-wheel-three-prime-lifts",
-  "file": "lean/PEqualNP/Outside/L_goldbach_finite_wheel_three_prime_lifts.lean",
-  "module": "PEqualNP.Outside.L_goldbach_finite_wheel_three_prime_lifts",
+  "file": "lean/Conjectures/Goldbach/FiniteWheelThreePrimeLifts.lean",
+  "module": "Conjectures.Goldbach.FiniteWheelThreePrimeLifts",
   "statement": "∀ r ∈ ({17,19,23,181,29,37,41,43,31,47,53,67} : Finset ℕ), ∃ S : Finset ℕ, S.card=3 ∧ (∀ p ∈ S, Nat.Prime p ∧ p ≤ 210233 ∧ p%30030=r) ∧ (∀ p ∈ S, ∀ q ∈ S, p ≠ q → p%17 ≠ q%17 ∧ p%19 ≠ q%19)",
   "plain_statement": {
     "zh": "新路线 · 小偶数覆盖续批 · FR-8003 · 为十二个基类各核验三个互补的素数提升",
