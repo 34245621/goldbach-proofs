@@ -11,6 +11,7 @@ import secrets
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -72,6 +73,11 @@ HARNESS_NAMES = (
 REPO = "CGandGameEngineLearner/goldbach-proofs"
 SITE = "https://www.movan.tech/goldbach"
 GAP_ID = re.compile(r"L-[a-z0-9]+(?:-[a-z0-9]+)*")
+LEASE_TOKEN = re.compile(r"[A-Za-z0-9_-]{43}", re.ASCII)
+RELEASE_REASONS = frozenset({
+    "abandoned", "does_not_elaborate", "exhausted", "hypothesis_too_weak",
+    "missing_lemma", "not_a_fit", "other", "out_of_time", "statement_seems_false", "superseded",
+})
 AGENT_REVIEW_TAG = re.compile(r"^\[agent-review(?:\|[^\]\r\n]+)?\](?:\s+|$)")
 UUID_PREFIX = re.compile(
     r"^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16,})/"
@@ -229,9 +235,12 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 class DeskRefusal(SystemExit):
-    def __init__(self, action, status, reason):
+    def __init__(self, action, status, reason, *, hint="", details=None):
+        self.status = status
         self.reason = reason
-        super().__init__(f"Desk {action} failed ({status}): {reason}")
+        self.details = details or {}
+        suffix = f" ({hint})" if hint else ""
+        super().__init__(f"Desk {action} failed ({status}): {reason}{suffix}")
 
 
 def command(*args):
@@ -243,24 +252,102 @@ def desk(action, data, token=None, *, problem="goldbach"):
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
     if token:
         headers["Authorization"] = "Bearer " + token
-    if action == "claim" and os.environ.get("GOLDBACH_FLEET_FILE"):
+    if action in {"claim", "recover"} and os.environ.get("GOLDBACH_FLEET_FILE"):
         headers["X-Goldbach-Fleet"] = Path(os.environ["GOLDBACH_FLEET_FILE"]).read_text(encoding="ascii").strip()
-    request = urllib.request.Request(
-        f"{SITE}{prefix}/api/desk/{action}", data=json.dumps(data).encode(), headers=headers
-    )
-    try:
-        with urllib.request.build_opener(NoRedirect()).open(request, timeout=20) as response:
-            return json.loads(response.read())
-    except urllib.error.HTTPError as error:
+    payload = json.dumps(data).encode()
+    if action == "claim" and isinstance(data.get("token"), str):
+        attempts = 2
+    elif action == "recover":
+        attempts = 3
+    else:
+        attempts = 1
+    for attempt in range(attempts):
+        request = urllib.request.Request(
+            f"{SITE}{prefix}/api/desk/{action}", data=payload, headers=headers
+        )
         try:
-            message = json.loads(error.read(4096)).get("error", "request refused")
-        except (ValueError, AttributeError):
-            message = "request refused"
-        if token:
-            message = str(message).replace(token, "[hidden]")
-        raise DeskRefusal(action, error.code, message) from None
-    except urllib.error.URLError as error:
-        raise SystemExit(f"Could not reach the Goldbach desk: {error.reason}") from None
+            with urllib.request.build_opener(NoRedirect()).open(request, timeout=30) as response:
+                return json.loads(response.read())
+        except urllib.error.HTTPError as error:
+            if attempt + 1 < attempts and error.code in {502, 503, 504}:
+                time.sleep(1)
+                continue
+            try:
+                body = json.loads(error.read(4096))
+                message = body.get("error", "request refused") if isinstance(body, dict) else "request refused"
+            except (ValueError, AttributeError):
+                body = {}
+                message = "request refused"
+            if token:
+                message = str(message).replace(token, "[hidden]")
+            if isinstance(data.get("token"), str):
+                message = str(message).replace(data["token"], "[hidden]")
+            raise DeskRefusal(action, error.code, message, details=body if isinstance(body, dict) else {}) from None
+        except (urllib.error.URLError, TimeoutError) as error:
+            if attempt + 1 < attempts:
+                time.sleep(1)
+                continue
+            reason = getattr(error, "reason", error)
+            raise SystemExit(f"Could not reach the Goldbach desk: {reason}") from None
+
+
+def pending_claim_path(lease_path):
+    return lease_path.with_name("goldbach-claim-pending.json")
+
+
+def user_lease_store_path():
+    base = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")
+    return base / "goldbach" / "leases-v1.json"
+
+
+def record_user_lease(token, *, handle, problem, gap=None, kind="prove"):
+    if not isinstance(token, str) or not LEASE_TOKEN.fullmatch(token):
+        return
+    try:
+        store = user_lease_store_path()
+        store.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        entries = json.loads(store.read_text(encoding="utf-8")) if store.is_file() else []
+        if not isinstance(entries, list):
+            entries = []
+        entries = [item for item in entries if isinstance(item, dict) and item.get("token") != token]
+        entries.append({
+            "token": token,
+            "handle": handle.lower(),
+            "problem": problem,
+            "gap": gap,
+            "kind": kind,
+            "updated_at": int(time.time()),
+        })
+        save(store, entries[-256:])
+    except (OSError, ValueError):
+        pass
+
+
+def forget_user_lease(token):
+    try:
+        store = user_lease_store_path()
+        if not store.is_file():
+            return
+        entries = json.loads(store.read_text(encoding="utf-8"))
+        if not isinstance(entries, list):
+            return
+        filtered = [item for item in entries if isinstance(item, dict) and item.get("token") != token]
+        if len(filtered) != len(entries):
+            save(store, filtered)
+    except (OSError, ValueError):
+        pass
+
+
+def release_quietly(token, *, problem="goldbach", reason="abandoned"):
+    try:
+        desk("release", {"reason": reason}, token, problem=problem)
+        forget_user_lease(token)
+        return True
+    except DeskRefusal as refusal:
+        if refusal.reason in {"invalid_lease", "lease_released", "lease_expired", "lease_completed"}:
+            forget_user_lease(token)
+            return False
+        raise
 
 
 def save(path, state):
@@ -472,16 +559,59 @@ def claim(path, requested, problem, kind="prove"):
     registry = (json.loads(command("git", "show", f"{base}:research/gaps.json"))
                 if problem == "goldbach" else problems[problem])
     handle = authenticated_login()
-    request = {"handle": handle, "kind": kind}
+    pending_file = pending_claim_path(path)
+    token = None
+    if pending_file.is_file():
+        try:
+            pending = json.loads(pending_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            pending = {}
+        old_token = pending.get("token") if isinstance(pending, dict) else None
+        if isinstance(old_token, str) and LEASE_TOKEN.fullmatch(old_token):
+            same_request = (
+                str(pending.get("handle", "")).casefold() == handle.casefold()
+                and pending.get("problem", "goldbach") == problem
+                and pending.get("gap") == requested
+                and pending.get("kind", "prove") == kind
+            )
+            if same_request:
+                token = old_token
+            else:
+                release_quietly(old_token, problem=pending.get("problem", "goldbach"))
+                pending_file.unlink(missing_ok=True)
+    if token is None:
+        token = secrets.token_urlsafe(32)
+        save(pending_file, {
+            "token": token, "handle": handle, "problem": problem, "gap": requested, "kind": kind,
+        })
+    record_user_lease(token, handle=handle, problem=problem, gap=requested, kind=kind)
+    request = {"handle": handle, "kind": kind, "token": token}
     if requested:
         request["gap"] = requested
-    response = desk("claim", request, problem=problem)
+    try:
+        response = desk("claim", request, problem=problem)
+    except DeskRefusal as refusal:
+        if 400 <= refusal.status < 500:
+            pending_file.unlink(missing_ok=True)
+            forget_user_lease(token)
+        if refusal.reason == "handle_already_active":
+            recover_cmd = "python tools/goldbach.py release --recover"
+            if problem != "goldbach":
+                recover_cmd += f" --problem {problem}"
+            raise DeskRefusal(
+                "claim", refusal.status, refusal.reason,
+                hint=f"if an unsubmitted claim timed out or lost its checkout, run `{recover_cmd}`",
+                details=refusal.details,
+            ) from None
+        raise
     gap = response["gap"]
     lease = response["lease"]
     expected = next((item for item in registry["gaps"] if item["id"] == gap["id"]), None)
     if (response.get("kind", "prove") != kind or (requested and requested != gap["id"])
             or not matching_task(gap, expected, kind, problem)):
         desk("release", {"reason": "superseded"}, lease["token"], problem=problem)
+        forget_user_lease(lease["token"])
+        pending_file.unlink(missing_ok=True)
         raise SystemExit("The desk and this checkout disagree. Clone the current default branch and retry.")
 
     branch = f"goldbach/{gap['id']}/{secrets.token_hex(4)}"
@@ -491,11 +621,15 @@ def claim(path, requested, problem, kind="prove"):
     }
     try:
         save(path, state)
+        record_user_lease(lease["token"], handle=handle, problem=problem, gap=gap["id"], kind=kind)
+        pending_file.unlink(missing_ok=True)
         subprocess.run(["git", "switch", "-c", branch], check=True)
         if kind != "prove" or expected is None:
             write_template(gap, kind)
     except (OSError, subprocess.CalledProcessError):
         desk("release", {"reason": "other"}, lease["token"], problem=problem)
+        forget_user_lease(lease["token"])
+        pending_file.unlink(missing_ok=True)
         path.unlink(missing_ok=True)
         raise
     print(json.dumps({
@@ -584,12 +718,28 @@ def submit(path, state, number, agent=None):
         if refusal.reason != "lease_completed" or state.get("requested", {}).get("pr") != number:
             raise
         # A corrected proof uses a new lease for the same gap and a new head on the same PR.
-        current = desk("claim", {"handle": state["handle"], "gap": state["gap"]["id"],
-                                 "kind": state.get("kind", "prove"), "retry_pr": number}, problem=problem)
+        retry_token = state.get("pending_token")
+        if not isinstance(retry_token, str) or not LEASE_TOKEN.fullmatch(retry_token):
+            retry_token = secrets.token_urlsafe(32)
+            state["pending_token"] = retry_token
+            save(path, state)
+        try:
+            current = desk("claim", {
+                "handle": state["handle"], "gap": state["gap"]["id"],
+                "kind": state.get("kind", "prove"), "retry_pr": number, "token": retry_token,
+            }, problem=problem)
+        except DeskRefusal as refusal:
+            if 400 <= refusal.status < 500:
+                state.pop("pending_token", None)
+                save(path, state)
+            raise
         token = current["lease"]["token"]
         if any(current["gap"].get(k) != state["gap"].get(k) for k in ("id", "module", "file", "statement", "imports")):
             desk("release", {"reason": "superseded"}, token, problem=problem)
+            state.pop("pending_token", None)
+            save(path, state)
             raise SystemExit("The published lemma changed. Start again from the current default branch.")
+        state.pop("pending_token", None)
         state["token"] = token
         save(path, state)
         desk("submit", submission, token, problem=problem)
@@ -604,6 +754,165 @@ def submit(path, state, number, agent=None):
     state["requested"] = {"pr": number, "head": head}
     save(path, state)
     print(f"Requested authoritative verification for PR {number} ({head[:12]}).")
+
+
+def infer_problem_for_gap(requested, problem):
+    if problem is not None:
+        return problem
+    if not requested or requested.startswith("L-goldbach-"):
+        return "goldbach"
+    generated = re.fullmatch(r"L-([a-z]+(?:-[a-z]+)*)-cut-[0-9a-f]{24}", requested)
+    if generated:
+        return generated[1]
+    problems_file = Path(__file__).resolve().parents[1] / "research" / "problems.json"
+    if problems_file.is_file():
+        try:
+            problems = json.loads(problems_file.read_text(encoding="utf-8"))
+            for slug, config in problems.items():
+                if any(task["id"] == requested for task in config.get("gaps", ())):
+                    return slug
+        except (OSError, ValueError):
+            pass
+    return "goldbach"
+
+
+def recover_lease(
+    reason, *, problem=None, gap=None, kind=None, release_all=False, gist=None, challenge_token=None, expires_at=None
+):
+    if reason not in RELEASE_REASONS:
+        raise SystemExit(f"Invalid release reason '{reason}'; choose from: {', '.join(sorted(RELEASE_REASONS))}")
+    problem = infer_problem_for_gap(gap, problem)
+    handle = authenticated_login()
+    scope = {"handle": handle}
+    if gap:
+        scope["gap"] = gap
+    if kind:
+        scope["kind"] = kind
+    if release_all:
+        scope["all"] = True
+
+    if gist is None:
+        # Same-machine checkouts that were deleted still have their bearer token in the user state dir;
+        # release directly via Bearer token first without touching GitHub Gists or rate limits.
+        local_released = []
+        try:
+            store = user_lease_store_path()
+            entries = json.loads(store.read_text(encoding="utf-8")) if store.is_file() else []
+        except (OSError, ValueError):
+            entries = []
+        if isinstance(entries, list):
+            matching = [
+                item for item in entries
+                if isinstance(item, dict)
+                and str(item.get("handle", "")).casefold() == handle.casefold()
+                and item.get("problem", "goldbach") == problem
+                and (not gap or item.get("gap") in (None, gap))
+                and (not kind or item.get("kind", "prove") == kind)
+                and isinstance(item.get("token"), str)
+                and LEASE_TOKEN.fullmatch(item["token"])
+            ]
+            if len(matching) == 1 or gap or release_all:
+                for item in matching:
+                    if release_quietly(item["token"], problem=problem, reason=reason):
+                        local_released.append(item.get("gap") or "unclassified")
+        if local_released:
+            try:
+                desk("recover-challenge", scope, problem=problem)
+            except DeskRefusal as refusal:
+                if refusal.reason == "no_unsubmitted_lease":
+                    gaps_label = ", ".join(g for g in local_released if g != "unclassified")
+                    suffix = f" ({gaps_label})" if gaps_label else ""
+                    print(f"Recovered and returned {len(local_released)} unsubmitted assignment(s) to the desk{suffix}.")
+                    return
+
+    if gist is not None:
+        if not challenge_token or expires_at is None or expires_at < 1:
+            raise SystemExit("Provide --challenge <TOKEN> and --expires <UNIX_TIMESTAMP> alongside --gist.")
+        result = desk(
+            "recover",
+            {
+                **scope,
+                "challenge": challenge_token,
+                "gist": gist,
+                "expires_at": expires_at,
+                "reason": reason,
+            },
+            problem=problem,
+        )
+    else:
+        try:
+            challenge = desk("recover-challenge", scope, problem=problem)
+        except DeskRefusal as refusal:
+            if refusal.reason == "multiple_unsubmitted_leases":
+                items = ", ".join(f"{item['gap']} ({item['kind']})" for item in refusal.details.get("leases", ()))
+                raise SystemExit(
+                    f"Multiple unsubmitted leases found ({items}); pass --gap <LEMMA_ID> or --all."
+                ) from None
+            raise
+        payload = json.dumps({
+            "description": "Goldbach Research temporary lease recovery proof",
+            "public": False,
+            "files": {challenge["filename"]: {"content": challenge["proof_text"]}},
+        }).encode("utf-8")
+        try:
+            created_raw = subprocess.check_output(
+                ["gh", "api", "gists", "--method", "POST", "--input", "-"],
+                input=payload, stderr=subprocess.PIPE,
+            )
+            gist_id = str(json.loads(created_raw)["id"]).lower()
+            if not re.fullmatch(r"[a-f0-9]{32}", gist_id):
+                raise ValueError("unexpected gist id")
+        except (subprocess.CalledProcessError, KeyError, ValueError):
+            manual = f"python tools/goldbach.py release --recover {reason}"
+            if problem != "goldbach":
+                manual += f" --problem {problem}"
+            if gap:
+                manual += f" --gap {gap}"
+            if kind:
+                manual += f" --kind {kind}"
+            if release_all:
+                manual += " --all"
+            manual += (
+                f" --gist <GIST_URL> --challenge {challenge['challenge']}"
+                f" --expires {challenge['expires_at']}"
+            )
+            raise SystemExit(
+                "Could not create a temporary Gist automatically via `gh` (missing `gist` token scope).\n"
+                f"Create a secret Gist at https://gist.github.com/ named `{challenge['filename']}` with exact text:\n"
+                f"  {challenge['proof_text']}\n"
+                f"Then run:\n  {manual}"
+            ) from None
+        try:
+            result = desk(
+                "recover",
+                {
+                    **scope,
+                    "challenge": challenge["challenge"],
+                    "gist": gist_id,
+                    "expires_at": challenge["expires_at"],
+                    "reason": reason,
+                },
+                problem=problem,
+            )
+        finally:
+            subprocess.run(
+                ["gh", "api", "--method", "DELETE", f"gists/{gist_id}"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
+            )
+
+    try:
+        git_dir = Path(command("git", "rev-parse", "--absolute-git-dir"))
+        pending_file = pending_claim_path(git_dir / "goldbach-lease.json")
+        if pending_file.is_file():
+            pending = json.loads(pending_file.read_text(encoding="utf-8"))
+            if pending.get("problem", "goldbach") == problem and (not gap or pending.get("gap") == gap):
+                pending_file.unlink(missing_ok=True)
+    except (subprocess.CalledProcessError, OSError, ValueError):
+        pass
+
+    gaps = ", ".join(result.get("gaps") or ())
+    suffix = f" ({gaps})" if gaps else ""
+    print(f"Recovered and returned {result.get('count', 0)} unsubmitted assignment(s) to the desk{suffix}.")
 
 
 def main():
@@ -622,6 +931,16 @@ def main():
     modes.add_parser("beat", help="renew the current lease")
     release = modes.add_parser("release", help="return an unfinished lemma")
     release.add_argument("reason", nargs="?", default="abandoned")
+    release.add_argument("--recover", action="store_true",
+                         help="verify GitHub ownership via a temporary Gist to release orphaned unsubmitted leases")
+    release.add_argument("--problem", help="problem slug when using --recover")
+    release.add_argument("--gap", help="specific lemma ID when using --recover")
+    release.add_argument("--kind", choices=("prove", "cut", "refute"), help="lease kind filter when using --recover")
+    release.add_argument("--all", dest="release_all", action="store_true",
+                         help="release all unsubmitted leases on the desk when using --recover")
+    release.add_argument("--gist", help="manual Gist URL or ID if `gh` lacks `gist` scope")
+    release.add_argument("--challenge", help="challenge token for manual --gist recovery")
+    release.add_argument("--expires", type=int, help="challenge expiration timestamp for manual --gist recovery")
     models_cmd = modes.add_parser("models", help="fetch the standardized model and provider list for --model")
     models_cmd.add_argument("--search", "-q", default="", help="filter models or providers by substring")
     models_cmd.add_argument("--provider", "-p", default="", help="filter by exact provider name (e.g. Z.ai, DeepSeek)")
@@ -693,6 +1012,29 @@ def main():
                 parser.error("limit must be positive")
             read_reviews(args.pr, args.limit)
         return
+    if args.action == "release":
+        if not args.recover and any((
+            args.problem, args.gap, args.kind, args.release_all, args.gist, args.challenge, args.expires,
+        )):
+            parser.error("--problem/--gap/--kind/--all/--gist/--challenge/--expires require --recover")
+        if args.reason not in RELEASE_REASONS:
+            parser.error(f"invalid release reason '{args.reason}'; choose from: {', '.join(sorted(RELEASE_REASONS))}")
+        if args.recover:
+            if args.problem and not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", args.problem):
+                parser.error("Provide a valid problem slug.")
+            if args.gap and not GAP_ID.fullmatch(args.gap):
+                parser.error("invalid Goldbach lemma ID")
+            recover_lease(
+                args.reason,
+                problem=args.problem,
+                gap=args.gap,
+                kind=args.kind,
+                release_all=args.release_all,
+                gist=args.gist,
+                challenge_token=args.challenge,
+                expires_at=args.expires,
+            )
+            return
     git_dir = Path(command("git", "rev-parse", "--absolute-git-dir"))
     path = git_dir / "goldbach-lease.json"
     if args.action == "claim":
@@ -701,7 +1043,21 @@ def main():
         claim(path, args.gap, args.problem, args.kind)
         return
     if not path.is_file():
-        parser.error("no lease in this checkout; run claim first")
+        pending_file = pending_claim_path(path)
+        if args.action == "release" and pending_file.is_file():
+            pending = json.loads(pending_file.read_text(encoding="utf-8"))
+            token = pending.get("token") if isinstance(pending, dict) else None
+            if isinstance(token, str) and LEASE_TOKEN.fullmatch(token):
+                released = release_quietly(
+                    token, problem=pending.get("problem", "goldbach"), reason=args.reason
+                )
+                pending_file.unlink(missing_ok=True)
+                print(
+                    "Pending assignment returned to the desk."
+                    if released else "Cleared local pending claim (no active lease on desk)."
+                )
+                return
+        parser.error("no lease in this checkout; run claim first (or `release --recover` to reclaim a lost checkout)")
     state = json.loads(path.read_text(encoding="utf-8"))
     if args.action == "open-pr":
         open_pr(state)
@@ -711,6 +1067,7 @@ def main():
         print("Lease renewed.", lease.get("expires_at", ""))
     elif args.action == "release":
         desk("release", {"reason": args.reason}, state["token"], problem=state.get("problem", "goldbach"))
+        forget_user_lease(state["token"])
         path.unlink()
         print("Unfinished assignment returned to the desk.")
     else:

@@ -1585,6 +1585,8 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 instructions = instructions.replace("--problem DESK_SLUG", f"--problem {slug}").replace(
                     "--problem goldbach --kind", f"--problem {slug} --kind"
+                ).replace(
+                    "release --recover --problem goldbach", f"release --recover --problem {slug}"
                 )
                 instructions = instructions.replace("https://www.goldbach.tech/#records\n", "").replace(
                     PUBLIC_SITE + "#records", f"{PUBLIC_SITE}problems/{slug}/?lang={lang}#records"

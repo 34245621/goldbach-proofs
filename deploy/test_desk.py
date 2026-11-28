@@ -1,15 +1,20 @@
 import hashlib
 import hmac
+import io
 import json
+import os
+import secrets
 import sqlite3
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import closing
+from contextlib import closing, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from deploy.desk import Desk, NO_RESEARCH_DEADLINE
+from deploy import github_identity
+from deploy.desk import Desk, NO_RESEARCH_DEADLINE, RECOVER_FAILURE_IP_LIMIT, _RECOVER_FAILURES, fleet_pass
+from tools import goldbach as cli
 
 GAPS = [
     {"id": f"L-goldbach-{i:03}", "statement": f"True {-i}"}
@@ -22,7 +27,9 @@ START = 1_000_000
 
 class DeskTests(unittest.TestCase):
     def setUp(self):
+        _RECOVER_FAILURES.clear()
         folder = self.enterContext(tempfile.TemporaryDirectory())
+        self.enterContext(patch.dict(os.environ, {"XDG_STATE_HOME": folder}))
         self.db = Path(folder) / "verdicts.sqlite3"
         self.desk = Desk(self.db, GAPS, SECRET)
 
@@ -300,6 +307,296 @@ class DeskTests(unittest.TestCase):
         updated = [GAPS[0] | {"statement": "different statement"}, *GAPS[1:]]
         self.desk = Desk(self.db, updated, SECRET)
         self.assertEqual(self.request("authorize", self.authorization(), sign=True)[0], 409)
+
+    def test_idempotent_claim_replays_lost_response_without_duplicate_lease(self):
+        self.assertEqual(self.request("claim", {"handle": "alice", "token": "short"}),
+                         (400, {"error": "invalid_claim"}))
+        supplied = secrets.token_urlsafe(32)
+        code1, first = self.request(
+            "claim", {"handle": "Alice", "gap": GAPS[0]["id"], "kind": "cut", "token": supplied}
+        )
+        self.assertEqual(code1, 201)
+        self.assertEqual(first["lease"]["token"], supplied)
+        self.assertTrue(first["gap"]["module"].startswith("Conjectures.Cuts.Cut"))
+
+        # Without the client token, the account is blocked by the active unsubmitted lease.
+        self.assertEqual(self.request("claim", {"handle": "Alice", "gap": GAPS[0]["id"], "kind": "cut"}),
+                         (409, {"error": "handle_already_active"}))
+
+        # Retrying with the same client token replays the exact receipt and module without adding rows.
+        code2, replay = self.request(
+            "claim", {"handle": "alice", "gap": GAPS[0]["id"], "kind": "cut", "token": supplied}
+        )
+        self.assertEqual(code2, 201)
+        self.assertEqual(replay, first)
+        with self.desk.transaction() as conn:
+            count, = conn.execute("SELECT COUNT(*) FROM goldbach_leases").fetchone()
+        self.assertEqual(count, 1)
+
+        # Mismatched handle, kind, gap, or post-release reuse cannot replay the token.
+        for mismatched in (
+            {"handle": "bob", "gap": GAPS[0]["id"], "kind": "cut", "token": supplied},
+            {"handle": "alice", "gap": GAPS[0]["id"], "kind": "prove", "token": supplied},
+            {"handle": "alice", "gap": GAPS[1]["id"], "kind": "cut", "token": supplied},
+        ):
+            self.assertEqual(self.request("claim", mismatched), (409, {"error": "lease_token_reused"}))
+        self.assertEqual(self.request("release", {"reason": "other"}, token=supplied)[0], 200)
+        self.assertEqual(
+            self.request("claim", {"handle": "alice", "gap": GAPS[0]["id"], "kind": "cut", "token": supplied}),
+            (409, {"error": "lease_token_reused"}),
+        )
+
+        # If a task's statement changes or it gets solved while the response was lost, replay releases and returns 409.
+        token2 = secrets.token_urlsafe(32)
+        self.assertEqual(self.request("claim", {"handle": "alice", "gap": GAPS[0]["id"], "token": token2})[0], 201)
+        self.desk = Desk(self.db, [GAPS[0] | {"statement": "updated statement"}, *GAPS[1:]], SECRET)
+        self.assertEqual(
+            self.request("claim", {"handle": "alice", "gap": GAPS[0]["id"], "token": token2}),
+            (409, {"error": "no_available_gap"}),
+        )
+        # Alice is immediately free to claim another task without being stuck in handle_already_active.
+        self.assertEqual(self.request("claim", {"handle": "alice", "gap": GAPS[1]["id"]})[0], 201)
+
+    def test_gist_recovery_releases_only_unsubmitted_leases_and_prevents_replay(self):
+        # An orphaned unsubmitted lease (lost response / wiped checkout) blocks normal claiming.
+        self.claim("skayla2007")
+        self.assertEqual(self.request("claim", {"handle": "skayla2007"}),
+                         (409, {"error": "handle_already_active"}))
+
+        code, challenge = self.request("recover-challenge", {"handle": "skayla2007"})
+        self.assertEqual(code, 200)
+        self.assertEqual(len(challenge["leases"]), 1)
+        gist_id = "f" * 32
+        gist_doc = {
+            "id": gist_id,
+            "owner": {"id": 4587, "type": "User", "login": "Skayla2007"},
+            "files": {github_identity.PROOF_FILENAME: {"truncated": False, "content": challenge["proof_text"]}},
+        }
+
+        # Missing challenge, expired window, and cross-purpose Zhihu proof are rejected.
+        self.assertEqual(
+            self.request(
+                "recover",
+                {"handle": "skayla2007", "gist": gist_id, "expires_at": challenge["expires_at"]},
+            ),
+            (400, {"error": "invalid_challenge"}),
+        )
+        self.assertEqual(
+            self.request(
+                "recover",
+                {
+                    "handle": "skayla2007",
+                    "challenge": challenge["challenge"],
+                    "gist": gist_id,
+                    "expires_at": challenge["expires_at"],
+                },
+                now=challenge["expires_at"],
+            ),
+            (410, {"error": "challenge_expired"}),
+        )
+        zhihu_doc = {
+            **gist_doc,
+            "files": {
+                github_identity.PROOF_FILENAME: {
+                    "truncated": False,
+                    "content": github_identity.proof_text(challenge["challenge"], "skayla2007", purpose="zhihu_link"),
+                }
+            },
+        }
+        with patch.object(github_identity.urllib.request, "build_opener") as opener:
+            opener.return_value.open.return_value = io.BytesIO(json.dumps(zhihu_doc).encode())
+            self.assertEqual(
+                self.request(
+                    "recover",
+                    {
+                        "handle": "skayla2007",
+                        "challenge": challenge["challenge"],
+                        "gist": gist_id,
+                        "expires_at": challenge["expires_at"],
+                    },
+                ),
+                (422, {"error": "github_proof_mismatch"}),
+            )
+
+        # An attacker IP exhausting its own failed-proof bucket cannot grief skayla2007's IP from recovering.
+        for _ in range(RECOVER_FAILURE_IP_LIMIT):
+            with patch.object(github_identity.urllib.request, "build_opener") as opener:
+                opener.return_value.open.return_value = io.BytesIO(b"{}")
+                self.request(
+                    "recover",
+                    {
+                        "handle": "skayla2007",
+                        "challenge": challenge["challenge"],
+                        "gist": gist_id,
+                        "expires_at": challenge["expires_at"],
+                    },
+                    ip="198.51.100.77",
+                )
+        self.assertEqual(
+            self.request(
+                "recover",
+                {
+                    "handle": "skayla2007",
+                    "challenge": challenge["challenge"],
+                    "gist": gist_id,
+                    "expires_at": challenge["expires_at"],
+                },
+                ip="198.51.100.77",
+            ),
+            (429, {"error": "recover_rate_limit"}),
+        )
+
+        # End-to-end CLI recover_lease creates a temporary secret gist, releases the orphan, and deletes the gist.
+        gh_calls = []
+        captured_gist = {}
+
+        def capture_gh(args, **kwargs):
+            gh_calls.append(("check_output", tuple(args)))
+            if "gists" in args:
+                captured_gist["body"] = kwargs["input"].decode("utf-8")
+                return json.dumps({"id": gist_id}).encode()
+            raise cli.subprocess.CalledProcessError(128, args)
+
+        def fake_run(args, **kwargs):
+            gh_calls.append(("run", tuple(args)))
+            return None
+
+        def fake_desk(action, data, token=None, *, problem="goldbach"):
+            status, body = self.request(action, data, token=token)
+            if status >= 400:
+                raise cli.DeskRefusal(action, status, body["error"], details=body)
+            return body
+
+        with patch.object(cli, "authenticated_login", return_value="skayla2007"), patch.object(
+            cli, "desk", side_effect=fake_desk
+        ), patch.object(cli.subprocess, "check_output", side_effect=capture_gh), patch.object(
+            cli.subprocess, "run", side_effect=fake_run
+        ), patch.object(github_identity.urllib.request, "build_opener") as opener, redirect_stdout(io.StringIO()):
+            opener.return_value.open.side_effect = lambda req, timeout=6: io.BytesIO(
+                json.dumps({
+                    **gist_doc,
+                    "files": {
+                        github_identity.PROOF_FILENAME: {
+                            "truncated": False,
+                            "content": json.loads(captured_gist["body"])["files"][
+                                github_identity.PROOF_FILENAME
+                            ]["content"],
+                        }
+                    },
+                }).encode()
+            )
+            cli.recover_lease("other")
+
+        self.assertIn(("run", ("gh", "api", "--method", "DELETE", f"gists/{gist_id}")), gh_calls)
+
+        # Account can immediately claim a new task; old gist/challenge cannot release the new lease!
+        new_token = self.claim("skayla2007")
+        with patch.object(github_identity.urllib.request, "build_opener") as opener:
+            self.assertEqual(
+                self.request(
+                    "recover",
+                    {
+                        "handle": "skayla2007",
+                        "challenge": challenge["challenge"],
+                        "gist": gist_id,
+                        "expires_at": challenge["expires_at"],
+                    },
+                ),
+                (409, {"error": "lease_state_changed"}),
+            )
+            opener.assert_not_called()
+
+        # Submitted PR leases are never treated as orphaned unsubmitted leases.
+        self.assertEqual(self.submit(new_token)[0], 200)
+        self.assertEqual(self.request("recover-challenge", {"handle": "skayla2007"}),
+                         (404, {"error": "no_unsubmitted_lease"}))
+
+        # Fleet accounts with multiple unsubmitted leases must disambiguate with gap or all=True.
+        fpass = fleet_pass(SECRET, "fleet-user", START + 3600)
+        with patch("deploy.desk.time.time", return_value=START):
+            for idx in (0, 1):
+                code, _ = self.desk.dispatch(
+                    BASE + "claim", {"handle": "fleet-user", "gap": GAPS[idx]["id"]},
+                    {"X-Goldbach-Fleet": fpass}, "198.51.100.9", b"{}",
+                )
+                self.assertEqual(code, 201)
+        self.assertEqual(self.request("recover-challenge", {"handle": "fleet-user"})[0], 409)
+        code, scoped = self.request("recover-challenge", {"handle": "fleet-user", "gap": GAPS[0]["id"]})
+        self.assertEqual(code, 200)
+        scoped_doc = {
+            "id": gist_id,
+            "owner": {"id": 99, "type": "User", "login": "fleet-user"},
+            "files": {github_identity.PROOF_FILENAME: {"truncated": False, "content": scoped["proof_text"]}},
+        }
+        with patch.object(github_identity.urllib.request, "build_opener") as opener:
+            opener.return_value.open.return_value = io.BytesIO(json.dumps(scoped_doc).encode())
+            res_code, res_body = self.request(
+                "recover",
+                {
+                    "handle": "fleet-user",
+                    "gap": GAPS[0]["id"],
+                    "challenge": scoped["challenge"],
+                    "gist": gist_id,
+                    "expires_at": scoped["expires_at"],
+                },
+            )
+        self.assertEqual((res_code, res_body["gaps"]), (200, [GAPS[0]["id"]]))
+        self.assertEqual(len(self.request("recover-challenge", {"handle": "fleet-user"})[1]["leases"]), 1)
+
+        # Valid recoveries do NOT increment failure quota, so shared university NAT users never block one another;
+        # only failed Gist proofs (422) count toward RECOVER_FAILURE_IP_LIMIT, and X-Goldbach-Fleet isolates fleets behind NAT.
+        nat_ip = "203.0.113.88"
+        for _ in range(RECOVER_FAILURE_IP_LIMIT):
+            with patch.object(github_identity.urllib.request, "build_opener") as opener:
+                opener.return_value.open.return_value = io.BytesIO(b"{}")
+                c2 = self.request("recover-challenge", {"handle": "fleet-user"}, ip=nat_ip)[1]
+                self.request(
+                    "recover",
+                    {
+                        "handle": "fleet-user",
+                        "challenge": c2["challenge"],
+                        "gist": gist_id,
+                        "expires_at": c2["expires_at"],
+                    },
+                    ip=nat_ip,
+                )
+        c3 = self.request("recover-challenge", {"handle": "fleet-user"}, ip=nat_ip)[1]
+        self.assertEqual(
+            self.request(
+                "recover",
+                {
+                    "handle": "fleet-user",
+                    "challenge": c3["challenge"],
+                    "gist": gist_id,
+                    "expires_at": c3["expires_at"],
+                },
+                ip=nat_ip,
+            ),
+            (429, {"error": "recover_rate_limit"}),
+        )
+        # Even behind that exhausted NAT IP, a registered fleet pass gets its own bucket and succeeds.
+        fleet_doc = {
+            "id": gist_id,
+            "owner": {"id": 99, "type": "User", "login": "fleet-user"},
+            "files": {github_identity.PROOF_FILENAME: {"truncated": False, "content": c3["proof_text"]}},
+        }
+        with patch("deploy.desk.time.time", return_value=START), patch.object(
+            github_identity.urllib.request, "build_opener"
+        ) as opener:
+            opener.return_value.open.return_value = io.BytesIO(json.dumps(fleet_doc).encode())
+            code_f, body_f = self.desk.dispatch(
+                BASE + "recover",
+                {
+                    "handle": "fleet-user",
+                    "challenge": c3["challenge"],
+                    "gist": gist_id,
+                    "expires_at": c3["expires_at"],
+                },
+                {"X-Goldbach-Fleet": fpass},
+                nat_ip,
+                b"{}",
+            )
+        self.assertEqual((code_f, body_f["count"]), (200, 1))
 
 
 if __name__ == "__main__":

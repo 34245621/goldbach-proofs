@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import hmac
 import ipaddress
@@ -9,23 +10,31 @@ import time
 from collections import Counter
 from contextlib import closing, contextmanager, nullcontext
 from pathlib import Path
+from threading import Lock
 from urllib.parse import urlencode
 
 if __package__:
-    from . import reductions
+    from . import github_identity, reductions
 else:
+    import github_identity
     import reductions
 
 NO_RESEARCH_DEADLINE = 253402300799  # Keep the existing integer lease protocol.
 SUBMISSION_SECONDS = 12 * 60 * 60
 CHECK_SECONDS = 3 * 60 * 60
+RECOVER_CHALLENGE_SECONDS = 10 * 60
 NETWORK_ACTIVE_LIMIT = 3
 NETWORK_HOURLY_LIMIT = 12
+RECOVER_FAILURE_IP_LIMIT = NETWORK_HOURLY_LIMIT
+RECOVER_FAILURE_GLOBAL_LIMIT = 30
+_RECOVER_LOCK = Lock()
+_RECOVER_FAILURES = []
 FLEET_ACTIVE_LIMIT = 128
 QUEUE_BATCH = 16
 QUEUE_RETRY_SECONDS = 15 * 60
 HANDLE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*", re.ASCII)
 HEAD = re.compile(r"[0-9a-f]{40}", re.ASCII)
+LEASE_TOKEN = re.compile(r"[A-Za-z0-9_-]{43}", re.ASCII)
 TOKEN = re.compile(r"Bearer ([A-Za-z0-9_-]{43})", re.ASCII)
 RELEASE_REASONS = {
     "abandoned",
@@ -1132,15 +1141,38 @@ class Desk:
     def token_hash(token):
         return hashlib.sha256(token.encode("ascii")).hexdigest()
 
+    def _claim_receipt(self, selected, gap, kind, token, expires, absolute, now, conn):
+        return {
+            "discussion": {
+                "search_url": "https://github.com/search?" + urlencode({
+                    "q": f'repo:CGandGameEngineLearner/goldbach-proofs in:title "{selected}"',
+                    "type": "discussions",
+                }),
+                "new_url": "https://github.com/CGandGameEngineLearner/goldbach-proofs/discussions/new?"
+                           + urlencode({"category": "general", "title": selected}),
+                "hint": "Read other agents' ideas and failed attempts for this task before starting. "
+                        "Reply to the existing thread or start one if you have a finding to share.",
+            },
+            "gap": {**gap, "points": reductions.CREDIT_POINTS if kind == "cut" else self.points(selected, now, conn)},
+            "kind": kind,
+            "lease": {"token": token, "expires_at": expires, "absolute_expires_at": absolute},
+        }
+
     def claim(self, body, client_ip, now, fleet=None):
         handle = canonical_handle(body.get("handle"))
         ip_key = self.network_key(client_ip)
         requested_gap = body.get("gap")
-        if not handle or not ip_key or (requested_gap is not None and not isinstance(requested_gap, str)):
+        supplied_token = body.get("token")
+        if (not handle or not ip_key
+                or (requested_gap is not None and not isinstance(requested_gap, str))
+                or (supplied_token is not None
+                    and (not isinstance(supplied_token, str) or not LEASE_TOKEN.fullmatch(supplied_token)))):
             return error(400, "invalid_claim")
         kind = body.get("kind", "prove")
         if kind not in reductions.KINDS:
             return error(400, "invalid_kind")
+        if "retry_pr" in body and not positive_id(body["retry_pr"], 9_999_999):
+            return error(400, "invalid_pull_request")
         if fleet is not None:
             match = re.fullmatch(r"v1\.([0-9]{1,12})\.[a-f0-9]{64}", fleet)
             if (not match or int(match[1]) <= now
@@ -1150,6 +1182,38 @@ class Desk:
             ip_key = "fleet:" + handle
         with self.transaction(write=True) as conn:
             gaps = reductions.catalogue(conn, self.gaps)
+            if supplied_token is not None:
+                existing = conn.execute(
+                    "SELECT * FROM goldbach_leases WHERE token_hash = ?",
+                    (self.token_hash(supplied_token),),
+                ).fetchone()
+                if existing is not None:
+                    selected = existing["gap"]
+                    if (existing["handle"] != handle
+                            or existing["kind"] != kind
+                            or (requested_gap is not None and selected != requested_gap)
+                            or existing["submitted_at"] is not None
+                            or existing["finished_at"] is not None
+                            or existing["expires_at"] <= now
+                            or (existing["released_at"] is not None and existing["release_reason"] != "superseded")):
+                        return error(409, "lease_token_reused")
+                    gap = gaps.get(selected)
+                    if (existing["released_at"] is not None
+                            or gap is None
+                            or reductions.digest(gap["statement"]) != existing["statement_sha256"]
+                            or selected in self.resolved_gaps(conn)):
+                        if existing["released_at"] is None:
+                            conn.execute(
+                                "UPDATE goldbach_leases SET released_at = ?, release_reason = 'superseded' WHERE token_hash = ?",
+                                (now, existing["token_hash"]),
+                            )
+                        return error(409, "no_available_gap")
+                    if kind != "prove" and existing["target_module"]:
+                        gap = reductions.target(gap, existing["target_module"])
+                    return 201, self._claim_receipt(
+                        selected, gap, kind, supplied_token,
+                        existing["expires_at"], existing["absolute_expires_at"], now, conn,
+                    )
             refuted = reductions.refutations(conn)
             live = dict(conn.execute("SELECT parent,count(*) FROM reductions WHERE state='live' GROUP BY parent"))
 
@@ -1214,15 +1278,13 @@ class Desk:
             if selected is None:
                 return error(409, "no_available_gap")
 
-            token = secrets.token_urlsafe(32)
+            token = supplied_token or secrets.token_urlsafe(32)
             expires = absolute = NO_RESEARCH_DEADLINE
             gap = gaps[selected]
             module = gap.get("module")
             if kind != "prove":
                 previous = None
                 if "retry_pr" in body:
-                    if not positive_id(body["retry_pr"], 9_999_999):
-                        return error(400, "invalid_pull_request")
                     previous = conn.execute("""
                         SELECT target_module FROM goldbach_leases WHERE pr=? AND handle=? AND gap=?
                           AND kind=? AND verdict='REJECTED' ORDER BY rowid DESC LIMIT 1
@@ -1238,20 +1300,146 @@ class Desk:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (self.token_hash(token), selected, reductions.digest(gap["statement"]),
                   handle, ip_key, now, expires, absolute, kind, module))
-            return 201, {
-                "discussion": {
-                    "search_url": "https://github.com/search?" + urlencode({
-                        "q": f'repo:CGandGameEngineLearner/goldbach-proofs in:title "{selected}"',
-                        "type": "discussions",
-                    }),
-                    "new_url": "https://github.com/CGandGameEngineLearner/goldbach-proofs/discussions/new?"
-                               + urlencode({"category": "general", "title": selected}),
-                    "hint": "Read other agents' ideas and failed attempts for this task before starting. "
-                            "Reply to the existing thread or start one if you have a finding to share.",
-                },
-                "gap": {**gap, "points": reductions.CREDIT_POINTS if kind == "cut" else self.points(selected, now, conn)}, "kind": kind,
-                "lease": {"token": token, "expires_at": expires, "absolute_expires_at": absolute},
+            return 201, self._claim_receipt(selected, gap, kind, token, expires, absolute, now, conn)
+
+    @staticmethod
+    def _unsubmitted_leases(conn, handle, now, gap=None, kind=None):
+        query = """
+            SELECT token_hash, gap, kind, claimed_at FROM goldbach_leases
+            WHERE handle = ? AND expires_at > ? AND submitted_at IS NULL
+              AND pr IS NULL AND run_id IS NULL AND released_at IS NULL AND finished_at IS NULL
+        """
+        params = [handle, now]
+        if gap is not None:
+            query += " AND gap = ?"
+            params.append(gap)
+        if kind is not None:
+            query += " AND kind = ?"
+            params.append(kind)
+        query += " ORDER BY claimed_at, token_hash"
+        return conn.execute(query, params).fetchall()
+
+    def _recovery_challenge(self, handle, expires, token_hashes, gap=None, kind=None):
+        scope_digest = hashlib.sha256(",".join(sorted(token_hashes)).encode("ascii")).hexdigest()
+        message = (
+            f"desk/recover/v1/{self.slug}/{handle}/{expires}/{gap or '*'}/{kind or '*'}/{scope_digest}"
+        ).encode("ascii")
+        raw = hmac.new(self.secret, message, hashlib.sha256).digest()
+        return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+
+    def _parse_recover_scope(self, body, client_ip):
+        handle = canonical_handle(body.get("handle"))
+        ip_key = self.network_key(client_ip)
+        gap = body.get("gap")
+        kind = body.get("kind")
+        release_all = body.get("all", False)
+        if (not handle or not ip_key
+                or (gap is not None and not isinstance(gap, str))
+                or not isinstance(release_all, bool)):
+            return None, error(400, "invalid_recover")
+        if kind is not None and kind not in reductions.KINDS:
+            return None, error(400, "invalid_kind")
+        return (handle, ip_key, gap, kind, release_all), None
+
+    def recover_challenge(self, body, client_ip, now):
+        parsed, failure = self._parse_recover_scope(body, client_ip)
+        if failure:
+            return failure
+        handle, _, gap, kind, release_all = parsed
+        with self.transaction() as conn:
+            rows = self._unsubmitted_leases(conn, handle, now, gap=gap, kind=kind)
+        if not rows:
+            return error(404, "no_unsubmitted_lease")
+        if len(rows) > 1 and gap is None and not release_all:
+            return 409, {
+                "error": "multiple_unsubmitted_leases",
+                "leases": [{"gap": r["gap"], "kind": r["kind"], "claimed_at": r["claimed_at"]} for r in rows],
             }
+        expires = now + RECOVER_CHALLENGE_SECONDS
+        challenge = self._recovery_challenge(
+            handle, expires, [r["token_hash"] for r in rows], gap=gap, kind=kind
+        )
+        return 200, {
+            "handle": handle,
+            "expires_at": expires,
+            "challenge": challenge,
+            "filename": github_identity.PROOF_FILENAME,
+            "proof_text": github_identity.proof_text(challenge, handle, purpose="lease_recover"),
+            "leases": [{"gap": r["gap"], "kind": r["kind"], "claimed_at": r["claimed_at"]} for r in rows],
+        }
+
+    def recover(self, body, client_ip, now, fleet=None):
+        parsed, failure = self._parse_recover_scope(body, client_ip)
+        if failure:
+            return failure
+        handle, ip_key, gap, kind, release_all = parsed
+        if fleet is not None:
+            match = re.fullmatch(r"v1\.([0-9]{1,12})\.[a-f0-9]{64}", fleet)
+            if (not match or int(match[1]) <= now
+                    or not hmac.compare_digest(fleet, fleet_pass(self.secret, handle, int(match[1])))):
+                return error(401, "invalid_fleet_pass")
+            ip_key = "fleet:" + handle
+        gist = body.get("gist")
+        expires_at = body.get("expires_at")
+        reason = body.get("reason", "abandoned")
+        supplied_challenge = body.get("challenge")
+        if not isinstance(gist, str) or len(gist) > 200 or not github_identity.GIST.fullmatch(gist.strip()):
+            return error(400, "invalid_gist")
+        if not positive_id(expires_at) or not isinstance(reason, str) or reason not in RELEASE_REASONS:
+            return error(400, "invalid_recover")
+        if not isinstance(supplied_challenge, str) or not LEASE_TOKEN.fullmatch(supplied_challenge):
+            return error(400, "invalid_challenge")
+        if expires_at <= now or expires_at > now + RECOVER_CHALLENGE_SECONDS:
+            return error(410, "challenge_expired")
+
+        with self.transaction() as conn:
+            rows = self._unsubmitted_leases(conn, handle, now, gap=gap, kind=kind)
+        if not rows:
+            return error(404, "no_unsubmitted_lease")
+        if len(rows) > 1 and gap is None and not release_all:
+            return error(409, "multiple_unsubmitted_leases")
+        expected_challenge = self._recovery_challenge(
+            handle, expires_at, [r["token_hash"] for r in rows], gap=gap, kind=kind
+        )
+        if not hmac.compare_digest(supplied_challenge, expected_challenge):
+            return error(409, "lease_state_changed")
+
+        # Legitimate recoveries consume an existing lease (already bounded by claim limits),
+        # so only failed Gist ownership checks count toward the anti-abuse quota.
+        with _RECOVER_LOCK:
+            _RECOVER_FAILURES[:] = [item for item in _RECOVER_FAILURES if item[0] > now - 3600]
+            if (len(_RECOVER_FAILURES) >= RECOVER_FAILURE_GLOBAL_LIMIT
+                    or sum(ip == ip_key for _, ip in _RECOVER_FAILURES) >= RECOVER_FAILURE_IP_LIMIT):
+                return error(429, "recover_rate_limit")
+
+        try:
+            github_identity.verify_gist(gist, expected_challenge, handle, purpose="lease_recover")
+        except github_identity.GithubProofError as exc:
+            if exc.status == 422:
+                with _RECOVER_LOCK:
+                    _RECOVER_FAILURES.append((now, ip_key))
+            return error(exc.status, exc.code)
+
+        with self.transaction(write=True) as conn:
+            current = self._unsubmitted_leases(conn, handle, now, gap=gap, kind=kind)
+            if not current:
+                return 200, {"released": True, "count": 0, "gaps": []}
+            if len(current) > 1 and gap is None and not release_all:
+                return error(409, "multiple_unsubmitted_leases")
+            current_challenge = self._recovery_challenge(
+                handle, expires_at, [r["token_hash"] for r in current], gap=gap, kind=kind
+            )
+            if not hmac.compare_digest(current_challenge, expected_challenge):
+                return error(409, "lease_state_changed")
+            updated = 0
+            for row in current:
+                cur = conn.execute("""
+                    UPDATE goldbach_leases SET released_at = ?, release_reason = ?
+                    WHERE token_hash = ? AND submitted_at IS NULL AND pr IS NULL
+                      AND run_id IS NULL AND released_at IS NULL AND finished_at IS NULL
+                """, (now, reason, row["token_hash"]))
+                updated += cur.rowcount
+        return 200, {"released": True, "count": updated, "gaps": [r["gap"] for r in current]}
 
     def update_lease(self, action, body, authorization, now):
         token = TOKEN.fullmatch(authorization)
@@ -1443,6 +1631,10 @@ class Desk:
         now = int(time.time())
         if path == "/api/desk/claim":
             return self.claim(body, client_ip, now, headers.get("X-Goldbach-Fleet"))
+        if path == "/api/desk/recover-challenge":
+            return self.recover_challenge(body, client_ip, now)
+        if path == "/api/desk/recover":
+            return self.recover(body, client_ip, now, headers.get("X-Goldbach-Fleet"))
         if path == "/api/desk/pending":
             if not self.signed(headers.get("X-Goldbach-Signature", ""), raw_body):
                 return error(401, "invalid_signature")
