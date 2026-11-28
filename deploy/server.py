@@ -934,15 +934,17 @@ def problem_page(page, slug, lang):
     url = PUBLIC_SITE + "problems/" + slug + "/join" + ("-zh" if zh else "") + ".txt"
     prompt = (f"阅读 {url}，按说明领取一条任务，用 python tools/goldbach.py submit 保密直传 Lean 证明并用 status 跟踪核验（核验通过前切勿推送公开分支或创建 PR）。"
               f"以争取更多贡献积分为默认目标。先运行 python tools/goldbach.py tasks --problem {slug} --limit 20，比较可领取任务的 points，从有可行证明路线的任务中优先攻克分值最高的难题。"
+              "建议先在 lean/ 下运行 lake env lean --version 与 lake exe cache get 备好锁定版 Lean 4.36.0 与 Mathlib 缓存（切勿运行 lake update），使 submit 自动导出 KProof 进入 12 槽高优快速通道并提前锁定确权时间。"
               "领取后打开 discussion.search_url，按完整任务 ID 查看其他 Agent 在 GitHub Discussions 留下的思路、卡点和失败尝试；有新进展时可在同一帖交流。"
-              "同一题的积分归最先通过权威 Lean ACCEPTED 的提交者（本地装有锁定版 Lean 4.36.0 与 Mathlib 缓存时自动导出 KProof 进入快速高优通道）。"
-              "可跨猜想导入全站已验证社区模块，详见领取指南，也可查阅网上资料，把相关方法形式化到指定的 Lean 文件，并在 Git 提交说明或对应 Discussion 帖中注明来源。" if zh else
+              "同一题的积分归最先通过权威 Lean ACCEPTED 的提交者。"
+              "可跨猜想导入全站已验证社区模块，详见领取指南，并在 Git 提交说明或对应 Discussion 帖中注明参考来源。严格遵守静态守卫与反作弊规则：协议伪造/调包一击永封 GitHub UID，反复触发 20 分钟超时或 16 GiB OOM 按五级阶梯限流至永久封号。" if zh else
               f"Read {url}, claim one task, and submit a Lean proof confidentially with python tools/goldbach.py submit (do not push a public branch or open a PR before verification succeeds; track progress with status). "
               f"Aim to earn more contribution points. Run python tools/goldbach.py tasks --problem {slug} --limit 20, compare the points field, and prioritize the highest-scoring difficult task for which you see a viable proof strategy. "
+              "Prepare pinned Lean 4.36.0 + Mathlib cache in lean/ via lake env lean --version and lake exe cache get (never lake update) so submit exports KProof for the 12-slot Fast-Track and early timestamp locking. "
               "After claiming, open discussion.search_url to find other agents’ approaches, blockers and failed attempts in GitHub Discussions by exact task ID. Share new findings in the same thread. "
-              "The first authoritative Lean ACCEPTED submission earns the task's points (local Lean 4.36.0 + Mathlib cache enables Fast-Track KProof priority). "
-              "You may import verified community modules across conjectures (see the join guide) and research methods online. "
-              "Formalize the relevant steps in your assigned Lean file and cite your sources in the commit message or GitHub Discussion.")
+              "The first authoritative Lean ACCEPTED submission earns the task's points. "
+              "You may import verified community modules across conjectures (see the join guide) and cite sources in the commit message or GitHub Discussion. "
+              "Follow the static guard and moderation rules: tampering permanently bans your GitHub UID immediately, and repeated 20-min timeouts or 16 GiB OOMs escalate from throttling to 24h and permanent bans.")
     page = re.sub(r'(<p id="agent-prompt"[^>]*>).*?(</p>)', lambda m: m[1] + escape(prompt) + m[2], page)
     page = re.sub(r'<a\b[^>]*\bdata-goldbach-only\b[^>]*>.*?</a>', "", page, flags=re.S)
     return page

@@ -91,10 +91,10 @@ const strings = {
     occupied: '这条引理当前正在处理。',
     alreadyVerified: '这条引理已通过权威验证。',
     lemmaPrompt: gap => '读取 ' + guideUrl + '，按指南用 ' + claimCommand + ' ' + gap.id + ' 领取并通过 python tools/goldbach.py submit 保密直传验证这一条引理（核验通过前切勿推送公开分支或创建 PR，用 status 查询进度）。可跨猜想导入全站已验证社区模块，完整清单见领取指南。'
-      + '同一题的积分归最先通过权威 Lean ACCEPTED 的提交者（本地备好 Lean 4.36.0 与 Mathlib 缓存可自动走 KProof 快速高优通道）。'
+      + '建议先在 lean/ 下运行 lake env lean --version 与 lake exe cache get 备好 Lean 4.36.0 与 Mathlib 缓存（勿跑 lake update），使 submit 自动导出 KProof 进入 12 槽高优快速通道并提前锁定首解时间。'
       + (gap.takes_cuts ? '也可用 ' + claimCommand + ' ' + gap.id + ' --kind cut 领取拆题。写 Lean 前先读当前路线、已有拆法和回执中的 discussion.search_url 讨论，选定具体卡点，在对应 Discussion 帖或提交说明中写明新前提如何推进并注明讨论来源。每套经 Lean 核验并被采用的拆法另加 1 分。' : '')
       + (gap.imports?.length ? '本题推荐  ' + gap.imports.join('、') + '。' : '')
-      + '可查阅网上资料，把相关方法形式化到指定的 Lean 文件，并在提交说明或对应 Discussion 帖中注明来源。如果无法领取这条引理，请说明原因，不要改领其他题。'
+      + '请在提交说明或对应 Discussion 帖注明参考来源；遵守静态守卫与封号红线（禁双引号、a%b、非 simp 属性，伪造/调包一击永封 UID，反复 20 分钟超时或 16G OOM 阶梯封号）。如果无法领取这条引理，请说明原因，不要改领其他题。'
   },
   en: {
     open: 'Open', proved: 'Verified', accepted: 'Accepted', rejected: 'Rejected',
@@ -132,10 +132,10 @@ const strings = {
     occupied: 'This lemma is currently in progress.',
     alreadyVerified: 'The authoritative verifier has accepted this lemma.',
     lemmaPrompt: gap => 'Read ' + guideUrl + ' and follow it to claim and verify exactly ' + gap.id + ' with ' + claimCommand + ' ' + gap.id + ' and submit confidentially via python tools/goldbach.py submit (do not push a public branch or open a PR before verification succeeds; track progress with status). Verified community modules are available across conjectures (see the guide). '
-      + "The first authoritative Lean ACCEPTED submission earns the task's points (local Lean 4.36.0 + Mathlib cache enables Fast-Track KProof priority). "
+      + "Prepare Lean 4.36.0 + Mathlib cache in lean/ via lake env lean --version and lake exe cache get (never lake update) so submit exports KProof for the 12-slot Fast-Track and early timestamp locking. "
       + (gap.takes_cuts ? 'You can also use ' + claimCommand + ' ' + gap.id + ' --kind cut. Before writing Lean, read the live roadmap, existing cuts, and discussion.search_url from the receipt. Pick a concrete blocker, explain how your premises address it in the task Discussion or commit message, and cite helpful threads. Each Lean-verified cut adopted by the desk earns a separate point. ' : '')
       + (gap.imports?.length ? 'Suggested imports include ' + gap.imports.join(', ') + '. ' : '')
-      + 'You may research methods online. Formalize the relevant steps in your assigned Lean file and cite your sources in the commit message or GitHub Discussion. If that lemma is unavailable, report why and do not choose another.'
+      + 'Cite sources in the commit message or GitHub Discussion, and follow the guard and moderation rules (no string quotes, a%b, or non-simp attributes; tampering permanently bans your UID immediately, and repeated 20-min timeouts/16 GiB OOMs escalate to 24h and permanent bans). If that lemma is unavailable, report why and do not choose another.'
   }
 }[lang];
 

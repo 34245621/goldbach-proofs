@@ -41,9 +41,22 @@ Read gap.brief, gap.source and gap.depends_on for research leads. Every task can
 
 Search online for papers, textbooks, public Lean code and discussions when useful. Check the hypotheses, quantifiers and scope, then formalize the relevant argument in the single assigned gap.file, using local helper lemmas as needed. Prove any external result in the form you need without sorry or new axioms. Follow the license when reusing code and link the sources and relevant steps in your commit message or Discussion thread. Jenkins checks the submission offline.
 
-Production Jenkins verification currently has GRH disabled. Use Mathlib and verified community modules and other permitted project imports. If available locally, run lake exe cache get from lean/ to restore the pinned Mathlib cache.
+Production Jenkins verification currently has GRH disabled. Use Mathlib and verified community modules and other permitted project imports.
 
-Create exactly the Lean file in gap.file, up to 2 MiB. New tasks use conjecture directories under lean/Conjectures. Published tasks retain their registered paths. Declare theorem gap.module with the exact type in gap.statement. Import Mathlib and use verified community modules and any additional imports listed by the assignment. Write a complete proof using the allowed axioms. The authority independently checks the statement, imports, and dependencies. If the pinned Lean and Mathlib are already available locally, build the assigned module from lean/ as a preflight.
+Recommended Fast-Track setup (unlocks the 12-slot high-priority pool and locks `kernel_verified_at` within milliseconds of Stage-1 replay; source-only or legacy PR submissions share a 2-slot low-priority pool):
+- If `elan` is not installed yet: `curl https://elan.lean-lang.org/elan-init.sh -sSf | sh -s -- -y --default-toolchain none` (and add `~/.elan/bin` to `PATH`);
+- Prepare pinned Lean `4.36.0` and the Mathlib `.olean` cache once: `cd lean && lake env lean --version && lake exe cache get` (**never run `lake update`**);
+- Check your proof locally while editing with `cd lean && lake build <gap.module>`. When ready, `python tools/goldbach.py submit ...` from the repo root automatically verifies and exports `KProof` for Fast-Track priority.
+
+Create exactly the Lean file in gap.file, up to 2 MiB. New tasks use conjecture directories under lean/Conjectures. Published tasks retain their registered paths. Declare theorem gap.module with the exact type in gap.statement. Import Mathlib and use verified community modules and any additional imports listed by the assignment. Write a complete proof using the allowed axioms. The authority independently checks the statement, imports, and dependencies.
+
+Static file-guard rules (checked across both code and comments, enforced locally by `submit`):
+- Put all `import` lines at the very top (one module per line); the word `import` must not appear anywhere below the header, even in comments;
+- Forbidden anywhere in the `.lean` file (**including comments**): string quotes `"`, guillemets `«»`, `[A-Za-z0-9_]%` (write `Nat.mod a b` instead of `a%b`, and do not paste `%20`-encoded URLs in comments), `sorry`, `admit`, `axiom`, `opaque`, `unsafe`, `partial`, `native_decide`, `bv_decide`, `ofReduce`, `reduceNat`, `reduceBool`, `macro`, `elab`, `syntax`, `notation`, `infix`/`prefix`/`postfix`, `attribute`, any `@[...]` attribute other than `@[simp]` / `@[local simp]`, and any `set_option` other than `set_option maxHeartbeats|maxRecDepth|synthInstance.maxSize|synthInstance.maxHeartbeats <N> in`.
+
+Account moderation and ban rules (enforced by immutable GitHub numeric `uid`; renaming handles does not evade bans):
+- **Instant permanent ban (1 strike)**: bypassing `goldbach.py` to upload `KProof` bundles with `sorryAx`/illegal axioms/corrupt data, bypassing the static file guard, or tampering so the uploaded `.lean` fails clean-room compilation with `exit 1` after Stage-1 `KProof` passes immediately permanently bans the GitHub account and revokes open leases.
+- **5-tier strike policy for Stage-2 timeouts/OOMs**: if Stage-1 `KProof` passes but clean-room compilation exceeds the **20-minute or 16 GiB limit** (`124`/`137`): Strikes 1–2 issue a warning only; Strike 3 throttles the account to the 2-slot slow pool without early `kernel_verified_at` locking; **Strike 4 imposes a 24-hour ban** and revokes unsubmitted leases; **Strike 5 imposes a permanent ban** (Strikes 1–3 decay by 1 per clean 24h; Strike 4 requires 3 clean days to decay to 3). Keep proofs lean and avoid brute-force blowups.
 
 Inspect git status and verify that the only change is the assigned new Lean proof file. Stage that file by its exact path and create a commit naming the lemma.
 

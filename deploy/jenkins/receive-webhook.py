@@ -84,10 +84,63 @@ def pack_submission_bundle(lean_bytes, kproof_bytes=None, *, compresslevel=6):
     return gzip.compress(frame, compresslevel=compresslevel, mtime=0)
 
 
+class _ChunkedBodyReader:
+    """Decode HTTP/1.1 Transfer-Encoding: chunked streams with a strict byte ceiling."""
+
+    def __init__(self, rfile, max_bytes=MAX_UPLOAD_BYTES):
+        self._rfile = rfile
+        self._max_bytes = max_bytes
+        self._total = 0
+        self._chunk_rem = 0
+        self._eof = False
+
+    def read(self, size=UPLOAD_CHUNK_BYTES):
+        if self._eof or size <= 0:
+            return b""
+        while self._chunk_rem == 0:
+            line = self._rfile.readline(4096)
+            if not line or not line.endswith(b"\r\n"):
+                raise BundleError(400, "truncated_upload")
+            header = line[:-2].split(b";", 1)[0].strip()
+            if not header or len(header) > 10:
+                raise BundleError(400, "invalid_chunked_encoding")
+            try:
+                chunk_len = int(header, 16)
+            except ValueError as exc:
+                raise BundleError(400, "invalid_chunked_encoding") from exc
+            if chunk_len < 0:
+                raise BundleError(400, "invalid_chunked_encoding")
+            if chunk_len == 0:
+                # Consume optional trailer headers terminated by an empty CRLF line.
+                for _ in range(64):
+                    trailer = self._rfile.readline(4096)
+                    if not trailer or not trailer.endswith(b"\r\n"):
+                        raise BundleError(400, "truncated_upload")
+                    if trailer == b"\r\n":
+                        self._eof = True
+                        return b""
+                raise BundleError(400, "invalid_chunked_encoding")
+            if self._total + chunk_len > self._max_bytes:
+                raise BundleError(413, "bundle_too_large")
+            self._chunk_rem = chunk_len
+
+        want = min(size, self._chunk_rem)
+        data = self._rfile.read(want)
+        if not data:
+            raise BundleError(400, "truncated_upload")
+        self._chunk_rem -= len(data)
+        self._total += len(data)
+        if self._chunk_rem == 0:
+            crlf = self._rfile.read(2)
+            if crlf != b"\r\n":
+                raise BundleError(400, "invalid_chunked_encoding")
+        return data
+
+
 def stream_unpack_bundle(rfile, content_length, ticket, dest_dir, *,
                          chunk_timeout=UPLOAD_CHUNK_TIMEOUT, max_seconds=UPLOAD_TOTAL_TIMEOUT,
                          set_timeout=None):
-    if not 1 <= content_length <= MAX_UPLOAD_BYTES:
+    if content_length is not None and not 1 <= content_length <= MAX_UPLOAD_BYTES:
         raise BundleError(413, "bundle_too_large")
     expected_lean_sha = ticket["source_sha256"]
     expected_kproof_sha = ticket.get("kproof_sha256")
@@ -104,20 +157,28 @@ def stream_unpack_bundle(rfile, content_length, ticket, dest_dir, *,
     kproof_file = None
     deadline = time.monotonic() + max_seconds
     remaining_compressed = content_length
+    total_compressed = 0
 
     try:
-        while remaining_compressed > 0:
+        while remaining_compressed is None or remaining_compressed > 0:
             if time.monotonic() > deadline:
                 raise BundleError(408, "upload_timeout")
             if set_timeout is not None:
                 set_timeout(chunk_timeout)
+            read_size = UPLOAD_CHUNK_BYTES if remaining_compressed is None else min(UPLOAD_CHUNK_BYTES, remaining_compressed)
             try:
-                chunk = rfile.read(min(UPLOAD_CHUNK_BYTES, remaining_compressed))
+                chunk = rfile.read(read_size)
             except TimeoutError as exc:
                 raise BundleError(408, "upload_timeout") from exc
             if not chunk:
+                if remaining_compressed is None:
+                    break
                 raise BundleError(400, "truncated_upload")
-            remaining_compressed -= len(chunk)
+            total_compressed += len(chunk)
+            if total_compressed > MAX_UPLOAD_BYTES:
+                raise BundleError(413, "bundle_too_large")
+            if remaining_compressed is not None:
+                remaining_compressed -= len(chunk)
             try:
                 # Bound per-chunk decompression output to prevent zip bombs from spiking RAM.
                 uncompressed = decompressor.decompress(chunk, 4 * 1024 * 1024)
@@ -210,7 +271,7 @@ def stream_unpack_bundle(rfile, content_length, ticket, dest_dir, *,
             tail = decompressor.flush()
         except zlib.error as exc:
             raise BundleError(400, "invalid_gzip") from exc
-        if tail or not decompressor.eof or decompressor.unused_data or state != "done" or buf:
+        if total_compressed == 0 or tail or not decompressor.eof or decompressor.unused_data or state != "done" or buf:
             raise BundleError(400, "incomplete_bundle")
     finally:
         if lean_file is not None:
@@ -300,10 +361,17 @@ class Receiver(BaseHTTPRequestHandler):
         if ticket is None:
             self.respond_json(401, {"error": "invalid_upload_ticket"})
             return
-        size_header = self.headers.get("Content-Length", "")
-        if not re.fullmatch(r"[0-9]{1,10}", size_header) or not 1 <= int(size_header) <= MAX_UPLOAD_BYTES:
-            self.respond_json(413, {"error": "bundle_too_large"})
-            return
+        size_header = self.headers.get("Content-Length", "").strip()
+        transfer_enc = self.headers.get("Transfer-Encoding", "").lower()
+        if not size_header and "chunked" in {part.strip() for part in transfer_enc.split(",")}:
+            body_stream = _ChunkedBodyReader(self.rfile, MAX_UPLOAD_BYTES)
+            content_length = None
+        else:
+            if not re.fullmatch(r"[0-9]{1,10}", size_header) or not 1 <= int(size_header) <= MAX_UPLOAD_BYTES:
+                self.respond_json(413, {"error": "bundle_too_large"})
+                return
+            body_stream = self.rfile
+            content_length = int(size_header)
 
         submission_id = ticket["submission_id"]
         submissions_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -315,8 +383,8 @@ class Receiver(BaseHTTPRequestHandler):
         os.chmod(stage_dir, 0o700)
         try:
             stream_unpack_bundle(
-                self.rfile,
-                int(size_header),
+                body_stream,
+                content_length,
                 ticket,
                 stage_dir,
                 set_timeout=self.connection.settimeout,
@@ -364,9 +432,11 @@ class Receiver(BaseHTTPRequestHandler):
 
     def respond_json(self, status, payload):
         body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        self.close_connection = True
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(body)
 
