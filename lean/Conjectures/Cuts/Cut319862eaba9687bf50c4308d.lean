@@ -1,5 +1,5 @@
 import Mathlib
-import PEqualNP.Outside.L_goldbach_frontier_uncond_deep_second_moment
+import Conjectures.Goldbach.FrontierUncondDeepSecondMoment
 
 open MeasureTheory Filter
 
@@ -79,7 +79,7 @@ theorem Conjectures.Cuts.Cut319862eaba9687bf50c4308d (h₁ :
   have meanBound (ε : ℝ) (hε : 0 < ε) : ∃ N : ℕ, ∀ n ≥ N,
       (1 : ℝ) / ((n : ℝ)+1) * ∑ m ∈ Finset.Icc n (2*n), (coeff (wide n)ᶜ n m).re ≤
         ε * (n : ℝ) := by
-    obtain ⟨K, hK⟩ := PEqualNP.Outside.L_goldbach_frontier_uncond_deep_second_moment
+    obtain ⟨K, hK⟩ := Conjectures.Goldbach.FrontierUncondDeepSecondMoment
       (1/6) (by norm_num)
     have hlim : Tendsto (fun n : ℕ => (n : ℝ) ^ (1/6 : ℝ)) atTop atTop :=
       (tendsto_rpow_atTop (by norm_num : (0 : ℝ) < 1/6)).comp tendsto_natCast_atTop_atTop
