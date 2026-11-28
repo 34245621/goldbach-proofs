@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import ipaddress
 import json
+import os
 import re
 import secrets
 import sqlite3
@@ -23,6 +24,12 @@ NO_RESEARCH_DEADLINE = 253402300799  # Keep the existing integer lease protocol.
 SUBMISSION_SECONDS = 12 * 60 * 60
 CHECK_SECONDS = 3 * 60 * 60
 RECOVER_CHALLENGE_SECONDS = 10 * 60
+CONTRIBUTOR_PASS_SECONDS = 90 * 24 * 60 * 60
+UPLOAD_TICKET_SECONDS = 15 * 60
+STRIKE_DECAY_SECONDS = 24 * 60 * 60
+STRIKE_LEVEL4_DECAY_SECONDS = 3 * 24 * 60 * 60
+TEMP_BAN_SECONDS = 24 * 60 * 60
+DEFAULT_UPLOAD_URL = "https://jenkins-hook.goldbach.tech/submissions/upload"
 NETWORK_ACTIVE_LIMIT = 3
 NETWORK_HOURLY_LIMIT = 12
 RECOVER_FAILURE_IP_LIMIT = NETWORK_HOURLY_LIMIT
@@ -34,6 +41,7 @@ QUEUE_BATCH = 16
 QUEUE_RETRY_SECONDS = 15 * 60
 HANDLE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*", re.ASCII)
 HEAD = re.compile(r"[0-9a-f]{40}", re.ASCII)
+SHA256_HEX = re.compile(r"[0-9a-f]{64}", re.ASCII)
 LEASE_TOKEN = re.compile(r"[A-Za-z0-9_-]{43}", re.ASCII)
 TOKEN = re.compile(r"Bearer ([A-Za-z0-9_-]{43})", re.ASCII)
 RELEASE_REASONS = {
@@ -961,10 +969,74 @@ def positive_id(value, maximum=(1 << 63) - 1):
     return type(value) is int and 0 < value <= maximum
 
 
+def nonneg_id(value, maximum=(1 << 63) - 1):
+    return type(value) is int and 0 <= value <= maximum
+
+
 def fleet_pass(secret, handle, expires):
     message = f"goldbach/fleet/v1/{handle}/{expires}".encode("ascii")
     signature = hmac.new(secret, message, hashlib.sha256).hexdigest()
     return f"v1.{expires}.{signature}"
+
+
+def contributor_pass(secret, github_uid, handle, expires):
+    canonical = handle.lower()
+    message = f"goldbach/auth/v1/{github_uid}/{canonical}/{expires}".encode("ascii")
+    signature = hmac.new(secret, message, hashlib.sha256).hexdigest()
+    return f"u1.{github_uid}.{canonical}.{expires}.{signature}"
+
+
+def verify_contributor_pass(secret, supplied, now):
+    if not isinstance(supplied, str) or len(supplied) > 200:
+        return None
+    match = re.fullmatch(r"u1\.([1-9][0-9]{0,18})\.([a-z0-9]+(?:-[a-z0-9]+)*)\.([0-9]{1,12})\.([a-f0-9]{64})", supplied)
+    if not match:
+        return None
+    uid, handle, expires = int(match[1]), match[2], int(match[3])
+    if expires <= now:
+        return None
+    expected = contributor_pass(secret, uid, handle, expires)
+    if not hmac.compare_digest(supplied, expected):
+        return None
+    return uid, handle
+
+
+def sign_upload_ticket(secret, payload):
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    encoded = base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+    sig = hmac.new(secret, encoded.encode("ascii"), hashlib.sha256).hexdigest()
+    return f"{encoded}.{sig}"
+
+
+def verify_upload_ticket(secret, token, now):
+    if not isinstance(token, str) or "." not in token or len(token) > 4096:
+        return None
+    encoded, supplied_sig = token.rsplit(".", 1)
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", encoded) or not re.fullmatch(r"[a-f0-9]{64}", supplied_sig):
+        return None
+    expected_sig = hmac.new(secret, encoded.encode("ascii"), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(supplied_sig, expected_sig):
+        return None
+    padding = "=" * (-len(encoded) % 4)
+    try:
+        data = json.loads(base64.urlsafe_b64decode(encoded + padding))
+    except (ValueError, UnicodeError):
+        return None
+    if not isinstance(data, dict) or type(data.get("expires_at")) is not int or data["expires_at"] <= now:
+        return None
+    return data
+
+
+def effective_strikes(strikes, last_strike_at, decayed_at, now):
+    current = max(0, int(strikes))
+    anchor = max(int(last_strike_at), int(decayed_at))
+    while 0 < current < 5:
+        step = STRIKE_LEVEL4_DECAY_SECONDS if current == 4 else STRIKE_DECAY_SECONDS
+        if now - anchor < step:
+            break
+        current -= 1
+        anchor += step
+    return current, anchor
 
 
 def error(status, code):
@@ -972,9 +1044,10 @@ def error(status, code):
 
 
 class Desk:
-    def __init__(self, db_path, gaps, secret, openings=None, *, slug="goldbach"):
+    def __init__(self, db_path, gaps, secret, openings=None, *, slug="goldbach", upload_url=None):
         self.slug = slug
         self.db_path = db_path
+        self.upload_url = upload_url or os.environ.get("GOLDBACH_UPLOAD_URL", DEFAULT_UPLOAD_URL)
         self.gaps = {gap["id"]: {**gap, "parallel": True} for gap in gaps}
         self.statement_hashes = {
             gap_id: hashlib.sha256(gap["statement"].encode("utf-8")).hexdigest()
@@ -991,6 +1064,33 @@ class Desk:
                 if len(targets) == 1:
                     self.refutation_targets[gap_id] = targets[0]
         self.secret = secret
+        self.moderation_db = Path(db_path).with_name("actor-moderation.sqlite3")
+        with closing(sqlite3.connect(self.moderation_db)) as mconn, mconn:
+            mconn.execute("PRAGMA journal_mode=WAL")
+            mconn.executescript("""
+                CREATE TABLE IF NOT EXISTS actor_identities (
+                    github_uid INTEGER PRIMARY KEY,
+                    handle TEXT NOT NULL,
+                    updated_at INTEGER NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS actor_identities_handle ON actor_identities(handle);
+                CREATE TABLE IF NOT EXISTS actor_bans (
+                    actor_key TEXT PRIMARY KEY,
+                    github_uid INTEGER,
+                    handle TEXT,
+                    reason TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    expires_at INTEGER
+                );
+                CREATE TABLE IF NOT EXISTS actor_strikes (
+                    actor_key TEXT PRIMARY KEY,
+                    github_uid INTEGER,
+                    handle TEXT NOT NULL,
+                    strikes INTEGER NOT NULL DEFAULT 0,
+                    last_strike_at INTEGER NOT NULL,
+                    decayed_at INTEGER NOT NULL
+                );
+            """)
         with closing(sqlite3.connect(db_path)) as conn:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.executescript("""
@@ -1040,6 +1140,18 @@ class Desk:
             conn.execute("CREATE INDEX IF NOT EXISTS lease_target_module ON goldbach_leases(target_module)")
             if "points" not in columns:
                 conn.execute("ALTER TABLE goldbach_leases ADD COLUMN points INTEGER")
+            if "github_uid" not in columns:
+                conn.execute("ALTER TABLE goldbach_leases ADD COLUMN github_uid INTEGER")
+            if "source_sha256" not in columns:
+                conn.execute("ALTER TABLE goldbach_leases ADD COLUMN source_sha256 TEXT")
+            if "kproof_sha256" not in columns:
+                conn.execute("ALTER TABLE goldbach_leases ADD COLUMN kproof_sha256 TEXT")
+            if "kernel_verified_at" not in columns:
+                conn.execute("ALTER TABLE goldbach_leases ADD COLUMN kernel_verified_at INTEGER")
+            if "private_diagnostic" not in columns:
+                conn.execute("ALTER TABLE goldbach_leases ADD COLUMN private_diagnostic TEXT")
+            if "published_sha" not in columns:
+                conn.execute("ALTER TABLE goldbach_leases ADD COLUMN published_sha TEXT")
             conn.execute("""CREATE TABLE IF NOT EXISTS goldbach_task_openings (
                 gap TEXT PRIMARY KEY, opened_at INTEGER NOT NULL
             )""")
@@ -1088,6 +1200,125 @@ class Desk:
             conn.row_factory = sqlite3.Row
             conn.execute("BEGIN IMMEDIATE" if write else "BEGIN")
             yield conn
+
+    @contextmanager
+    def moderation_tx(self, write=False):
+        with closing(sqlite3.connect(self.moderation_db, timeout=15)) as conn, conn:
+            conn.row_factory = sqlite3.Row
+            conn.execute("BEGIN IMMEDIATE" if write else "BEGIN")
+            yield conn
+
+    def record_identity(self, github_uid, handle, now):
+        if not positive_id(github_uid) or not handle:
+            return
+        with self.moderation_tx(write=True) as mconn:
+            mconn.execute(
+                "INSERT OR REPLACE INTO actor_identities (github_uid, handle, updated_at) VALUES (?, ?, ?)",
+                (github_uid, handle, now),
+            )
+
+    def lookup_uid(self, handle):
+        if not handle:
+            return None
+        with self.moderation_tx() as mconn:
+            row = mconn.execute(
+                "SELECT github_uid FROM actor_identities WHERE handle = ? ORDER BY updated_at DESC LIMIT 1",
+                (handle,),
+            ).fetchone()
+            return int(row["github_uid"]) if row else None
+
+    def ban_status(self, github_uid, handle, now):
+        uid = github_uid if positive_id(github_uid) else self.lookup_uid(handle)
+        with self.moderation_tx() as mconn:
+            clauses = []
+            params = []
+            if uid is not None:
+                clauses.append("actor_key = ? OR github_uid = ?")
+                params.extend((f"uid:{uid}", uid))
+            if handle:
+                clauses.append("actor_key = ? OR handle = ?")
+                params.extend((f"handle:{handle}", handle))
+            if not clauses:
+                return None
+            params.append(now)
+            row = mconn.execute(
+                f"SELECT reason, created_at, expires_at FROM actor_bans "
+                f"WHERE ({' OR '.join(clauses)}) AND (expires_at IS NULL OR expires_at > ?) "
+                f"ORDER BY expires_at IS NOT NULL, expires_at DESC, created_at DESC LIMIT 1",
+                params,
+            ).fetchone()
+            if row is None:
+                return None
+            return {
+                "reason": row["reason"],
+                "created_at": row["created_at"],
+                "expires_at": row["expires_at"],
+                "permanent": row["expires_at"] is None,
+            }
+
+    def strike_info(self, github_uid, handle, now):
+        uid = github_uid if positive_id(github_uid) else self.lookup_uid(handle)
+        keys = []
+        if uid is not None:
+            keys.append(f"uid:{uid}")
+        if handle:
+            keys.append(f"handle:{handle}")
+        best_strikes, best_anchor = 0, now
+        if keys:
+            placeholders = ",".join("?" for _ in keys)
+            with self.moderation_tx() as mconn:
+                rows = mconn.execute(
+                    f"SELECT strikes, last_strike_at, decayed_at FROM actor_strikes WHERE actor_key IN ({placeholders})",
+                    keys,
+                ).fetchall()
+            for row in rows:
+                cur, anchor = effective_strikes(row["strikes"], row["last_strike_at"], row["decayed_at"], now)
+                if cur > best_strikes:
+                    best_strikes, best_anchor = cur, anchor
+        return {"strikes": best_strikes, "throttled": best_strikes >= 3, "anchor": best_anchor}
+
+    def _revoke_open_leases_across_desks(self, github_uid, handle, now):
+        state_dir = Path(self.db_path).parent
+        for db_file in sorted(state_dir.glob("*.sqlite3")):
+            if db_file.name in {"actor-moderation.sqlite3", "contributor-links.sqlite3", "page-views.sqlite3"}:
+                continue
+            with closing(sqlite3.connect(db_file, timeout=15)) as conn, conn:
+                cols = {r[1] for r in conn.execute("PRAGMA table_info(goldbach_leases)")}
+                if not cols:
+                    continue
+                if positive_id(github_uid) and "github_uid" in cols:
+                    conn.execute("""
+                        UPDATE goldbach_leases SET released_at = ?, release_reason = 'abandoned'
+                        WHERE (github_uid = ? OR (? IS NOT NULL AND handle = ?))
+                          AND run_id IS NULL AND released_at IS NULL AND finished_at IS NULL
+                    """, (now, github_uid, handle, handle))
+                elif handle:
+                    conn.execute("""
+                        UPDATE goldbach_leases SET released_at = ?, release_reason = 'abandoned'
+                        WHERE handle = ? AND run_id IS NULL AND released_at IS NULL AND finished_at IS NULL
+                    """, (now, handle))
+
+    def ban_actor(self, *, github_uid=None, handle=None, reason, now, duration_seconds=None):
+        uid = github_uid if positive_id(github_uid) else self.lookup_uid(handle)
+        expires = None if duration_seconds is None else int(now + duration_seconds)
+        keys = []
+        if uid is not None:
+            keys.append(f"uid:{uid}")
+        if handle:
+            keys.append(f"handle:{handle}")
+        with self.moderation_tx(write=True) as mconn:
+            for key in keys:
+                existing = mconn.execute(
+                    "SELECT expires_at FROM actor_bans WHERE actor_key = ?", (key,)
+                ).fetchone()
+                if existing is not None and existing["expires_at"] is None and expires is not None:
+                    continue
+                mconn.execute(
+                    "INSERT OR REPLACE INTO actor_bans VALUES (?, ?, ?, ?, ?, ?)",
+                    (key, uid, handle, reason, now, expires),
+                )
+        self._revoke_open_leases_across_desks(uid, handle, now)
+        return expires
 
     def network_key(self, client_ip):
         try:
@@ -1158,7 +1389,7 @@ class Desk:
             "lease": {"token": token, "expires_at": expires, "absolute_expires_at": absolute},
         }
 
-    def claim(self, body, client_ip, now, fleet=None):
+    def claim(self, body, client_ip, now, fleet=None, auth=None):
         handle = canonical_handle(body.get("handle"))
         ip_key = self.network_key(client_ip)
         requested_gap = body.get("gap")
@@ -1173,6 +1404,14 @@ class Desk:
             return error(400, "invalid_kind")
         if "retry_pr" in body and not positive_id(body["retry_pr"], 9_999_999):
             return error(400, "invalid_pull_request")
+        if "retry_head" in body and (not isinstance(body["retry_head"], str) or not HEAD.fullmatch(body["retry_head"])):
+            return error(400, "invalid_pull_request")
+        github_uid = None
+        if auth is not None:
+            verified = verify_contributor_pass(self.secret, auth, now)
+            if verified is None or verified[1] != handle:
+                return error(401, "invalid_contributor_pass")
+            github_uid = verified[0]
         if fleet is not None:
             match = re.fullmatch(r"v1\.([0-9]{1,12})\.[a-f0-9]{64}", fleet)
             if (not match or int(match[1]) <= now
@@ -1180,6 +1419,14 @@ class Desk:
                 return error(401, "invalid_fleet_pass")
             # A registered fleet has its own bucket, including behind a shared university NAT.
             ip_key = "fleet:" + handle
+        ban = self.ban_status(github_uid, handle, now)
+        if ban is not None:
+            return 403, {
+                "error": "account_banned",
+                "reason": ban["reason"],
+                "expires_at": ban["expires_at"],
+                "permanent": ban["permanent"],
+            }
         with self.transaction(write=True) as conn:
             gaps = reductions.catalogue(conn, self.gaps)
             if supplied_token is not None:
@@ -1291,15 +1538,22 @@ class Desk:
                     """, (body["retry_pr"], handle, selected, kind)).fetchone()
                     if previous is None:
                         return error(409, "unknown_retry")
+                elif "retry_head" in body:
+                    previous = conn.execute("""
+                        SELECT target_module FROM goldbach_leases WHERE head=? AND handle=? AND gap=?
+                          AND kind=? AND verdict='REJECTED' ORDER BY rowid DESC LIMIT 1
+                    """, (body["retry_head"], handle, selected, kind)).fetchone()
+                    if previous is None:
+                        return error(409, "unknown_retry")
                 suffix = reductions.digest(selected)[:24] if kind == "refute" else secrets.token_hex(12)
                 module = previous[0] if previous else "Conjectures.Cuts." + kind.title() + suffix
                 gap = reductions.target(gap, module)
             conn.execute("""
                 INSERT INTO goldbach_leases
-                    (token_hash, gap, statement_sha256, handle, ip_key, claimed_at, expires_at, absolute_expires_at, kind, target_module)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (token_hash, gap, statement_sha256, handle, ip_key, claimed_at, expires_at, absolute_expires_at, kind, target_module, github_uid)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (self.token_hash(token), selected, reductions.digest(gap["statement"]),
-                  handle, ip_key, now, expires, absolute, kind, module))
+                  handle, ip_key, now, expires, absolute, kind, module, github_uid))
             return 201, self._claim_receipt(selected, gap, kind, token, expires, absolute, now, conn)
 
     @staticmethod
@@ -1441,7 +1695,169 @@ class Desk:
                 updated += cur.rowcount
         return 200, {"released": True, "count": updated, "gaps": [r["gap"] for r in current]}
 
-    def update_lease(self, action, body, authorization, now):
+    def _auth_challenge_token(self, handle, expires):
+        message = f"desk/auth/v1/{handle}/{expires}".encode("ascii")
+        raw = hmac.new(self.secret, message, hashlib.sha256).digest()
+        return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+
+    def auth_challenge(self, body, client_ip, now):
+        handle = canonical_handle(body.get("handle"))
+        ip_key = self.network_key(client_ip)
+        if not handle or not ip_key:
+            return error(400, "invalid_auth")
+        ban = self.ban_status(None, handle, now)
+        if ban is not None:
+            return 403, {
+                "error": "account_banned",
+                "reason": ban["reason"],
+                "expires_at": ban["expires_at"],
+                "permanent": ban["permanent"],
+            }
+        expires = now + RECOVER_CHALLENGE_SECONDS
+        challenge = self._auth_challenge_token(handle, expires)
+        return 200, {
+            "handle": handle,
+            "expires_at": expires,
+            "challenge": challenge,
+            "filename": github_identity.PROOF_FILENAME,
+            "proof_text": github_identity.proof_text(challenge, handle, purpose="contributor_auth"),
+        }
+
+    def auth_verify(self, body, client_ip, now):
+        handle = canonical_handle(body.get("handle"))
+        ip_key = self.network_key(client_ip)
+        gist = body.get("gist")
+        expires_at = body.get("expires_at")
+        supplied_challenge = body.get("challenge")
+        if not handle or not ip_key:
+            return error(400, "invalid_auth")
+        if not isinstance(gist, str) or len(gist) > 200 or not github_identity.GIST.fullmatch(gist.strip()):
+            return error(400, "invalid_gist")
+        if not positive_id(expires_at) or not isinstance(supplied_challenge, str) or not LEASE_TOKEN.fullmatch(supplied_challenge):
+            return error(400, "invalid_challenge")
+        if expires_at <= now or expires_at > now + RECOVER_CHALLENGE_SECONDS:
+            return error(410, "challenge_expired")
+        expected_challenge = self._auth_challenge_token(handle, expires_at)
+        if not hmac.compare_digest(supplied_challenge, expected_challenge):
+            return error(401, "invalid_challenge")
+
+        with _RECOVER_LOCK:
+            _RECOVER_FAILURES[:] = [item for item in _RECOVER_FAILURES if item[0] > now - 3600]
+            if (len(_RECOVER_FAILURES) >= RECOVER_FAILURE_GLOBAL_LIMIT
+                    or sum(ip == ip_key for _, ip in _RECOVER_FAILURES) >= RECOVER_FAILURE_IP_LIMIT):
+                return error(429, "recover_rate_limit")
+
+        try:
+            identity = github_identity.verify_gist(gist, expected_challenge, handle, purpose="contributor_auth")
+        except github_identity.GithubProofError as exc:
+            if exc.status == 422:
+                with _RECOVER_LOCK:
+                    _RECOVER_FAILURES.append((now, ip_key))
+            return error(exc.status, exc.code)
+
+        github_uid = identity["id"]
+        self.record_identity(github_uid, handle, now)
+        ban = self.ban_status(github_uid, handle, now)
+        if ban is not None:
+            return 403, {
+                "error": "account_banned",
+                "reason": ban["reason"],
+                "expires_at": ban["expires_at"],
+                "permanent": ban["permanent"],
+            }
+        pass_expires = now + CONTRIBUTOR_PASS_SECONDS
+        return 200, {
+            "handle": handle,
+            "github_uid": github_uid,
+            "expires_at": pass_expires,
+            "contributor_pass": contributor_pass(self.secret, github_uid, handle, pass_expires),
+        }
+
+    def lease_status(self, authorization, now):
+        token = TOKEN.fullmatch(authorization)
+        if token is None:
+            return error(401, "invalid_lease")
+        digest = self.token_hash(token[1])
+        with self.transaction() as conn:
+            lease = conn.execute("SELECT * FROM goldbach_leases WHERE token_hash = ?", (digest,)).fetchone()
+            if lease is None:
+                return error(401, "invalid_lease")
+            failed_check = False
+            if lease["run_id"] is not None:
+                failed_check = conn.execute(
+                    "SELECT 1 FROM goldbach_check_failures WHERE run_id = ?", (lease["run_id"],)
+                ).fetchone() is not None
+        if lease["verdict"] == "ACCEPTED":
+            state = "accepted"
+        elif lease["verdict"] == "REJECTED":
+            state = "rejected"
+        elif lease["released_at"] is not None:
+            state = "released"
+        elif failed_check:
+            state = "error"
+        elif lease["expires_at"] <= now:
+            state = "expired"
+        elif lease["kernel_verified_at"] is not None:
+            state = "kernel_verified"
+        elif lease["run_id"] is not None:
+            state = "checking"
+        elif lease["submitted_at"] is not None:
+            state = "submitted"
+        else:
+            state = "working"
+        ban = self.ban_status(lease["github_uid"], lease["handle"], now)
+        sinfo = self.strike_info(lease["github_uid"], lease["handle"], now)
+        payload = {
+            "gap": lease["gap"],
+            "kind": lease["kind"],
+            "handle": lease["handle"],
+            "state": state,
+            "verdict": lease["verdict"],
+            "points": lease["points"],
+            "pr": lease["pr"],
+            "submission_id": lease["head"] if lease["pr"] == 0 else None,
+            "published_sha": lease["published_sha"],
+            "run_id": lease["run_id"],
+            "submitted_at": lease["submitted_at"],
+            "checking_at": lease["checking_at"],
+            "kernel_verified_at": lease["kernel_verified_at"],
+            "finished_at": lease["finished_at"],
+            "expires_at": lease["expires_at"],
+            "diagnostic": lease["private_diagnostic"],
+            "moderation": {
+                "strikes": sinfo["strikes"],
+                "throttled": sinfo["throttled"],
+                "banned": ban is not None,
+                **({"ban": ban} if ban is not None else {}),
+            },
+        }
+        return 200, {k: v for k, v in payload.items() if v is not None}
+
+    def _build_upload_ticket(self, conn, lease, github_uid, submission_id, source_sha256, kproof_sha256, sinfo, now):
+        gaps = reductions.catalogue(conn, self.gaps)
+        gap_desc = gaps[lease["gap"]]
+        if lease["target_module"]:
+            gap_desc = reductions.target(gap_desc, lease["target_module"])
+        return sign_upload_ticket(self.secret, {
+            "v": 1,
+            "problem": self.slug,
+            "gap": lease["gap"],
+            "kind": lease["kind"],
+            "module": lease["target_module"] or gap_desc.get("module"),
+            "file": gap_desc.get("file"),
+            "statement": gap_desc["statement"],
+            "statement_sha256": lease["statement_sha256"],
+            "imports": gap_desc.get("imports", []),
+            "handle": lease["handle"],
+            "github_uid": github_uid,
+            "submission_id": submission_id,
+            "source_sha256": source_sha256,
+            "kproof_sha256": kproof_sha256,
+            "throttled": bool(sinfo["throttled"]),
+            "expires_at": now + UPLOAD_TICKET_SECONDS,
+        })
+
+    def update_lease(self, action, body, authorization, now, *, auth=None, fleet=None):
         token = TOKEN.fullmatch(authorization)
         if token is None:
             return error(401, "invalid_lease")
@@ -1470,6 +1886,92 @@ class Desk:
                 """, (now, reason, digest))
                 return 200, {"released": True}
 
+            handle = lease["handle"]
+            github_uid = lease["github_uid"]
+            if auth is not None:
+                verified = verify_contributor_pass(self.secret, auth, now)
+                if verified is None or verified[1] != handle:
+                    return error(401, "invalid_contributor_pass")
+                github_uid = verified[0]
+            elif fleet is not None:
+                match = re.fullmatch(r"v1\.([0-9]{1,12})\.[a-f0-9]{64}", fleet)
+                if (not match or int(match[1]) <= now
+                        or not hmac.compare_digest(fleet, fleet_pass(self.secret, handle, int(match[1])))):
+                    return error(401, "invalid_fleet_pass")
+                if github_uid is None:
+                    github_uid = self.lookup_uid(handle)
+
+            ban = self.ban_status(github_uid, handle, now)
+            if ban is not None:
+                return 403, {
+                    "error": "account_banned",
+                    "reason": ban["reason"],
+                    "expires_at": ban["expires_at"],
+                    "permanent": ban["permanent"],
+                }
+
+            # Private direct submission mode (zero PR until ACCEPTED).
+            if "source_sha256" in body and body.get("pr") in (None, 0):
+                if auth is None and fleet is None:
+                    return error(401, "contributor_auth_required")
+                source_sha256 = body.get("source_sha256")
+                kproof_sha256 = body.get("kproof_sha256")
+                if not isinstance(source_sha256, str) or not SHA256_HEX.fullmatch(source_sha256):
+                    return error(400, "invalid_source_sha256")
+                if kproof_sha256 is not None and (not isinstance(kproof_sha256, str) or not SHA256_HEX.fullmatch(kproof_sha256)):
+                    return error(400, "invalid_kproof_sha256")
+                try:
+                    agent = agent_metadata(body.get("agent"))
+                except ValueError as exc:
+                    return error(400, str(exc))
+                sinfo = self.strike_info(github_uid, handle, now)
+                if lease["pr"] is not None:
+                    if (lease["pr"] == 0 and lease["source_sha256"] == source_sha256
+                            and lease["kproof_sha256"] == kproof_sha256 and lease["run_id"] is None):
+                        if any(agent[key] != lease[key] for key in agent):
+                            return error(409, "submission_metadata_frozen")
+                        ticket = self._build_upload_ticket(
+                            conn, lease, github_uid, lease["head"], source_sha256, kproof_sha256, sinfo, now
+                        )
+                        return 200, {
+                            "submitted": True,
+                            "private": True,
+                            "submission_id": lease["head"],
+                            "points": lease["points"],
+                            "throttled": bool(sinfo["throttled"]),
+                            "strikes": sinfo["strikes"],
+                            "upload_url": self.upload_url,
+                            "upload_ticket": ticket,
+                            **self.lease_times(lease),
+                        }
+                    return error(409, "lease_already_submitted")
+
+                submission_id = secrets.token_hex(20)
+                points = reductions.CREDIT_POINTS if lease["kind"] == "cut" else self.points(lease["gap"], now, conn)
+                expires = now + SUBMISSION_SECONDS
+                conn.execute("""
+                    UPDATE goldbach_leases SET pr = 0, head = ?, submitted_at = ?, expires_at = ?,
+                        model = ?, harness = ?, harness_version = ?, agent_reported = 1, points = ?,
+                        github_uid = COALESCE(?, github_uid), source_sha256 = ?, kproof_sha256 = ?
+                    WHERE token_hash = ?
+                """, (submission_id, now, expires, agent["model"], agent["harness"], agent["harness_version"],
+                      points, github_uid, source_sha256, kproof_sha256, digest))
+                ticket = self._build_upload_ticket(
+                    conn, lease, github_uid, submission_id, source_sha256, kproof_sha256, sinfo, now
+                )
+                return 200, {
+                    "submitted": True,
+                    "private": True,
+                    "submission_id": submission_id,
+                    "points": points,
+                    "throttled": bool(sinfo["throttled"]),
+                    "strikes": sinfo["strikes"],
+                    "upload_url": self.upload_url,
+                    "upload_ticket": ticket,
+                    "expires_at": expires,
+                    "absolute_expires_at": lease["absolute_expires_at"],
+                }
+
             pr, head = body.get("pr"), body.get("head")
             if not positive_id(pr, 9_999_999) or not isinstance(head, str) or not HEAD.fullmatch(head):
                 return error(400, "invalid_pull_request")
@@ -1492,10 +1994,11 @@ class Desk:
             expires = now + SUBMISSION_SECONDS
             conn.execute("""
                 UPDATE goldbach_leases SET pr = ?, head = ?, submitted_at = ?, expires_at = ?,
-                    model = ?, harness = ?, harness_version = ?, agent_reported = ?, points = ?
+                    model = ?, harness = ?, harness_version = ?, agent_reported = ?, points = ?,
+                    github_uid = COALESCE(?, github_uid)
                 WHERE token_hash = ?
             """, (pr, head, now, expires, agent["model"], agent["harness"], agent["harness_version"],
-                  1, points, digest))
+                  1, points, github_uid, digest))
             return 200, {"submitted": True, "points": points, "expires_at": expires,
                          "absolute_expires_at": lease["absolute_expires_at"]}
 
@@ -1507,7 +2010,7 @@ class Desk:
         with self.transaction(write=True) as conn:
             rows = conn.execute("""
                 SELECT token_hash, pr, head, handle, gap FROM goldbach_leases
-                WHERE pr IS NOT NULL AND run_id IS NULL AND released_at IS NULL AND expires_at > ?
+                WHERE pr > 0 AND run_id IS NULL AND released_at IS NULL AND expires_at > ?
                   AND (last_polled_at IS NULL OR last_polled_at <= ?)
                 ORDER BY last_polled_at IS NOT NULL, last_polled_at, submitted_at, rowid LIMIT ?
             """, (now, now - QUEUE_RETRY_SECONDS, limit)).fetchall()
@@ -1519,26 +2022,37 @@ class Desk:
         if not self.signed(supplied, raw_body):
             return error(401, "invalid_signature")
 
+        dry_run = body.get("dry_run") is True
+        if "dry_run" in body and not isinstance(body["dry_run"], bool):
+            return error(400, "invalid_authorization")
         pr, head, run_id = body.get("pr"), body.get("head"), body.get("run_id")
         handle, gap = canonical_handle(body.get("handle")), body.get("gap")
         statement_hash = body.get("statement_sha256")
-        if (not positive_id(pr, 9_999_999) or not positive_id(run_id)
+        if (not nonneg_id(pr, 9_999_999) or not positive_id(run_id)
                 or not isinstance(head, str) or not HEAD.fullmatch(head)
                 or not handle or not isinstance(gap, str)
-                or not isinstance(statement_hash, str)):
+                or (not isinstance(statement_hash, str) and not (dry_run and statement_hash is None))):
             return error(400, "invalid_authorization")
-        with self.transaction(write=True) as conn:
+        with self.transaction(write=not dry_run) as conn:
             lease = conn.execute("""
                 SELECT * FROM goldbach_leases WHERE pr = ? AND head = ? AND handle = ? AND gap = ?
                 ORDER BY (run_id = ?) DESC, claimed_at DESC, rowid DESC LIMIT 1
             """, (pr, head, handle, gap, run_id)).fetchone()
+            expected_hash = statement_hash if statement_hash is not None else (
+                lease["statement_sha256"] if lease is not None else None
+            )
             if (lease is None or lease["released_at"] is not None
-                    or lease["statement_sha256"] != statement_hash
-                    or lease["kind"] != body.get("kind", "prove")
-                    or ((lease["kind"] != "prove" or reductions.GENERATED_ID.fullmatch(gap) or body.get("module"))
+                    or lease["statement_sha256"] != expected_hash
+                    or (not dry_run and lease["kind"] != body.get("kind", "prove"))
+                    or ("kind" in body and lease["kind"] != body["kind"])
+                    or ((not dry_run and (lease["kind"] != "prove" or reductions.GENERATED_ID.fullmatch(gap) or body.get("module")))
                         and (lease["target_module"] or self.gaps.get(gap, {}).get("module")) != body.get("module"))
-                    or reductions.digest(reductions.catalogue(conn, self.gaps).get(gap, {}).get("statement", "")) != statement_hash):
+                    or (dry_run and body.get("module") is not None
+                        and (lease["target_module"] or self.gaps.get(gap, {}).get("module")) != body.get("module"))
+                    or reductions.digest(reductions.catalogue(conn, self.gaps).get(gap, {}).get("statement", "")) != expected_hash):
                 return error(409, "no_matching_submission")
+            if self.ban_status(lease["github_uid"], handle, now) is not None:
+                return error(409, "account_banned")
             if lease["run_id"] == run_id and lease["expires_at"] > now and lease["finished_at"] is None:
                 return 200, {"authorized": True}
             retry = lease["run_id"] is not None and run_id > lease["run_id"] and conn.execute(
@@ -1556,11 +2070,199 @@ class Desk:
             """, (pr, head)).fetchone():
                 return error(409, "head_already_authorized")
 
-            conn.execute("""
-                UPDATE goldbach_leases SET run_id = ?, checking_at = ?, expires_at = ?, finished_at = NULL, verdict = NULL
-                WHERE token_hash = ?
-            """, (run_id, now, now + CHECK_SECONDS, lease["token_hash"]))
+            if not dry_run:
+                conn.execute("""
+                    UPDATE goldbach_leases SET run_id = ?, checking_at = ?, expires_at = ?, finished_at = NULL, verdict = NULL
+                    WHERE token_hash = ?
+                """, (run_id, now, now + CHECK_SECONDS, lease["token_hash"]))
             return 200, {"authorized": True}
+
+    def kernel_verified(self, body, supplied, raw_body, now):
+        if not self.signed(supplied, raw_body):
+            return error(401, "invalid_signature")
+        run_id, gap, head = body.get("run_id"), body.get("gap"), body.get("head")
+        if not positive_id(run_id) or not isinstance(gap, str) or not isinstance(head, str) or not HEAD.fullmatch(head):
+            return error(400, "invalid_kernel_verified")
+        with self.transaction(write=True) as conn:
+            lease = conn.execute(
+                "SELECT * FROM goldbach_leases WHERE run_id = ? AND gap = ? AND head = ?",
+                (run_id, gap, head),
+            ).fetchone()
+            if lease is None:
+                return error(409, "no_matching_run")
+            sinfo = self.strike_info(lease["github_uid"], lease["handle"], now)
+            if sinfo["throttled"]:
+                return 200, {"stored": True, "kernel_verified_at": None, "throttled": True}
+            verified_at = lease["kernel_verified_at"] or now
+            conn.execute(
+                "UPDATE goldbach_leases SET kernel_verified_at = COALESCE(kernel_verified_at, ?) WHERE token_hash = ?",
+                (now, lease["token_hash"]),
+            )
+            return 200, {"stored": True, "kernel_verified_at": verified_at, "throttled": False}
+
+    def record_diagnostic(self, body, supplied, raw_body, now):
+        if not self.signed(supplied, raw_body):
+            return error(401, "invalid_signature")
+        gap, head = body.get("gap"), body.get("head")
+        run_id = body.get("run_id")
+        diagnostic = body.get("diagnostic")
+        if (not isinstance(gap, str) or not isinstance(head, str) or not HEAD.fullmatch(head)
+                or (run_id is not None and not positive_id(run_id))
+                or not isinstance(diagnostic, str)):
+            return error(400, "invalid_diagnostic")
+        text = diagnostic[:8000]
+        with self.transaction(write=True) as conn:
+            conn.execute(
+                "UPDATE goldbach_leases SET private_diagnostic = ? WHERE gap = ? AND head = ? AND (? IS NULL OR run_id = ?)",
+                (text, gap, head, run_id, run_id),
+            )
+        return 200, {"stored": True}
+
+    def record_moderation_event(self, body, supplied, raw_body, now):
+        if not self.signed(supplied, raw_body):
+            return error(401, "invalid_signature")
+        event_kind = body.get("kind")
+        handle = canonical_handle(body.get("handle"))
+        raw_uid = body.get("github_uid")
+        run_id = body.get("run_id")
+        gap = body.get("gap")
+        head = body.get("head")
+        detail = body.get("detail", "")
+        if (event_kind not in {"tamper", "stage2_resource_limit"}
+                or not handle
+                or (raw_uid is not None and not positive_id(raw_uid))
+                or (run_id is not None and not positive_id(run_id))
+                or (gap is not None and not isinstance(gap, str))
+                or (head is not None and (not isinstance(head, str) or not HEAD.fullmatch(head)))
+                or not isinstance(detail, str)):
+            return error(400, "invalid_moderation_event")
+        detail_short = detail[:1000]
+        github_uid = raw_uid
+        if github_uid is None and run_id is not None:
+            with self.transaction() as conn:
+                row = conn.execute("SELECT github_uid FROM goldbach_leases WHERE run_id = ?", (run_id,)).fetchone()
+                if row and row["github_uid"]:
+                    github_uid = int(row["github_uid"])
+        if github_uid is None:
+            github_uid = self.lookup_uid(handle)
+        if github_uid is not None:
+            self.record_identity(github_uid, handle, now)
+
+        if detail_short and (run_id is not None or (gap and head)):
+            with self.transaction(write=True) as conn:
+                if run_id is not None:
+                    conn.execute(
+                        "UPDATE goldbach_leases SET private_diagnostic = ? WHERE run_id = ?",
+                        (detail_short, run_id),
+                    )
+                else:
+                    conn.execute(
+                        "UPDATE goldbach_leases SET private_diagnostic = ? WHERE gap = ? AND head = ?",
+                        (detail_short, gap, head),
+                    )
+
+        if event_kind == "tamper":
+            self.ban_actor(
+                github_uid=github_uid,
+                handle=handle,
+                reason=detail_short or "protocol_tamper",
+                now=now,
+                duration_seconds=None,
+            )
+            return 200, {"action": "permanent_ban", "strikes": 5, "throttled": True, "expires_at": None}
+
+        actor_key = f"uid:{github_uid}" if github_uid is not None else f"handle:{handle}"
+        with self.moderation_tx(write=True) as mconn:
+            keys = [actor_key]
+            if github_uid is not None:
+                keys.append(f"handle:{handle}")
+            placeholders = ",".join("?" for _ in keys)
+            rows = mconn.execute(
+                f"SELECT strikes, last_strike_at, decayed_at FROM actor_strikes WHERE actor_key IN ({placeholders})",
+                keys,
+            ).fetchall()
+            cur = 0
+            for row in rows:
+                eff, _ = effective_strikes(row["strikes"], row["last_strike_at"], row["decayed_at"], now)
+                cur = max(cur, eff)
+            new_strikes = cur + 1
+            for key in set(keys):
+                mconn.execute(
+                    "INSERT OR REPLACE INTO actor_strikes VALUES (?, ?, ?, ?, ?, ?)",
+                    (key, github_uid, handle, new_strikes, now, now),
+                )
+
+        expires_at = None
+        if new_strikes <= 2:
+            action = "warn"
+        elif new_strikes == 3:
+            action = "throttled"
+        elif new_strikes == 4:
+            action = "temp_ban_24h"
+            expires_at = self.ban_actor(
+                github_uid=github_uid,
+                handle=handle,
+                reason=detail_short or "stage2_resource_limit_strike_4",
+                now=now,
+                duration_seconds=TEMP_BAN_SECONDS,
+            )
+        else:
+            action = "permanent_ban"
+            self.ban_actor(
+                github_uid=github_uid,
+                handle=handle,
+                reason=detail_short or "stage2_resource_limit_strike_5",
+                now=now,
+                duration_seconds=None,
+            )
+        return 200, {
+            "action": action,
+            "strikes": new_strikes,
+            "throttled": new_strikes >= 3,
+            "expires_at": expires_at,
+        }
+
+    def record_published(self, body, supplied, raw_body, now):
+        if not self.signed(supplied, raw_body):
+            return error(401, "invalid_signature")
+        run_id = body.get("run_id")
+        gap = body.get("gap")
+        commit_sha = body.get("commit_sha")
+        check_id = body.get("check_id")
+        if (not positive_id(run_id) or not isinstance(gap, str)
+                or not isinstance(commit_sha, str) or not HEAD.fullmatch(commit_sha)
+                or (check_id is not None and not positive_id(check_id, (1 << 53) - 1))):
+            return error(400, "invalid_published")
+        with self.transaction(write=True) as conn:
+            lease = conn.execute(
+                "SELECT * FROM goldbach_leases WHERE run_id = ? AND gap = ? AND verdict = 'ACCEPTED'",
+                (run_id, gap),
+            ).fetchone()
+            if lease is None:
+                return error(409, "no_accepted_run")
+            conn.execute(
+                "UPDATE goldbach_leases SET published_sha = ?, head = ? WHERE token_hash = ?",
+                (commit_sha, commit_sha, lease["token_hash"]),
+            )
+            conn.execute(
+                "UPDATE cut_tasks SET descriptor = json_set(descriptor, '$.cut_origin.head', ?) "
+                "WHERE json_extract(descriptor, '$.cut_origin.run') = ?",
+                (commit_sha, run_id),
+            )
+            if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='verdicts'").fetchone():
+                if check_id is not None:
+                    conn.execute(
+                        "UPDATE verdicts SET body = CAST(json_set(CAST(body AS TEXT), '$.head_sha', ?, '$.check_id', ?) AS BLOB) "
+                        "WHERE run_id = ?",
+                        (commit_sha, check_id, run_id),
+                    )
+                else:
+                    conn.execute(
+                        "UPDATE verdicts SET body = CAST(json_set(CAST(body AS TEXT), '$.head_sha', ?) AS BLOB) "
+                        "WHERE run_id = ?",
+                        (commit_sha, run_id),
+                    )
+        return 200, {"published": True, "commit_sha": commit_sha}
 
     def record_check_failure(self, pr, head, run, now):
         # Keep the run identity for late or repeated delivery. Only an author-authorized
@@ -1630,7 +2332,11 @@ class Desk:
             return error(400, "invalid_json")
         now = int(time.time())
         if path == "/api/desk/claim":
-            return self.claim(body, client_ip, now, headers.get("X-Goldbach-Fleet"))
+            return self.claim(body, client_ip, now, headers.get("X-Goldbach-Fleet"), headers.get("X-Goldbach-Auth"))
+        if path == "/api/desk/auth-challenge":
+            return self.auth_challenge(body, client_ip, now)
+        if path == "/api/desk/auth-verify":
+            return self.auth_verify(body, client_ip, now)
         if path == "/api/desk/recover-challenge":
             return self.recover_challenge(body, client_ip, now)
         if path == "/api/desk/recover":
@@ -1641,8 +2347,25 @@ class Desk:
             return self.pending(now)
         if path == "/api/desk/authorize":
             return self.authorize(body, headers.get("X-Goldbach-Signature", ""), raw_body, now)
+        if path == "/api/desk/kernel-verified":
+            return self.kernel_verified(body, headers.get("X-Goldbach-Signature", ""), raw_body, now)
+        if path == "/api/desk/diagnostic":
+            return self.record_diagnostic(body, headers.get("X-Goldbach-Signature", ""), raw_body, now)
+        if path == "/api/desk/moderation-event":
+            return self.record_moderation_event(body, headers.get("X-Goldbach-Signature", ""), raw_body, now)
+        if path == "/api/desk/published":
+            return self.record_published(body, headers.get("X-Goldbach-Signature", ""), raw_body, now)
+        if path == "/api/desk/status":
+            return self.lease_status(headers.get("Authorization", ""), now)
         if path in {"/api/desk/beat", "/api/desk/release", "/api/desk/submit"}:
-            return self.update_lease(path.rsplit("/", 1)[1], body, headers.get("Authorization", ""), now)
+            return self.update_lease(
+                path.rsplit("/", 1)[1],
+                body,
+                headers.get("Authorization", ""),
+                now,
+                auth=headers.get("X-Goldbach-Auth"),
+                fleet=headers.get("X-Goldbach-Fleet"),
+            )
         return error(404, "unknown_endpoint")
 
     def record_verdict(self, record, conn):
@@ -1718,7 +2441,10 @@ class Desk:
         winners = conn.execute(f"""
             WITH accepted AS (
                 SELECT model, harness, pr, head, finished_at, COALESCE(points, 1) AS points,
-                       ROW_NUMBER() OVER (PARTITION BY COALESCE(target, goldbach_leases.gap) ORDER BY finished_at, run_id) AS position
+                       ROW_NUMBER() OVER (
+                           PARTITION BY COALESCE(target, goldbach_leases.gap)
+                           ORDER BY COALESCE(kernel_verified_at, finished_at), finished_at, run_id
+                       ) AS position
                 FROM goldbach_leases LEFT JOIN goldbach_resolution_targets USING (gap)
                 WHERE kind != 'cut' AND verdict = 'ACCEPTED' AND run_id IS NOT NULL AND finished_at <= ?
             )
@@ -1796,21 +2522,40 @@ class Desk:
                         SELECT submitted_at, 'submitted', gap, NULL, NULL, NULL, NULL, NULL, 1
                         FROM goldbach_leases WHERE submitted_at IS NOT NULL
                         UNION ALL
-                        SELECT checking_at, 'checking', gap, handle, pr, run_id, head, NULL, 2
+                        SELECT checking_at, 'checking', gap,
+                               CASE WHEN pr > 0 THEN handle END,
+                               CASE WHEN pr > 0 THEN pr END,
+                               run_id,
+                               CASE WHEN pr > 0 THEN head END,
+                               NULL, 2
                         FROM goldbach_leases WHERE checking_at IS NOT NULL
                         UNION ALL
                         SELECT released_at, 'released', gap, NULL, NULL, NULL, NULL, release_reason, 3
                         FROM goldbach_leases WHERE released_at IS NOT NULL
                         UNION ALL
-                        SELECT finished_at, lower(verdict), gap, handle, pr, run_id, head, NULL, 3
+                        SELECT finished_at, lower(verdict), gap,
+                               CASE WHEN pr > 0 OR verdict = 'ACCEPTED' THEN handle END,
+                               CASE WHEN pr > 0 THEN pr END,
+                               run_id,
+                               CASE WHEN pr > 0 THEN head
+                                    WHEN verdict = 'ACCEPTED' AND published_sha IS NOT NULL THEN published_sha
+                               END,
+                               NULL, 3
                         FROM goldbach_leases WHERE verdict IS NOT NULL
                         UNION ALL
-                        SELECT at, 'error', gap, handle, pr, run_id, head, NULL, 3 FROM goldbach_check_failures
+                        SELECT at, 'error', gap,
+                               CASE WHEN pr > 0 THEN handle END,
+                               CASE WHEN pr > 0 THEN pr END,
+                               run_id,
+                               CASE WHEN pr > 0 THEN head END,
+                               NULL, 3 FROM goldbach_check_failures
                         UNION ALL
                         SELECT expires_at, 'expired', gap,
-                               CASE WHEN run_id IS NOT NULL THEN handle END,
-                               CASE WHEN run_id IS NOT NULL THEN pr END, run_id,
-                               CASE WHEN run_id IS NOT NULL THEN head END, NULL, 3
+                               CASE WHEN run_id IS NOT NULL AND pr > 0 THEN handle END,
+                               CASE WHEN run_id IS NOT NULL AND pr > 0 THEN pr END,
+                               run_id,
+                               CASE WHEN run_id IS NOT NULL AND pr > 0 THEN head END,
+                               NULL, 3
                         FROM goldbach_leases
                         WHERE expires_at <= ? AND released_at IS NULL AND finished_at IS NULL
                     )
@@ -1822,7 +2567,10 @@ class Desk:
                 dict(row) for row in conn.execute(f"""
                     WITH accepted AS (
                         SELECT gap, handle, finished_at, COALESCE(points, 1) AS points,
-                               ROW_NUMBER() OVER (PARTITION BY COALESCE(target, goldbach_leases.gap) ORDER BY finished_at, run_id) AS position
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY COALESCE(target, goldbach_leases.gap)
+                                   ORDER BY COALESCE(kernel_verified_at, finished_at), finished_at, run_id
+                               ) AS position
                         FROM goldbach_leases LEFT JOIN goldbach_resolution_targets USING (gap)
                         WHERE kind != 'cut' AND verdict = 'ACCEPTED' AND run_id IS NOT NULL AND finished_at <= ?
                     )

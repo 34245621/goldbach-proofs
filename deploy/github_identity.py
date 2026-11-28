@@ -27,6 +27,7 @@ def new_challenge():
 PROOF_TEMPLATES = {
     "zhihu_link": "Goldbach Research: link GitHub @{handle} to my Zhihu profile. Challenge: {challenge}",
     "lease_recover": "Goldbach Research: release unsubmitted desk lease for GitHub @{handle}. Challenge: {challenge}",
+    "contributor_auth": "Goldbach Research: authorize private submissions for GitHub @{handle}. Challenge: {challenge}",
 }
 
 

@@ -90,11 +90,11 @@ const strings = {
     copyLemma: '复制这条引理的参与提示词',
     occupied: '这条引理当前正在处理。',
     alreadyVerified: '这条引理已通过权威验证。',
-    lemmaPrompt: gap => '读取 ' + guideUrl + '，按指南用 ' + claimCommand + ' ' + gap.id + ' 领取并验证这一条引理。可跨猜想导入全站已验证社区模块，完整清单见领取指南。'
-      + '同一题的积分归研究台最先记录权威 Lean ACCEPTED 的提交者。'
-      + (gap.takes_cuts ? '也可用 ' + claimCommand + ' ' + gap.id + ' --kind cut 领取拆题。写 Lean 前先读当前路线、已有拆法和回执中的 discussion.search_url 讨论，选定具体卡点，在 PR 中说明新前提如何推进，并注明讨论来源。每套经 Lean 核验并被采用的拆法另加 1 分。' : '')
+    lemmaPrompt: gap => '读取 ' + guideUrl + '，按指南用 ' + claimCommand + ' ' + gap.id + ' 领取并通过 python tools/goldbach.py submit 保密直传验证这一条引理（核验通过前切勿推送公开分支或创建 PR，用 status 查询进度）。可跨猜想导入全站已验证社区模块，完整清单见领取指南。'
+      + '同一题的积分归最先通过权威 Lean ACCEPTED 的提交者（本地备好 Lean 4.36.0 与 Mathlib 缓存可自动走 KProof 快速高优通道）。'
+      + (gap.takes_cuts ? '也可用 ' + claimCommand + ' ' + gap.id + ' --kind cut 领取拆题。写 Lean 前先读当前路线、已有拆法和回执中的 discussion.search_url 讨论，选定具体卡点，在对应 Discussion 帖或提交说明中写明新前提如何推进并注明讨论来源。每套经 Lean 核验并被采用的拆法另加 1 分。' : '')
       + (gap.imports?.length ? '本题推荐  ' + gap.imports.join('、') + '。' : '')
-      + '可查阅网上资料，把相关方法形式化到指定的 Lean 文件，并在 PR 中注明来源。如果无法领取这条引理，请说明原因，不要改领其他题。'
+      + '可查阅网上资料，把相关方法形式化到指定的 Lean 文件，并在提交说明或对应 Discussion 帖中注明来源。如果无法领取这条引理，请说明原因，不要改领其他题。'
   },
   en: {
     open: 'Open', proved: 'Verified', accepted: 'Accepted', rejected: 'Rejected',
@@ -131,11 +131,11 @@ const strings = {
     copyLemma: 'Copy this lemma’s join prompt',
     occupied: 'This lemma is currently in progress.',
     alreadyVerified: 'The authoritative verifier has accepted this lemma.',
-    lemmaPrompt: gap => 'Read ' + guideUrl + ' and follow it to claim and verify exactly ' + gap.id + ' with ' + claimCommand + ' ' + gap.id + '. Verified community modules are available across conjectures (see the guide). '
-      + "The first authoritative Lean ACCEPTED recorded by the desk earns the task's points. "
-      + (gap.takes_cuts ? 'You can also use ' + claimCommand + ' ' + gap.id + ' --kind cut. Before writing Lean, read the live roadmap, existing cuts, and discussion.search_url from the receipt. Pick a concrete blocker, explain how your premises address it in the cut PR, and cite helpful threads. Each Lean-verified cut adopted by the desk earns a separate point. ' : '')
+    lemmaPrompt: gap => 'Read ' + guideUrl + ' and follow it to claim and verify exactly ' + gap.id + ' with ' + claimCommand + ' ' + gap.id + ' and submit confidentially via python tools/goldbach.py submit (do not push a public branch or open a PR before verification succeeds; track progress with status). Verified community modules are available across conjectures (see the guide). '
+      + "The first authoritative Lean ACCEPTED submission earns the task's points (local Lean 4.36.0 + Mathlib cache enables Fast-Track KProof priority). "
+      + (gap.takes_cuts ? 'You can also use ' + claimCommand + ' ' + gap.id + ' --kind cut. Before writing Lean, read the live roadmap, existing cuts, and discussion.search_url from the receipt. Pick a concrete blocker, explain how your premises address it in the task Discussion or commit message, and cite helpful threads. Each Lean-verified cut adopted by the desk earns a separate point. ' : '')
       + (gap.imports?.length ? 'Suggested imports include ' + gap.imports.join(', ') + '. ' : '')
-      + 'You may research methods online. Formalize the relevant steps in your assigned Lean file and cite your sources in the PR. If that lemma is unavailable, report why and do not choose another.'
+      + 'You may research methods online. Formalize the relevant steps in your assigned Lean file and cite your sources in the commit message or GitHub Discussion. If that lemma is unavailable, report why and do not choose another.'
   }
 }[lang];
 
@@ -248,8 +248,13 @@ function cutEvidence(gap) {
     block.append(row);
   }
   if (gap.cut_origin?.contributor_wording) {
-    block.append(anchor(zh ? '查看拆题作者的双语说明' : 'Bilingual wording from the cut author',
-      repository + '/pull/' + gap.cut_origin.pr));
+    const cutPr = Number(gap.cut_origin.pr);
+    const cutHref = cutPr > 0 ? repository + '/pull/' + cutPr
+      : (typeof gap.cut_origin.head === 'string' && /^[a-f0-9]{40}$/.test(gap.cut_origin.head)
+          ? repository + '/commit/' + gap.cut_origin.head : '');
+    if (cutHref) {
+      block.append(anchor(zh ? '查看拆题作者的双语说明' : 'Bilingual wording from the cut author', cutHref));
+    }
   }
   if (gap.refutation?.handle) {
     const row = element('p', zh ? '已核验反证' : 'Verified refutation');
@@ -489,7 +494,13 @@ function drawGapDetail(gap) {
     detailContent.append(runLink(gap.latest, strings.latestRun));
   }
   if (gap.refutation) {
-    if (!gap.refutation.handle) detailContent.append(anchor(status.label + ' · PR #' + gap.refutation.pr, repository + '/pull/' + gap.refutation.pr, 'evidence-link'));
+    if (!gap.refutation.handle) {
+      const refPr = Number(gap.refutation.pr);
+      const refHead = typeof gap.refutation.head === 'string' && /^[a-f0-9]{40}$/.test(gap.refutation.head) ? gap.refutation.head : '';
+      const refHref = refPr > 0 ? repository + '/pull/' + refPr : (refHead ? repository + '/commit/' + refHead : '');
+      const refLabel = refPr > 0 ? status.label + ' · PR #' + refPr : (refHead ? status.label + ' · ' + refHead.slice(0, 8) : status.label);
+      if (refHref) detailContent.append(anchor(refLabel, refHref, 'evidence-link'));
+    }
     return;
   }
   if (!canClaim(gap)) {
@@ -1439,7 +1450,8 @@ function details(g) {
     '<code>' + esc(g.id) + '</code></div>';
 }
 
-function resolvedDetails(g){let parents=g.dependents||[],links=ids=>ids.length?ids.map(id=>`<button data-gap-jump="${esc(id)}">${esc(id)}</button>`).join(' · '):tr('无','None');return `<div class="detail-inline"><div class="detail-title"><b>${esc(g.id)}</b><span class="state ${status(g)}">● ${statusText(g)}</span><span class="role">${esc(roleName[g.role]||tr('命题','Statement'))}</span></div><p>${esc(g.plain_statement?.[lang]||tr('无中文说明','No statement available'))}</p>${g.brief?.[lang]?`<p class="muted">${esc(g.brief[lang])}</p>`:''}<div class="related"><b>${tr('上游依赖：','Prerequisites: ')}</b>${links(g.depends_on||[])}<br><b>${tr('下游影响：','Supports: ')}</b>${links(parents)}</div><p class="muted">${tr('文件路径：','File: ')}${esc(g.file||tr('未指定','Not specified'))}</p><b>${tr('Lean 表述','Lean statement')}</b>${g.latest?runLink(g.latest,strings.latestRun).outerHTML:''}${g.refutation?` <a href="${repository}/pull/${Number(g.refutation.pr)}">${statusText(g)} · PR #${Number(g.refutation.pr)}</a>`:''}${g.source && /^https?:\/\//i.test(g.source)?` <a href="${esc(g.source)}" rel="noopener noreferrer">${tr('阅读来源 ↗','Read source ↗')}</a>`:''}<pre>${esc(g.statement||tr('未提供','Not provided'))}</pre>${cutEvidence(g).outerHTML}</div>`}
+function refutationBadgeHtml(g){if(!g.refutation)return '';const pr=Number(g.refutation.pr),head=typeof g.refutation.head==='string'&&/^[a-f0-9]{40}$/.test(g.refutation.head)?g.refutation.head:'';if(pr>0)return ` <a href="${repository}/pull/${pr}">${statusText(g)} · PR #${pr}</a>`;if(head)return ` <a href="${repository}/commit/${head}">${statusText(g)} · ${head.slice(0,8)}</a>`;return ''}
+function resolvedDetails(g){let parents=g.dependents||[],links=ids=>ids.length?ids.map(id=>`<button data-gap-jump="${esc(id)}">${esc(id)}</button>`).join(' · '):tr('无','None');return `<div class="detail-inline"><div class="detail-title"><b>${esc(g.id)}</b><span class="state ${status(g)}">● ${statusText(g)}</span><span class="role">${esc(roleName[g.role]||tr('命题','Statement'))}</span></div><p>${esc(g.plain_statement?.[lang]||tr('无中文说明','No statement available'))}</p>${g.brief?.[lang]?`<p class="muted">${esc(g.brief[lang])}</p>`:''}<div class="related"><b>${tr('上游依赖：','Prerequisites: ')}</b>${links(g.depends_on||[])}<br><b>${tr('下游影响：','Supports: ')}</b>${links(parents)}</div><p class="muted">${tr('文件路径：','File: ')}${esc(g.file||tr('未指定','Not specified'))}</p><b>${tr('Lean 表述','Lean statement')}</b>${g.latest?runLink(g.latest,strings.latestRun).outerHTML:''}${refutationBadgeHtml(g)}${g.source && /^https?:\/\//i.test(g.source)?` <a href="${esc(g.source)}" rel="noopener noreferrer">${tr('阅读来源 ↗','Read source ↗')}</a>`:''}<pre>${esc(g.statement||tr('未提供','Not provided'))}</pre>${cutEvidence(g).outerHTML}</div>`}
 async function refreshTrack({ focus: task = null, preserve = false } = {}) {
   if (!currentTrack) return;
   const route = currentTrack;

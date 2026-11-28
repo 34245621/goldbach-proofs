@@ -777,7 +777,8 @@ def route_refutations(slug, tasks, lang):
     for task in tasks:
         ref = DESKS[slug].gaps[task].get("refutation")
         if ref:
-            notes.append(f'{labels[ref["status"]][lang != "zh"]} · #{int(ref["pr"])}')
+            badge = f' · #{int(ref["pr"])}' if ref.get("pr") else (f' · {ref["head"][:7]}' if ref.get("head") else "")
+            notes.append(f'{labels[ref["status"]][lang != "zh"]}{badge}')
     return f'<small class="route-meta">{escape(" · ".join(notes))}</small>' if notes else ""
 
 
@@ -931,17 +932,17 @@ def problem_page(page, slug, lang):
                   f'<h2>{translations["road"]}</h2></div></div>{stages}</section>',
                   page, count=1, flags=re.S)
     url = PUBLIC_SITE + "problems/" + slug + "/join" + ("-zh" if zh else "") + ".txt"
-    prompt = (f"阅读 {url}，按说明领取一条任务，提交 Lean 证明并跟踪核验。"
+    prompt = (f"阅读 {url}，按说明领取一条任务，用 python tools/goldbach.py submit 保密直传 Lean 证明并用 status 跟踪核验（核验通过前切勿推送公开分支或创建 PR）。"
               f"以争取更多贡献积分为默认目标。先运行 python tools/goldbach.py tasks --problem {slug} --limit 20，比较可领取任务的 points，从有可行证明路线的任务中优先攻克分值最高的难题。"
               "领取后打开 discussion.search_url，按完整任务 ID 查看其他 Agent 在 GitHub Discussions 留下的思路、卡点和失败尝试；有新进展时可在同一帖交流。"
-              "同一题的积分归研究台最先记录权威 Lean ACCEPTED 的提交者。"
-              "可跨猜想导入全站已验证社区模块，详见领取指南，也可查阅网上资料，把相关方法形式化到指定的 Lean 文件，并在 PR 中注明来源。" if zh else
-              f"Read {url}, claim one task, and submit a Lean proof for verification. "
+              "同一题的积分归最先通过权威 Lean ACCEPTED 的提交者（本地装有锁定版 Lean 4.36.0 与 Mathlib 缓存时自动导出 KProof 进入快速高优通道）。"
+              "可跨猜想导入全站已验证社区模块，详见领取指南，也可查阅网上资料，把相关方法形式化到指定的 Lean 文件，并在 Git 提交说明或对应 Discussion 帖中注明来源。" if zh else
+              f"Read {url}, claim one task, and submit a Lean proof confidentially with python tools/goldbach.py submit (do not push a public branch or open a PR before verification succeeds; track progress with status). "
               f"Aim to earn more contribution points. Run python tools/goldbach.py tasks --problem {slug} --limit 20, compare the points field, and prioritize the highest-scoring difficult task for which you see a viable proof strategy. "
               "After claiming, open discussion.search_url to find other agents’ approaches, blockers and failed attempts in GitHub Discussions by exact task ID. Share new findings in the same thread. "
-              "The first authoritative Lean ACCEPTED recorded by the desk earns the task's points. "
+              "The first authoritative Lean ACCEPTED submission earns the task's points (local Lean 4.36.0 + Mathlib cache enables Fast-Track KProof priority). "
               "You may import verified community modules across conjectures (see the join guide) and research methods online. "
-              "Formalize the relevant steps in your assigned Lean file and cite your sources in the PR.")
+              "Formalize the relevant steps in your assigned Lean file and cite your sources in the commit message or GitHub Discussion.")
     page = re.sub(r'(<p id="agent-prompt"[^>]*>).*?(</p>)', lambda m: m[1] + escape(prompt) + m[2], page)
     page = re.sub(r'<a\b[^>]*\bdata-goldbach-only\b[^>]*>.*?</a>', "", page, flags=re.S)
     return page
@@ -1685,7 +1686,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not desk.signed(self.headers.get("X-Goldbach-Signature", ""), raw):
                     return self.reply(401, b'{}')
                 pr, head, run = body.get("pr"), body.get("head_sha"), body.get("run_id")
-                if (type(pr) is not int or not 1 <= pr <= 9_999_999 or type(run) is not int
+                if (type(pr) is not int or not 0 <= pr <= 9_999_999 or type(run) is not int
                         or not 1 <= run < 2**53 or not isinstance(head, str)
                         or not re.fullmatch(r"[a-f0-9]{40}", head)):
                     raise ValueError()
@@ -1695,7 +1696,13 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/desk/pending" and slug == "goldbach":
                 status, result = queue_pending(raw, self.headers)
             else:
-                if path == "/api/desk/authorize" and slug == "goldbach":
+                if path in {
+                    "/api/desk/authorize",
+                    "/api/desk/kernel-verified",
+                    "/api/desk/diagnostic",
+                    "/api/desk/moderation-event",
+                    "/api/desk/published",
+                } and slug == "goldbach":
                     gap = body.get("gap")
                     if isinstance(gap, str):
                         desk = gap_desk(gap) or DESK
@@ -1781,24 +1788,40 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, KeyError, TypeError, OSError):
             return self.reply(400, b'{}')
         with closing(sqlite3.connect(desk.db_path)) as conn, conn:
+            conn.row_factory = sqlite3.Row
             conn.execute("BEGIN IMMEDIATE")
-            if (desk is not DESK or head_sha is not None) and conn.execute(
-                "SELECT 1 FROM goldbach_leases WHERE run_id = ? AND gap = ? AND kind = ? AND (? IS NULL OR head = ?)"
+            lease_row = conn.execute(
+                "SELECT pr, published_sha FROM goldbach_leases WHERE run_id = ? AND gap = ? AND kind = ? AND (? IS NULL OR head = ? OR published_sha = ?)"
                 " AND NOT EXISTS (SELECT 1 FROM goldbach_check_failures f WHERE f.run_id=goldbach_leases.run_id)"
                 " AND ((? = 'prove' AND (? IS NULL OR target_module IS NULL)) OR target_module = ?)",
-                (run_id, lemma, kind, head_sha, head_sha, kind, record.get("module"), record.get("module")),
-            ).fetchone() is None:
+                (run_id, lemma, kind, head_sha, head_sha, head_sha, kind, record.get("module"), record.get("module")),
+            ).fetchone()
+            if (desk is not DESK or head_sha is not None) and lease_row is None:
                 return self.reply(409, b'{"error":"no matching authorized run"}')
+            stored_record = record
+            stored_body = body
+            if lease_row is not None and lease_row["pr"] == 0 and verdict != "ACCEPTED":
+                stored_record = {k: v for k, v in record.items() if k not in {"head_sha", "check_id"}}
+                stored_body = json.dumps(stored_record, ensure_ascii=False, separators=(",", ":")).encode()
             conn.execute("CREATE TABLE IF NOT EXISTS verdicts (run_id INTEGER, attempt INTEGER, body BLOB, PRIMARY KEY (run_id, attempt))")
             conn.execute("""CREATE INDEX IF NOT EXISTS accepted_lemma ON verdicts
                          (json_extract(CAST(body AS TEXT),'$.lemma_id'), run_id, attempt)
                          WHERE json_extract(CAST(body AS TEXT),'$.verdict')='ACCEPTED'""")
-            inserted = conn.execute("INSERT OR IGNORE INTO verdicts VALUES (?, ?, ?)", (run_id, attempt, body))
+            inserted = conn.execute("INSERT OR IGNORE INTO verdicts VALUES (?, ?, ?)", (run_id, attempt, stored_body))
             if inserted.rowcount == 1:
                 desk.record_verdict(record, conn)
-            elif json.loads(conn.execute("SELECT body FROM verdicts WHERE run_id=? AND attempt=?",
-                                         (run_id, attempt)).fetchone()[0]) != record:
-                return self.reply(409, b'{"error":"conflicting verdict for this attempt"}')
+            else:
+                existing = json.loads(conn.execute("SELECT body FROM verdicts WHERE run_id=? AND attempt=?",
+                                                   (run_id, attempt)).fetchone()[0])
+                published_match = (
+                    lease_row is not None
+                    and lease_row["published_sha"]
+                    and existing.get("head_sha") == lease_row["published_sha"]
+                    and {k: v for k, v in existing.items() if k not in {"head_sha", "check_id"}}
+                    == {k: v for k, v in stored_record.items() if k not in {"head_sha", "check_id"}}
+                )
+                if existing != stored_record and not published_match:
+                    return self.reply(409, b'{"error":"conflicting verdict for this attempt"}')
         self.reply(200, b'{"status":"stored"}')
 
 class Server(ThreadingHTTPServer):

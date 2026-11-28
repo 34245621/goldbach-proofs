@@ -598,6 +598,32 @@ class DeskTests(unittest.TestCase):
             )
         self.assertEqual((code_f, body_f["count"]), (200, 1))
 
+    def test_authorize_dry_run_checks_eligibility_without_locking_lease(self):
+        token = self.claim(handle="Alice")
+        self.assertEqual(self.submit(token)[0], 200)
+        dry_body = {
+            "pr": 8,
+            "head": "a" * 40,
+            "handle": "Alice",
+            "gap": GAPS[0]["id"],
+            "run_id": 102,
+            "dry_run": True,
+        }
+        self.assertEqual(self.request("authorize", dry_body, sign=True), (200, {"authorized": True}))
+        # Lease remains unlocked (run_id IS NULL), so release or real authorize with another run_id succeeds.
+        self.assertEqual(
+            self.request("authorize", self.authorization(run_id=103), sign=True),
+            (200, {"authorized": True}),
+        )
+        # Subsequent dry_run for a different run_id now sees head_already_authorized / submission_unavailable.
+        self.assertEqual(self.request("authorize", dry_body | {"run_id": 104}, sign=True)[0], 409)
+        self.record(103, GAPS[0]["id"], "ACCEPTED")
+        # Another contributor on a parallel or pre-existing lease sees gap_already_proved on dry_run.
+        self.assertEqual(
+            self.request("authorize", dry_body | {"handle": "Bob", "pr": 9}, sign=True),
+            (409, {"error": "no_matching_submission"}),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

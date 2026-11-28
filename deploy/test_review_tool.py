@@ -36,6 +36,14 @@ class ReviewToolTests(unittest.TestCase):
             return json.dumps(self.pr)
         if args == ("gh", "api", f"repos/{goldbach.REPO}/pulls/7/reviews?per_page=100", "--paginate", "--slurp"):
             return json.dumps(self.pages)
+        if args == ("gh", "api", f"repos/{goldbach.REPO}/commits/{'c' * 40}/comments?per_page=100", "--paginate", "--slurp"):
+            return json.dumps(self.pages)
+        if args == ("gh", "api", "repos/CGandGameEngineLearner/goldbach-proofs/commits/ccccccc"):
+            return json.dumps({"sha": "c" * 40})
+        if args == ("gh", "api", "repos/CGandGameEngineLearner/goldbach-proofs/commits?sha=main&path=lean%2FConjectures%2FGoldbach%2FDemo.lean&per_page=1"):
+            return json.dumps([{"sha": "c" * 40}])
+        if args == ("gh", "api", f"repos/{goldbach.REPO}/commits/{'c' * 40}/pulls"):
+            return json.dumps([{"number": 7, "merge_commit_sha": "c" * 40}])
         raise AssertionError(f"Unexpected command: {args}")
 
     def main(self, *args):
@@ -159,6 +167,50 @@ class ReviewToolTests(unittest.TestCase):
         self.assertEqual([item["body"] for item in all_reviews], ["first", "字" * 49, "last line"])
         self.assertTrue(all(call.args[0][0] == "gh" for call in self.calls.call_args_list))
         self.send.assert_not_called()
+
+    def test_commit_sha_review_and_read_round_trip(self):
+        sha = "c" * 40
+        self.main("review", sha, "--body", "reusable bound", "--model", "gpt-6.2-sol", "--harness", "codex")
+        self.send.assert_called_once_with(
+            ["gh", "api", "--method", "POST", f"repos/{goldbach.REPO}/commits/{sha}/comments",
+             "-f", "body=[agent-review|codex/gpt-6.2-sol] reusable bound"],
+            check=True, stdout=subprocess.DEVNULL,
+        )
+        self.pages = [[{"body": "[agent-review|codex/gpt-6.2-sol] reusable bound", "user": {"login": "bob"}}]]
+        with self.assertRaisesRegex(SystemExit, "already reviewed this commit"):
+            self.main("review", sha, "--body", "duplicate")
+        read_res = json.loads(self.main("reviews", sha, "--limit", "5"))
+        self.assertEqual(read_res, {
+            "commit": sha,
+            "reviews": [{
+                "author": "bob",
+                "commit": sha,
+                "tag": "[agent-review|codex/gpt-6.2-sol]",
+                "body": "reusable bound",
+            }],
+        })
+
+    def test_module_and_lemma_id_and_short_sha_resolve_automatically(self):
+        sha = "c" * 40
+        # Short 7-char SHA resolves to full 40-char SHA
+        self.main("review", "ccccccc", "--body", "short sha works")
+        self.send.assert_called_once_with(
+            ["gh", "api", "--method", "POST", f"repos/{goldbach.REPO}/commits/{sha}/comments",
+             "-f", "body=[agent-review] short sha works"],
+            check=True, stdout=subprocess.DEVNULL,
+        )
+        # Module name and Lemma ID resolve to main commit AND merge historical PR reviews + commit comments
+        self.pages = [[{"body": "[agent-review|codex] note", "user": {"login": "alice"}}]]
+        with patch.object(goldbach, "_lookup_gap_file", return_value="lean/Conjectures/Goldbach/Demo.lean"):
+            by_gap = json.loads(self.main("reviews", "L-goldbach-demo", "--limit", "5"))
+        self.assertEqual(by_gap["commit"], sha)
+        self.assertEqual(by_gap["file"], "lean/Conjectures/Goldbach/Demo.lean")
+        # Both historical PR #7 review and main commit comment match self.pages -> 2 combined entries
+        self.assertEqual(len(by_gap["reviews"]), 2)
+
+        by_mod = json.loads(self.main("reviews", "Conjectures.Goldbach.Demo", "--limit", "1"))
+        self.assertEqual(by_mod["file"], "lean/Conjectures/Goldbach/Demo.lean")
+        self.assertEqual(len(by_mod["reviews"]), 1)
 
 
 if __name__ == "__main__":
