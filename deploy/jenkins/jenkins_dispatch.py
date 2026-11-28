@@ -11,7 +11,18 @@ def initialize(db):
     )""")
 
 
-MAX_SLOW_AUTHORITATIVE_INFLIGHT = 2
+TOTAL_AUTHORITATIVE_SLOTS = 12
+FAST_TRACK_RESERVE = 4
+MIN_SLOW_AUTHORITATIVE_INFLIGHT = 2
+MAX_SLOW_AUTHORITATIVE_INFLIGHT = TOTAL_AUTHORITATIVE_SLOTS - FAST_TRACK_RESERVE
+
+
+def slow_authoritative_cap(fast_inflight):
+    """Borrow idle slots for slow jobs while reserving FAST_TRACK_RESERVE slots for Fast-Track bursts."""
+    return min(
+        max(MIN_SLOW_AUTHORITATIVE_INFLIGHT, TOTAL_AUTHORITATIVE_SLOTS - FAST_TRACK_RESERVE - fast_inflight),
+        max(0, TOTAL_AUTHORITATIVE_SLOTS - fast_inflight),
+    )
 
 
 def is_fast_bundle(pr, trigger):
@@ -20,12 +31,14 @@ def is_fast_bundle(pr, trigger):
 
 def dispatch(db, client, job_names, prepare=None, *, first_job_id=1):
     """Dispatch configured jobs. An ambiguous enqueue requires reconciliation."""
-    slow_inflight = db.execute("""
-        SELECT COUNT(*) FROM jenkins_dispatches d
+    fast_inflight, slow_inflight = db.execute("""
+        SELECT
+            COALESCE(SUM(CASE WHEN j.pr = 0 AND j.trigger LIKE 'bundle:fast:%' THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN NOT (j.pr = 0 AND j.trigger LIKE 'bundle:fast:%') THEN 1 ELSE 0 END), 0)
+        FROM jenkins_dispatches d
         JOIN ci_jobs j ON j.id = d.job_id
         WHERE d.result IS NULL AND j.kind = 'authoritative'
-          AND NOT (j.pr = 0 AND j.trigger LIKE 'bundle:fast:%')
-    """).fetchone()[0]
+    """).fetchone()
     rows = db.execute("""SELECT id,kind,sha,pr,trigger FROM ci_jobs j
                          WHERE j.id>=? AND NOT EXISTS (
                              SELECT 1 FROM jenkins_dispatches d WHERE d.job_id=j.id)
@@ -41,8 +54,9 @@ def dispatch(db, client, job_names, prepare=None, *, first_job_id=1):
         name = job_names.get(kind + '-pr', job_names.get(kind)) if pr else job_names.get(kind)
         if name is None:
             continue
-        is_slow_auth = kind == "authoritative" and not is_fast_bundle(pr, trigger)
-        if is_slow_auth and slow_inflight >= MAX_SLOW_AUTHORITATIVE_INFLIGHT:
+        is_fast_auth = kind == "authoritative" and is_fast_bundle(pr, trigger)
+        is_slow_auth = kind == "authoritative" and not is_fast_auth
+        if is_slow_auth and slow_inflight >= slow_authoritative_cap(fast_inflight):
             continue
         if prepare is not None and prepare(job_id, kind, sha, pr, name) is False:
             continue
@@ -53,7 +67,9 @@ def dispatch(db, client, job_names, prepare=None, *, first_job_id=1):
             ).rowcount
         if not claimed:
             continue
-        if is_slow_auth:
+        if is_fast_auth:
+            fast_inflight += 1
+        elif is_slow_auth:
             slow_inflight += 1
         try:
             queue = client.enqueue(name, {"CI_JOB_ID": job_id, "CI_HEAD": sha,
@@ -64,6 +80,10 @@ def dispatch(db, client, job_names, prepare=None, *, first_job_id=1):
                 with db:
                     db.execute("DELETE FROM jenkins_dispatches WHERE job_id=? AND queue_id IS NULL",
                                (job_id,))
+                if is_fast_auth:
+                    fast_inflight -= 1
+                elif is_slow_auth:
+                    slow_inflight -= 1
             logging.warning("Jenkins enqueue for job %s returned HTTP %s", job_id, error.code)
             continue
         except (URLError, TimeoutError, RuntimeError) as error:

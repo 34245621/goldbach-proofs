@@ -24,10 +24,12 @@ ROOT = Path("/opt/goldbach-ci")
 TRUSTED_BASE = Path(os.environ.get("GOLDBACH_TRUSTED_BASE", ROOT / "lean-replay"))
 SOCKET = Path("/run/goldbach-ci-site/runner.sock")
 MAX_PARALLEL_CHECKS = 12
-MAX_SLOW_FORMAL_CHECKS = 2
+MAX_SLOW_FORMAL_CHECKS = 8
+MAX_THROTTLED_FORMAL_CHECKS = 2
 HEARTBEAT_SECONDS = 15.0
 PROOF_GITHUB = GitHubApp("/etc/goldbach-ci/github-app.pem", request_interval=0.25)
 SLOW_FORMAL_SLOTS = BoundedSemaphore(MAX_SLOW_FORMAL_CHECKS)
+THROTTLED_FORMAL_SLOTS = BoundedSemaphore(MAX_THROTTLED_FORMAL_CHECKS)
 KPROOF_WORKER = KProofWorker(Path(os.environ.get("GOLDBACH_KPROOF_STAGE_DIR", "/run/goldbach-ci-site/kproof-stage")))
 
 
@@ -256,6 +258,7 @@ def check_formal(job_id):
                         submissions_dir=submissions_dir,
                         kproof_worker=KPROOF_WORKER,
                         slow_slots=SLOW_FORMAL_SLOTS,
+                        throttled_slots=THROTTLED_FORMAL_SLOTS,
                     )
                 row = db.execute("SELECT payload FROM desk_outbox WHERE run=? AND attempt=1", (run,)).fetchone()
                 return {"ACCEPTED": 0, "REJECTED": 1, "ERROR": 3}[json.loads(row[0])["verdict"]]
