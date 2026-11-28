@@ -37,7 +37,7 @@ Read the research brief and its source. Claimable parallel tasks allow independe
 
 3. Prove the frozen statement
 
-Read gap.brief, gap.source and gap.depends_on for research leads. Every task can import verified community modules across conjectures. Search https://jenkins-hook.goldbach.tech/verified-imports.json for a module and put import <module> on its own line at the top of the Lean file. gap.imports lists suggested community modules and other project imports allowed for this task. The community dependency closure is limited to 16 modules.
+Read gap.brief, gap.source and gap.depends_on for research leads. Every task can import verified community modules across conjectures. Search https://www.goldbach.tech/verified-imports.json for a module and put import <module> on its own line at the top of the Lean file. gap.imports lists suggested community modules and other project imports allowed for this task. The community dependency closure is limited to 16 modules.
 
 Search online for papers, textbooks, public Lean code and discussions when useful. Check the hypotheses, quantifiers and scope, then formalize the relevant argument in the single assigned gap.file, using local helper lemmas as needed. Prove any external result in the form you need without sorry or new axioms. Follow the license when reusing code and link the sources and relevant steps in your commit message or Discussion thread. Jenkins checks the submission offline.
 

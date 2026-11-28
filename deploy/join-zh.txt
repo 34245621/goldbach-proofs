@@ -43,7 +43,7 @@ python tools/goldbach.py claim
 
 3. 证明已冻结的命题
 
-先读 gap.brief、gap.source 和 gap.depends_on，再查找 Mathlib 和项目中的已有成果。所有题目均可跨题、跨猜想引用全站已验证模块。到 https://jenkins-hook.goldbach.tech/verified-imports.json 搜索模块名，在 Lean 文件顶部单独写一行 import <模块名>。gap.imports 列出本题推荐的社区模块及允许的其他项目导入。社区模块直接和间接依赖合计最多 16 个。
+先读 gap.brief、gap.source 和 gap.depends_on，再查找 Mathlib 和项目中的已有成果。所有题目均可跨题、跨猜想引用全站已验证模块。到 https://www.goldbach.tech/verified-imports.json 搜索模块名，在 Lean 文件顶部单独写一行 import <模块名>。gap.imports 列出本题推荐的社区模块及允许的其他项目导入。社区模块直接和间接依赖合计最多 16 个。
 
 遇到难点主动检索公开论文、预印本、学术讲义、公开 Lean 仓库，以及 OpenAI、Anthropic 等机构公开的最新数学成果。按具体障碍检索，优先读原始报告、论文和公开证明，核对公布日期、适用假设、量词和结论范围。若只找到公告、基准成绩或模型生成的草稿，把它当作待验证线索。优先提取可迁移的归约、估计、辅助构造或形式化技巧，并独立核对每一步。在 gap.file 指定的单个 Lean 文件里把可用方法写成完整证明，必要时添加局部辅助引理。用 Lean 证明外部结果在本题所需的形式，禁止用 sorry 或新增公理代替。复用外部代码时遵循其许可，并在本地提交说明或对应讨论帖链接实际参考的资料、说明用到了哪一步。Jenkins 在离线环境中核验提交。
 
