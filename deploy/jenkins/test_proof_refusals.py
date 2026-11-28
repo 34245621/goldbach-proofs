@@ -9,7 +9,7 @@ from build_checks import enqueue_formal_checks, refusal_summary
 from check_outbox import database
 from formal_proof import judge
 from desk_outbox import drain, enqueue_runner_failures, initialize
-from prepare_proof import ProofRefused, report_guard_result
+from prepare_proof import ProofRefused, guard, report_guard_result
 
 
 class ProofRefusalTests(unittest.TestCase):
@@ -53,6 +53,53 @@ class ProofRefusalTests(unittest.TestCase):
             ))
         with self.assertRaises(subprocess.CalledProcessError):
             report_guard_result(subprocess.CompletedProcess(["guard"], 125, ""))
+
+    def test_guard_raises_proof_refused_from_container_output(self):
+        refused = subprocess.CompletedProcess(
+            ["docker"], 1, 'REFUSED: line 10834: "set_option" is not allowed in a proof file\n',
+        )
+        with patch("prepare_proof.subprocess.run", return_value=refused) as run:
+            with self.assertRaisesRegex(ProofRefused, 'line 10834: "set_option"'):
+                guard(Path("/base"), Path("/work"), "imports", "/input/proof.lean")
+        self.assertEqual(run.call_args.kwargs["stdout"], subprocess.PIPE)
+        self.assertTrue(run.call_args.kwargs["text"])
+
+    def test_reconcile_pre_runner_jenkins_failure_without_desk_run(self):
+        with tempfile.TemporaryDirectory() as directory, sqlite3.connect(":memory:") as jobs:
+            jobs.executescript("""
+                CREATE TABLE ci_jobs (id INTEGER PRIMARY KEY, kind, sha, pr, trigger);
+                CREATE TABLE desk_runs (job_id INTEGER PRIMARY KEY, run_id INTEGER UNIQUE NOT NULL);
+                CREATE TABLE jenkins_dispatches (job_id INTEGER PRIMARY KEY, result);
+                INSERT INTO ci_jobs VALUES
+                    (1, 'authoritative', '1111111111111111111111111111111111111111', 10, '1'),
+                    (2, 'authoritative', '2222222222222222222222222222222222222222', 11, '2'),
+                    (3, 'authoritative', '3333333333333333333333333333333333333333', 12, '3'),
+                    (4, 'authoritative', '3333333333333333333333333333333333333333', 12, '4'),
+                    (5, 'authoritative', '4444444444444444444444444444444444444444', 13, '5'),
+                    (6, 'authoritative', '4444444444444444444444444444444444444444', 13, '6');
+                INSERT INTO desk_runs VALUES (2, 50), (6, 200);
+                INSERT INTO jenkins_dispatches VALUES
+                    (1, 'FAILURE'),
+                    (2, 'SUCCESS'),
+                    (3, 'FAILURE'),
+                    (4, 'FAILURE'),
+                    (5, 'FAILURE'),
+                    (6, 'SUCCESS');
+            """)
+            initialize(jobs)
+            enqueue_runner_failures(jobs, 100)
+            enqueue_runner_failures(jobs, 100)
+            # Job 1 is older than the window, jobs 5/6 already have a desk_run for PR 13,
+            # and jobs 3/4 share (PR 12, sha) so only one ERROR run is recorded.
+            self.assertEqual(jobs.execute("SELECT job_id FROM desk_runs ORDER BY job_id").fetchall(),
+                             [(2,), (4,), (6,)])
+            self.assertEqual(jobs.execute("SELECT count(*) FROM desk_outbox").fetchone()[0], 1)
+            outbox = database(Path(directory) / "checks.sqlite")
+            enqueue_formal_checks(jobs, outbox)
+            check = outbox.execute("SELECT * FROM checks WHERE name LIKE '%Lean verdict'").fetchone()
+            self.assertEqual(check["conclusion"], "failure")
+            self.assertIn("before issuing a Lean verdict", check["summary"])
+            outbox.close()
 
     def test_refusal_is_published_without_issuing_a_lean_verdict(self):
         with tempfile.TemporaryDirectory() as directory:
