@@ -347,6 +347,12 @@
         <aside class="story-papers" aria-labelledby="story-news-title">
           <h3 class="story-news-title" id="story-news-title">近期进展与原文</h3>
           <ol class="story-news">
+            <li id="stage-results-news" tabindex="-1">
+              <time datetime="2026-11-28">2026.11.28</time>
+              <div><h4>哥德巴赫研究台 · 阶段性成果报告</h4><p>三项成果已通过正式 Lean 核验并合入仓库。扭曲奇异级数的统一上界从 √3/2 降至最优的 √5/3，报告还收录了深次弧四次矩下界与二次幂移位例外集。强哥德巴赫猜想仍待解决。</p>
+                <p class="story-sources"><a href="stage-results.html">阅读成果报告</a><a href="https://www.bilibili.com/video/BV1Qp1TzzE6f/" target="_blank" rel="noopener noreferrer" data-news-video>观看 B 站介绍 ↗</a><a href="https://github.com/CGandGameEngineLearner/goldbach-proofs/pull/4023">查看 Lean 核验 ↗</a><a href="stage-results.png" download>下载成果卡 PNG</a></p>
+              </div>
+            </li>
             <li><time datetime="2026-11-21">2026.11.21</time><div><h4>黎曼猜想的 Lean 证明通过了哪些核验？</h4>
               <p>莱文特·阿尔波格于 11 月 20 日公开了与 Claude 合作完成的形式化证明。次日，Lean 与 Mathlib 社区发表声明，确认所核验的命题与 Mathlib 的黎曼猜想定义一致，证明通过了多个检查器。</p>
               <p class="story-sources"><a href="https://www.thepaper.cn/newsDetail_forward_34530277">澎湃新闻报道</a><a href="https://leanprover-community.github.io/blog/posts/riemann-hypothesis/">社区核验声明</a><a href="https://math.mit.edu/~drew/grh/">MIT 核验记录</a></p></div></li>
@@ -382,6 +388,13 @@
     <!-- site dock -->
     <!-- sponsor wall -->
   </main>
+  <dialog class="rankings-dialog stage-news" id="stage-news-dialog" aria-labelledby="stage-news-title">
+    <div class="rankings-dialog-heading"><time datetime="2026-11-28">2026.11.28</time><form method="dialog"><button autofocus>关闭</button></form></div>
+    <h2 id="stage-news-title">哥德巴赫研究台 · 阶段性成果报告</h2>
+    <p>三项成果已通过正式 Lean 核验并合入仓库。扭曲奇异级数的统一上界从 √3/2 降至最优的 √5/3，报告还收录了深次弧四次矩下界与二次幂移位例外集。强哥德巴赫猜想仍待解决。</p>
+    <div class="stage-news-actions"><a class="button" href="#stage-results-news">查看本期进展</a><a href="https://www.bilibili.com/video/BV1Qp1TzzE6f/" target="_blank" rel="noopener noreferrer" data-news-video>观看 B 站介绍 ↗</a></div>
+  </dialog>
+
   <footer class="footer shell"><div class="platform-credit"><img src="goldbach-icon.svg" width="38" height="38" alt=""><div><strong>数学猜想协作平台</strong><br>数学家可以担任研究管理员，把控研究方向。每个人都可以用自己的 Agent 领取引理、提交证明。<!-- footer credit --></div></div><div class="footer-links"><a href="https://www.zhihu.com/project/detail/210995" target="_blank" rel="noopener noreferrer">知乎 AI Works <span aria-hidden="true">↗</span></a><a href="https://www.zhihu.com/question/2108591052059665116" target="_blank" rel="noopener noreferrer">知乎公开讨论 <span aria-hidden="true">↗</span></a><a href="https://github.com/CGandGameEngineLearner/goldbach-proofs">平台 GitHub 仓库 <span aria-hidden="true">↗</span></a></div><!-- icp filing --></footer>
   <a class="to-top" href="#top" aria-label="回到顶部" title="回到顶部"><span aria-hidden="true">↑</span></a>
 </body>

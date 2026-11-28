@@ -1367,6 +1367,23 @@ document.addEventListener('keydown', event => {
   lemmaSearch.focus();
 });
 
+const stageNews = document.getElementById('stage-news-dialog');
+if (!topic && stageNews && typeof stageNews.showModal === 'function') {
+  const seenKey = 'goldbach.stage-news.2026-11-28';
+  let seen = false;
+  try { seen = localStorage.getItem(seenKey) === '1'; } catch {}
+  stageNews.addEventListener('close', () => {
+    try { localStorage.setItem(seenKey, '1'); } catch {}
+  });
+  stageNews.querySelector('a[href="#stage-results-news"]').addEventListener('click', () => {
+    stageNews.close();
+    document.getElementById('stage-results-news').focus({preventScroll: true});
+  });
+  stageNews.querySelector('[data-news-video]').addEventListener('click', () => stageNews.close());
+  const hasDeepLink = location.hash || new URLSearchParams(location.search).has('lemma');
+  if (!seen && !hasDeepLink) stageNews.showModal();
+}
+
 const exponentPanel = document.getElementById('lpf-record');
 const researchNews = document.getElementById('lpf-news');
 if (researchNews && typeof researchNews.showModal === 'function') {

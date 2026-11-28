@@ -2743,3 +2743,11 @@ html:has(dialog[open]) .to-top { opacity: 0; pointer-events: none; }
     scroll-behavior: auto !important;
   }
 }
+
+.stage-news { padding: .6rem clamp(1.15rem, 4vw, 2rem) 1.6rem; }
+.stage-news h2 { font: 550 clamp(1.45rem, 4vw, 2.15rem)/1.25 var(--serif); margin: .75rem 0; }
+.stage-news time { color: #7c6228; font-family: var(--mono); }
+.stage-news p { color: var(--body); line-height: 1.65; }
+.stage-news-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .7rem 1rem; margin-top: 1.25rem; }
+.stage-news::backdrop { background: rgb(18 37 31 / 48%); }
+#stage-results-news { scroll-margin-top: 6rem; }

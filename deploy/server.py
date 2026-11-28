@@ -141,6 +141,8 @@ Thread(target=refresh_presence_counts, name="presence-counts", daemon=True).star
 
 
 ASSETS = {
+    "/stage-results.html": "text/html",
+    "/stage-results.png": "image/png",
     "/agent-icons.svg": "image/svg+xml",
     "/core-team-signup.png": "image/png",
     sponsors.STYLE: "text/css",
