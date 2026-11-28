@@ -397,6 +397,57 @@ class PrivateSubmissionPipelineTests(unittest.TestCase):
                 proof_content,
             )
 
+    def test_prepare_dep_kproofs_handles_cross_device_stage_dir(self):
+        import errno
+        import os
+        import stat
+        import verify_proof
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            work = root / "work"
+            project = root / "project"
+            toolchain = root / "toolchain"
+            req_dir = root / "stage" / "req-1"
+            work.mkdir()
+            req_dir.mkdir(parents=True)
+            mod = "Conjectures.Cuts.Task000000000000000000000001"
+            src = project / "Conjectures/Cuts/Task000000000000000000000001.lean"
+            src.parent.mkdir(parents=True)
+            src.write_bytes(b"import Mathlib\ntheorem t : True := trivial\n")
+            worker = verify_proof.KProofWorker(root / "stage")
+
+            def fake_run(cmd, **kwargs):
+                out_dir = work / "kproof-deps-out"
+                if "-o" in cmd:
+                    art = Path(cmd[cmd.index("-o") + 1]).name
+                    (out_dir / art).write_bytes(b"OLEAN")
+                elif "--export-kproof" in cmd:
+                    kp = Path(cmd[cmd.index("--export-kproof") + 2]).name
+                    (out_dir / kp).write_bytes(b"KPRF\x01dep")
+                return MagicMock(returncode=0)
+
+            real_rename = os.rename
+
+            def cross_device_rename(src_path, dst_path):
+                if str(dst_path).endswith("dep_0.kproof"):
+                    raise OSError(errno.EXDEV, "Invalid cross-device link", str(src_path), str(dst_path))
+                return real_rename(src_path, dst_path)
+
+            with patch.dict(os.environ, {}, clear=False), \
+                 patch.object(verify_proof.os, "chown"), \
+                 patch.object(verify_proof.subprocess, "check_output", return_value=str(project)), \
+                 patch.object(verify_proof.subprocess, "run", side_effect=fake_run), \
+                 patch("shutil.os.rename", side_effect=cross_device_rename):
+                os.environ.pop("GOLDBACH_LEAN_DEP_CACHE", None)
+                staged = worker._prepare_dep_kproofs([mod], work, project, toolchain, root / "own.sh", req_dir)
+
+            self.assertEqual(staged, ["/stage/req-1/dep_0.kproof"])
+            kp_file = req_dir / "dep_0.kproof"
+            self.assertEqual(kp_file.read_bytes(), b"KPRF\x01dep")
+            self.assertEqual(stat.S_IMODE(kp_file.stat().st_mode), 0o644)
+            self.assertFalse((work / "kproof-deps-out" / "dep_0.kproof").exists())
+
 
 if __name__ == "__main__":
     unittest.main()
