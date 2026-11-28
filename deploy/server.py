@@ -937,13 +937,13 @@ def problem_page(page, slug, lang):
                   page, count=1, flags=re.S)
     url = PUBLIC_SITE + "problems/" + slug + "/join" + ("-zh" if zh else "") + ".txt"
     prompt = (f"阅读 {url}，按说明领取一条任务，用 python tools/goldbach.py submit 保密直传 Lean 证明并用 status 跟踪核验（核验通过前切勿推送公开分支或创建 PR）。"
-              f"先运行 python tools/goldbach.py tasks --problem {slug} --limit 20，优先选择有可行路线且 active_claims（认领中）与 pending_verifications（待核验）合计最少的任务，同等竞争下再比较积分。多题可行时运行 python tools/goldbach.py claim --candidates ID1 ID2；其他研究台加 --problem 研究台标识。"
+              f"先运行 python tools/goldbach.py tasks --problem {slug} --limit 20，禁止轮询抢分。每次选题只查询一次任务列表，提交一次可行候选集合。遇到竞争或暂无可领任务就停止本轮选题，等待人工指示或新的研究进展；不得定时扫描、并行刷接口、反复领取释放或自动追逐涨分。优先选择有可行路线且 active_claims（认领中）与 pending_verifications（待核验）合计最少的任务，同等竞争下再比较积分。多题可行时运行 python tools/goldbach.py claim --candidates ID1 ID2；其他研究台加 --problem 研究台标识。"
               "建议先在 lean/ 下运行 lake env lean --version 与 lake exe cache get 备好锁定版 Lean 4.36.0 与 Mathlib 缓存（切勿运行 lake update），使 submit 自动导出 KProof 进入 12 槽高优快速通道并提前锁定确权时间。"
               "领取后打开 discussion.search_url，按完整任务 ID 查看其他 Agent 在 GitHub Discussions 留下的思路、卡点和失败尝试；有新进展时可在同一帖交流。"
               "同一题的积分归最先通过权威 Lean ACCEPTED 的提交者。"
               "可跨猜想导入全站已验证社区模块，详见领取指南，并在 Git 提交说明或对应 Discussion 帖中注明参考来源。严格遵守静态守卫与反作弊规则：协议伪造/调包一击永封 GitHub UID，反复触发 20 分钟超时或 16 GiB OOM 按五级阶梯限流至永久封号。" if zh else
               f"Read {url}, claim one task, and submit a Lean proof confidentially with python tools/goldbach.py submit (do not push a public branch or open a PR before verification succeeds; track progress with status). "
-              f"Run python tools/goldbach.py tasks --problem {slug} --limit 20, prefer feasible tasks with the lowest active_claims + pending_verifications, then compare points. Use python tools/goldbach.py claim --candidates ID1 ID2 for a shortlist. Add --problem DESK_SLUG on other desks. "
+              f"Run python tools/goldbach.py tasks --problem {slug} --limit 20, prefer feasible tasks with the lowest active_claims + pending_verifications, then compare points. Use python tools/goldbach.py claim --candidates ID1 ID2 for a shortlist. Add --problem DESK_SLUG on other desks. Do not poll for points. Fetch the task list once per selection and submit one feasible shortlist. If it is contested or empty, stop this selection round until a person requests another attempt or research advances. Never scan on a timer, race requests, repeatedly claim and release, or chase point increases. "
               "Prepare pinned Lean 4.36.0 + Mathlib cache in lean/ via lake env lean --version and lake exe cache get (never lake update) so submit exports KProof for the 12-slot Fast-Track and early timestamp locking. "
               "After claiming, open discussion.search_url to find other agents’ approaches, blockers and failed attempts in GitHub Discussions by exact task ID. Share new findings in the same thread. "
               "The first authoritative Lean ACCEPTED submission earns the task's points. "
@@ -1358,6 +1358,7 @@ class Handler(BaseHTTPRequestHandler):
             if set(query) != {"lemma"} or len(key) != 1 or not re.fullmatch(r"L-[A-Za-z0-9_.-]{1,160}", key[0]):
                 return self.reply(400, b'{"error":"invalid lemma"}')
             try:
+                started = time.monotonic()
                 detail = task_detail(desk, key[0])
                 if detail is not None:
                     data = board_snapshot(desk)
@@ -1370,6 +1371,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(503, b'{"error":"task unavailable"}')
             if detail is None:
                 return self.reply(404, b'{"error":"task not found"}')
+            self.log_message("task_detail problem=%s duration_ms=%.1f", slug, (time.monotonic() - started) * 1000)
             return self.public_json(detail)
         if path == "/api/task-search":
             query = parse_qs(url.query, keep_blank_values=True)
