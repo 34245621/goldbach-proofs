@@ -1565,6 +1565,8 @@ body:not([data-problem]) .hero .open-status { vertical-align: middle; }
 .problem-card { display: block; padding: 1.25rem; color: var(--ink); background: var(--sheet); border: 1px solid var(--line); border-radius: var(--r-md); text-decoration: none; }
 .problem-card:hover { border-color: var(--blue); }
 .problem-formula { display: grid; place-items: center; padding: 1.1rem .45rem; border-radius: var(--r-sm); background: var(--desk-dark); color: var(--desk-gold); font: italic clamp(1.75rem, 4vw, 2.7rem) var(--serif); }
+.problem-card .problem-formula { container-type: inline-size; }
+.problem-card .problem-formula > math { font-size: min(2.7rem, 10cqi); }
 .problem-card h2 { margin: .85rem 0 .35rem; font: 650 1.36rem var(--serif); }
 .problem-card p { color: var(--body); }
 .problem-card .problem-progress { margin-top: 1rem; padding-top: .65rem; border-top: 1px solid var(--line); color: var(--ink); font-size: .85rem; font-variant-numeric: tabular-nums; }
