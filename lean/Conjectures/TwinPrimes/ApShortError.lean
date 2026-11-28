@@ -3,7 +3,7 @@ import Mathlib
 /-
 The uniform GRH progression error bound below is copied verbatim from
 CGandGameEngineLearner/goldbach-proofs pull request 43
-(lean/PEqualNP/Outside/L_goldbach_grh_progression_error.lean, sha256
+(historical Goldbach source L_goldbach_grh_progression_error.lean, sha256
 03213672a03b9add0dc221d60a19ef2b092252904a9d304cb6679efb3966dc4b, accepted as
 L-goldbach-grh-progression-error), Apache-2.0. Only its final theorem is renamed.
 -/

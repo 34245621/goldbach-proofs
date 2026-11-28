@@ -1,0 +1,52 @@
+{
+  "generated": "2026-11-28",
+  "source_root": "/home/azureuser/projects/goldbach",
+  "entries": [
+    {
+      "name": "conditional-goldbach-lean",
+      "revision": "c55db645f3b4aed00374fe4aa1fcee2428c88c4b",
+      "toolchain": "leanprover/lean4:v4.36.0",
+      "mathlib": "fc4f59e577feb1a4956671bc04ac18aaaf8cd842",
+      "scope": "conditional",
+      "status": "audited interfaces, unresolved WeakS input",
+      "files": {
+        "formalization/ConditionalGoldbach/Proofs/WeakS.lean": "7c468b55e07b8595bcd667866107cde83858595f4af3c87862584580e07187cd",
+        "formalization/verification/independent-audit/final-comparison.json": "e184effac7368eda0ce2f47d25be08ab3603169931e72fe77a70d8074c777d00"
+      },
+      "verify": "cd conditional-goldbach-lean/formalization && python3 scripts/verify_project.py"
+    },
+    {
+      "name": "grh-lean",
+      "revision": "72fead102f663d5c7a407964a13dc0cf9d977207",
+      "toolchain": "leanprover/lean4:v4.36.0",
+      "scope": "conditional",
+      "status": "GRH reduction input",
+      "files": {
+        "grh/src/New/Reduction/MainInequality.lean": "4f21a3c2535db13b4eeb261698a08278be00e9fda4d454de7acb89a98994dd0a"
+      },
+      "verify": "cd grh-lean/grh && lake build"
+    },
+    {
+      "name": "twin-prime-spectrum",
+      "revision": null,
+      "toolchain": null,
+      "scope": "conditional and experimental",
+      "status": "gap-180 window quantified, signed window bound open",
+      "files": {
+        "check_grh_critical_zero_window.py": "6c19adde83cd67ed077d218b191686e18fe841afadbce3296979d5c748c44f28"
+      },
+      "verify": "cd twin-prime-spectrum && python3 check_grh_critical_zero_window.py"
+    },
+    {
+      "name": "weak-S",
+      "revision": null,
+      "toolchain": null,
+      "scope": "analytic research",
+      "status": "major/minor arc decomposition, per-target minor-arc bound open",
+      "files": {
+        "README.md": "2ce93108241ac4b7aa6fdd1bc0a54c92327c2b2ef95b8b780e878001061a89ac"
+      },
+      "verify": "read weak-S/README.md and run the documented probes"
+    }
+  ]
+}

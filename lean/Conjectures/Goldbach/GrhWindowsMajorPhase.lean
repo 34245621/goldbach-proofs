@@ -7,14 +7,14 @@ GRH major-phase estimate: independent assembly by wjxjmj.
 
 Upstream analytic input: dingpengcheng323-droid, Goldbach PR #43,
 commit 99f9886f432f35614b8c19ed15e8ddaf8ba3d58f,
-lean/PEqualNP/Outside/L_goldbach_grh_progression_error.lean (Apache-2.0).
+historical Goldbach source L_goldbach_grh_progression_error.lean (Apache-2.0).
 That complete proof is reproduced first, with imports consolidated and its final
 statement renamed GoldbachMajorPhase.progression_bound. It is not original work
 by this submission's author.
 
 The two noncoprime prime-power estimates in GoldbachMajorPhase are reproduced
 from wzhxzkk, Goldbach PR #82, commit c071924486e0a79326bd7a415851d65c134cdec4,
-lean/PEqualNP/Outside/L_goldbach_grh_goldbach_exception_density.lean (Apache-2.0).
+historical Goldbach source L_goldbach_grh_goldbach_exception_density.lean (Apache-2.0).
 
 New assembly: reduced-residue summation, a uniform bound for every initial segment,
 and discrete Abel summation with geometric phase weights. All GRH zero-location

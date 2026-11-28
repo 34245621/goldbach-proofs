@@ -9,7 +9,7 @@
 .idea/
 
 # Private lease records from older checkouts
-.pnp/
+.goldbach/
 
 # Local credentials, private keys and downloaded certificate bundles
 .env

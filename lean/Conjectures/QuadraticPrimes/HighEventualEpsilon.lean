@@ -2,7 +2,7 @@ import Mathlib
 /-
 Adapted from the accepted proof of L-quadratic-primes-levent-theta-margin (QP-0052),
 CGandGameEngineLearner/goldbach-proofs pull request 2643,
-lean/PEqualNP/Outside/L_quadratic_primes_levent_theta_margin.lean, sha256
+historical Goldbach source L_quadratic_primes_levent_theta_margin.lean, sha256
 7a00f1e37493035d8a1eee50b0782b408cb6c2b08c8e085431381979fad771fd.
 Change: the eventual power-saving bound inside `high_budget` is stated on its own
 (`high_power_eventual`) instead of being weakened to a recurrent 19/50 bound.

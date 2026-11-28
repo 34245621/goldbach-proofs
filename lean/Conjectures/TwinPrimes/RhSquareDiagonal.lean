@@ -2,7 +2,7 @@ import Mathlib
 
 /-
 Adapted from CGandGameEngineLearner/goldbach-proofs pull request 43
-(lean/PEqualNP/Outside/L_goldbach_grh_progression_error.lean, sha256
+(historical Goldbach source L_goldbach_grh_progression_error.lean, sha256
 03213672a03b9add0dc221d60a19ef2b092252904a9d304cb6679efb3966dc4b, accepted as
 L-goldbach-grh-progression-error), Apache-2.0. The only change: the hypothesis GRH (all
 Dirichlet L-functions) is replaced by GRH1 (characters mod 1, i.e. RH for ζ), and every

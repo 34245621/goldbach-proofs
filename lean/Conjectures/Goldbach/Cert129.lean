@@ -5,7 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 
 The five general Ramanujan-sum lemmas below were written by zhiyuan338 for Goldbach
 PR #476 and are reused under the Apache License, Version 2.0 (repository LICENSE).
-Source: https://github.com/zhiyuan338/goldbach-proofs/blob/fc0eaa440f6e25384268e2d5bfa341858b2d867f/lean/PEqualNP/Outside/L_goldbach_cert_9.lean
+Source: historical Goldbach proof revision fc0eaa440f6e25384268e2d5bfa341858b2d867f, L_goldbach_cert_9.lean
 The original was accepted in authoritative run 45534093631. In this version 26day made
 the lemmas private and replaced the modulus-9 specialization with the calculation for
 129 = 3 * 43 and normalization by 84.

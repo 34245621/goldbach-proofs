@@ -36251,7 +36251,7 @@ Sources and licenses
 
 * The Siegel--Walfisz section below is selected without changes from
   DFQDZZ's PR #316 for CGandGameEngineLearner/goldbach-proofs,
-  lean/PEqualNP/Outside/L_goldbach_arc_major_floor.lean (git blob
+  historical Goldbach source L_goldbach_arc_major_floor.lean (git blob
   5521068f3f411b95898377085a524b91f19a9567 at original commit
   eca7da8877f1b14cbc53a0912032e93b032eeae1), licensed under Apache 2.0.
   It ports OpenAI's openai/math PrimeGaps argument to version 4.36.0.

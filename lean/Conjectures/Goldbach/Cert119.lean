@@ -5,7 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 
 The five general Ramanujan-sum lemmas are by zhiyuan338, originally in Goldbach PR #476
 under the Apache License, Version 2.0 (repository LICENSE).
-Source: https://github.com/zhiyuan338/goldbach-proofs/blob/fc0eaa440f6e25384268e2d5bfa341858b2d867f/lean/PEqualNP/Outside/L_goldbach_cert_9.lean
+Source: historical Goldbach proof revision fc0eaa440f6e25384268e2d5bfa341858b2d867f, L_goldbach_cert_9.lean
 The original was accepted in authoritative run 45534093631. Here 26day made the general
 lemmas private and replaced the modulus-9 specialization with the computation for
 119 = 7 * 17 and normalization by 96.

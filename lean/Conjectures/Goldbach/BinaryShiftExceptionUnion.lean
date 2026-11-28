@@ -39,7 +39,7 @@ Conjectures.Goldbach.FrontierUncondDeepSecondMoment (Apache-2.0). -/
 
 /-
 Finite Möbius cancellation and the Wiener–Ikehara argument for coefficients
-1 + μ, from goldbach-proofs, `PEqualNP/Outside/L_twin_primes_unconditional_short.lean`,
+1 + μ, from goldbach-proofs, `historical Goldbach source L_twin_primes_unconditional_short.lean`,
 Git blob f04bea6b8c5c06b9fe28dc698cdaf5a55e2a6f85, Apache-2.0.
 That source credits `L_twin_primes_hard_cutoff.lean`, Git blob
 efec7cd55880f73ecf34c278b4ab18c646a9fb0c.

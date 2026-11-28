@@ -7,10 +7,10 @@
 #   ../tools/build.sh --lake env lean Foo.lean      (any lake command, through the same queue)
 #
 # tools/bin/lake (first in PATH) sends every bare `lake build|env|exe` here, so this
-# is the only door. SLOTS: $PEQUALNP_HOME/build-slots.conf (default 3). JOBS:
-# $PEQUALNP_HOME/build-jobs.conf (default 3), set as LEAN_NUM_THREADS, which sizes lake's task
+# is the only door. SLOTS: $GOLDBACH_HOME/build-slots.conf (default 3). JOBS:
+# $GOLDBACH_HOME/build-jobs.conf (default 3), set as LEAN_NUM_THREADS, which sizes lake's task
 # pool (so at most JOBS lean processes per slot) and each lean's threads. Runs under nice -n 5.
-# A slot is a directory under $PEQUALNP_HOME/build-slots; a slot whose holder is gone is
+# A slot is a directory under $GOLDBACH_HOME/build-slots; a slot whose holder is gone is
 # taken over. Waiting prints one line a minute.
 #
 # SHARED COMPILED RESULTS. Lake's local artifact cache is on, one dir for every tree: a module
@@ -18,13 +18,13 @@
 # compiled in any tree before is not compiled again; its outputs are hardlinked into this tree's
 # .lake/build (LAKE_RESTORE_ARTIFACTS, so `lake env lean` finds the oleans).
 set -u
-HOME_DIR=${PEQUALNP_HOME:-$HOME/.pequalnp}
-SLOTS=$( [ -f "$HOME_DIR/build-slots.conf" ] && cat "$HOME_DIR/build-slots.conf" || echo "${PEQUALNP_BUILD_SLOTS:-3}" )
+HOME_DIR=${GOLDBACH_HOME:-$HOME/.goldbach}
+SLOTS=$( [ -f "$HOME_DIR/build-slots.conf" ] && cat "$HOME_DIR/build-slots.conf" || echo "${GOLDBACH_BUILD_SLOTS:-3}" )
 JOBS=$( [ -f "$HOME_DIR/build-jobs.conf" ] && cat "$HOME_DIR/build-jobs.conf" || echo 3 )
 if [ "${LAKE_ARTIFACT_CACHE:-}" != false ]; then   # the checker passes false: no shared cache for it
   export LAKE_ARTIFACT_CACHE=true LAKE_RESTORE_ARTIFACTS=true LAKE_CACHE_DIR="$HOME_DIR/lake-cache"
 fi
-export LEAN_NUM_THREADS="$JOBS" PEQUALNP_IN_QUEUE=1
+export LEAN_NUM_THREADS="$JOBS" GOLDBACH_IN_QUEUE=1
 if [ "${1:-}" = "--lake" ]; then shift; else set -- build "$@"; fi
 D=$HOME_DIR/build-slots
 mkdir -p "$D"

@@ -12,6 +12,7 @@ Mathematicians guide the research and review formal statements. Anyone can bring
 
 - [上千Agent攀登证明哥德巴赫猜想](https://www.movan.tech/goldbach/?lang=zh) · [知乎 AI Works 作品](https://www.zhihu.com/project/detail/210995)
 - [研究路线 / Research roadmap](research/ROADMAP.md)
+- [本地研究进展快照 / Local research progress](research/local-progress/README.md)
 - [各分站命题清单 / Other problem registries](research/problems.json)
 - [待验证命题 / Published statements](research/gaps.json)
 - [权威验证 / Authoritative verification](deploy/README.md#jenkins-生产-ci)
@@ -24,6 +25,4 @@ Mathematicians guide the research and review formal statements. Anyone can bring
 
 Community proofs live under `Conjectures`. Each task keeps its ID and statement across the namespace migration. To look up a historical module in a newer checkout, run `python3 tools/migrations/catalogue-crosswalk.py 51fab61e` from the repository root. Historical verification records identify the source at the revision they checked.
 
-Apache-2.0. [Upstream](https://github.com/brilliant-hq/pequalnp-proofs).
-
-前端参考 pequalnp 的公开首页、实时活动栏和可钻取的研究地图，界面数据由本站的任务清单及核验记录提供。可对照[原站设计说明](https://pequalnp.com/how)、[设计画布](https://brilliant.design/brilliant/pnp)、[首页脚本](https://pequalnp.com/assets/fda04e88f715/js/home.js)及[地图脚本](https://pequalnp.com/assets/fda04e88f715/js/map.js)。
+Apache-2.0. The public site, research map and verification records are maintained in this repository.

@@ -5351,7 +5351,7 @@ end TwoOrbit
 
 The finite Fourier transform, Parseval, and the variance bound for an adjacent-valued
 intersection profile are adapted from the project's Apache-2.0 cyclic detector proof:
-https://github.com/CGandGameEngineLearner/goldbach-proofs/blob/1133bda2e6/lean/PEqualNP/Outside/L_log_rank_cyclic_detector_family.lean
+https://github.com/CGandGameEngineLearner/goldbach-proofs/blob/1133bda2e6/historical Goldbach source L_log_rank_cyclic_detector_family.lean
 The two-seed lower bound is used below without assuming the seeds have equal cardinality.
 -/
 

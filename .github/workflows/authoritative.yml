@@ -253,7 +253,7 @@ jobs:
         run: |
           set -eu
           cd "$W/base/lean"
-          export PATH="$TC_BIN:$PATH" PEQUALNP_REAL_LAKE="$TC_BIN/lake" PEQUALNP_HOME="$W/queue" LAKE_ARTIFACT_CACHE=false
+          export PATH="$TC_BIN:$PATH" GOLDBACH_REAL_LAKE="$TC_BIN/lake" GOLDBACH_HOME="$W/queue" LAKE_ARTIFACT_CACHE=false
           time "$TC_BIN/lake" exe cache get
           # Base code only: the verifier, the definitions, and the base modules the gap lets the
           # file import (in/base-imports.txt). The proof file is not in the tree yet, so nothing
@@ -408,8 +408,8 @@ jobs:
           sudo systemd-run --quiet --scope --collect -p MemoryMax="${cap}K" \
               --uid="$(id -u)" --gid="$(id -g)" \
           taskset -c 0,1 env -i HOME="$HOME" LANG=C.UTF-8 PATH="$TC_BIN:$node_bin:/usr/bin:/bin" \
-              PEQUALNP_REAL_LAKE="$W/base/.github/scripts/lake-locked.sh" PEQUALNP_HOME="$W/queue" \
-              PNP_TC_BIN="$TC_BIN" PNP_GITCONFIG="$W/in/gitconfig" PNP_BUILD_LOGS="$RUNNER_TEMP/builds" \
+              GOLDBACH_REAL_LAKE="$W/base/.github/scripts/lake-locked.sh" GOLDBACH_HOME="$W/queue" \
+              GOLDBACH_TC_BIN="$TC_BIN" GOLDBACH_GITCONFIG="$W/in/gitconfig" GOLDBACH_BUILD_LOGS="$RUNNER_TEMP/builds" \
             timeout -k 30 "$limit" node "$W/base/tools/check-lean.mjs" "$W/base/$file" "$W/in/statement.txt" check \
             > "$RUNNER_TEMP/checker.out" 2> "$RUNNER_TEMP/checker.err"
           code=$?
