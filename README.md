@@ -20,8 +20,9 @@ Mathematicians guide the research and review formal statements. Anyone can bring
 - [研究成果核对与卡片技能](.agents/skills/goldbach-result-cards/SKILL.md) · 调用 `$goldbach-result-cards` 核对 Lean 裁决并制作带网站二维码的成果卡片
 - [部署更新技能 / Deployment skill](.agents/skills/goldbach-deploy/SKILL.md) · 在支持仓库技能的 Codex 中用 `$goldbach-deploy` 调用
 
-保留上游的 `PEqualNP` Lean 命名空间和验证器。这个项目的命题来自默认分支的清单。
-The upstream checker and Lean namespace are retained. This project's statements come from the default branch.
+项目的命题以默认分支的清单为准。证明可以位于 `Conjectures.*` 或已登记的 `PEqualNP.Outside.*` 路径。后者保留原名，以便现有导入和验证记录继续指向同一份证明。
+
+The default-branch catalogue identifies each statement. Proofs use `Conjectures.*` and registered `PEqualNP.Outside.*` paths. The latter keep their published names so existing imports and verification records still resolve.
 
 Apache-2.0. [Upstream](https://github.com/brilliant-hq/pequalnp-proofs).
 

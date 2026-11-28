@@ -25,7 +25,7 @@ on:
         required: true
         type: string
       gap:
-        description: Gap id, for example L-goldbach-004
+        description: Gap id, for example L-goldbach-prime-weight-extraction
         required: true
         type: string
       desk:
@@ -68,7 +68,7 @@ jobs:
       GAP: ${{ inputs.gap }}
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       API: https://api.github.com
-      W: /opt/pnp
+      W: /opt/goldbach
     steps:
       - name: Refuse malformed inputs and a run from another branch
         run: |
@@ -86,7 +86,7 @@ jobs:
             printf 'GAP=%s\n' "$GAP" >> "$GITHUB_ENV"
           fi
           printf '%s' "$PR" | grep -Eqx '[1-9][0-9]{0,6}' || { echo "REFUSED: pr must be a number"; exit 1; }
-          printf '%s' "$GAP" | grep -Eqx 'L-[a-z0-9]+(-[a-z0-9]+)*' || { echo "REFUSED: gap must look like L-goldbach-004"; exit 1; }
+          printf '%s' "$GAP" | grep -Eqx 'L-[a-z0-9]+(-[a-z0-9]+)*' || { echo "REFUSED: gap must look like L-goldbach-prime-weight-extraction"; exit 1; }
           [ "${#GAP}" -le 64 ] || { echo "REFUSED: gap id too long"; exit 1; }
           # Only the default branch holds the checker and this file as they were reviewed.
           [ "$GITHUB_REF" = "refs/heads/$DEFAULT_BRANCH" ] || { echo "REFUSED: start this run from $DEFAULT_BRANCH"; exit 1; }
@@ -121,8 +121,7 @@ jobs:
           printf '%s' "$head" | grep -Eqx '[0-9a-f]{40}' || { echo "REFUSED: the pull request has no head commit"; exit 1; }
           # The whole tree of the head commit: it says whether the file is a plain file or a link.
           get "git/trees/$head?recursive=1" "$W/api/tree.json"
-          # One place decides: exactly one file, added, under lean/PEqualNP/Outside/, the allowed
-          # name (so no path can climb out with ..), a plain file, at most 2 MiB, nothing else.
+          # The guard requires one added proof at a supported path, as a plain file up to 2 MiB.
           node "$W/base/.github/scripts/outside-guard.mjs" pr "$W/api/pr.json" "$W/api/files.json" "$W/api/tree.json" \
             "$GITHUB_REPOSITORY" "$DEFAULT_BRANCH" "$W/in"
           [ ! -e "$W/base/$(cat "$W/in/pr.file")" ] || { echo "REFUSED: the file already exists in the base"; exit 1; }
@@ -300,7 +299,7 @@ jobs:
           mb=$(( $(df -m --output=avail "$d" | awk 'NR==2{print $1}') - 6144 ))
           [ "$mb" -le 12288 ] || mb=12288
           if [ "$mb" -ge 1024 ]; then
-            f="${d%/}/pnp-swap"
+            f="${d%/}/goldbach-swap"
             sudo fallocate -l "${mb}M" "$f" && sudo chmod 600 "$f"
             sudo mkswap -q "$f" && sudo swapon "$f"
           fi
@@ -329,8 +328,8 @@ jobs:
             sudo chown outsider:outsider "$W/base/lean/.lake/build/$d/PEqualNP/Outside"
           done
           # What the verdict will be about, hashed before the hostile step runs. With it, the
-          # source of every listed outside module (in/outside-sources.txt: paths the guard wrote,
-          # each matching base/lean/PEqualNP/Outside/L_<gap>.lean, so word splitting is safe).
+          # source of every listed outside module. The guard writes only validated proof paths
+          # without whitespace to in/outside-sources.txt.
           ( cd "$W" && sha256sum "base/$file" in/statement.txt base/tools/check-lean.mjs base/tools/build.sh \
               base/tools/bin/lake base/lean/CheckLemma.lean base/lean/.lake/build/bin/checklemma \
               base/.github/scripts/lake-locked.sh base/.github/scripts/build-ownership.sh $(cat in/outside-sources.txt) ) | tee "$RUNNER_TEMP/before.sha256"

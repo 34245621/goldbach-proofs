@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// THE CHECKER. Nothing else can mark a lemma checked or refuted.
+// Lean checker used by the GitHub Actions workflows for legacy-path proofs.
 //
 //   node tools/check-lean.mjs <lean file> <statement file> [check|refute]
 //
@@ -44,7 +44,7 @@ export const CHECKER_VERSION = 'check-lean 3';   // 2026-11-22: stricter (one na
 const DEFS_ROOT = 'PEqualNP.Defs';
 const CHECKER_LEAN_DIR = join(dirname(dirname(fileURLToPath(import.meta.url))), 'lean');
 const LEAN_DIR = process.env.PEQUALNP_REPO_ROOT ? join(process.env.PEQUALNP_REPO_ROOT, 'lean') : CHECKER_LEAN_DIR;
-const LIBRARIES = ['PEqualNP', 'CheckerSuite'];            // the lean_lib roots in lean/lakefile.toml
+const LIBRARIES = ['PEqualNP', 'CheckerSuite'];  // roots accepted by this Actions checker
 const BUILD_TIMEOUT_MS = 30 * 60 * 1000;
 const LOCK = join(LEAN_DIR, '.lake', 'check.lock');
 const LOCK_STALE_MS = 2 * BUILD_TIMEOUT_MS;
@@ -101,7 +101,7 @@ if (configNow) fault(`the build configuration of the judged tree (${TREE}) is no
 
 // The pinned library must already be there, prebuilt. The checker never compiles it.
 if (!existsSync(join(LEAN_DIR, '.lake', 'packages', 'mathlib', '.lake', 'build', 'lib', 'lean', 'Mathlib.olean'))) {
-  fault('the prebuilt Mathlib cache is missing. Run `lake exe cache get` in lean/ (RUNBOOK.md, section 2).');
+  fault('the prebuilt Mathlib cache is missing. Run `lake exe cache get` in lean/ (see AGENTS.md).');
 }
 
 // One build at a time in this directory.
@@ -167,7 +167,7 @@ if (moved) fault(`${moved}. Nothing was judged.`);
 // 2 to 4. Read the compiled result.
 // The checker's own verifier binary, run with the judged tree's search path.
 // It reads the statement from a private copy of the bytes read at the start.
-const PRIVATE = mkdtempSync(join(tmpdir(), 'pequalnp-check-'));
+const PRIVATE = mkdtempSync(join(tmpdir(), 'goldbach-check-'));
 process.on('exit', () => { try { rmSync(PRIVATE, { recursive: true, force: true }); } catch { /* gone */ } });
 const statementCopy = join(PRIVATE, 'statement.lean');
 writeFileSync(statementCopy, statementBytes, { mode: 0o400 });

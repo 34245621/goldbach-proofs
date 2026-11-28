@@ -2,7 +2,7 @@
 #
 # A fork can edit this workflow file, and a pull_request run uses the fork's copy. So a green
 # tick here proves nothing by itself. It is a quick answer for the author. The verdict that
-# counts comes from authoritative.yml, which runs from the base branch only.
+# counts appears as Goldbach CI / formal Lean verdict on the submitted commit.
 name: advisory
 
 on:
@@ -90,7 +90,7 @@ jobs:
           mb=$(( $(df -m --output=avail "$d" | awk 'NR==2{print $1}') - 6144 ))
           [ "$mb" -le 12288 ] || mb=12288
           if [ "$mb" -ge 1024 ]; then
-            f="${d%/}/pnp-swap"
+            f="${d%/}/goldbach-swap"
             sudo fallocate -l "${mb}M" "$f" && sudo chmod 600 "$f"
             sudo mkswap -q "$f" && sudo swapon "$f"
           fi

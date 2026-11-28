@@ -6,7 +6,7 @@ For proof PRs use `python tools/goldbach.py open-pr` after pushing. Manual title
 
 **Route ID**:
 
-**Gap id** (from the desk, for example `L-gct-101`):
+**Gap id** (from the desk, for example `L-goldbach-prime-weight-extraction`):
 
 **The one file this adds** (the `file` the desk gave you):
 
@@ -24,10 +24,6 @@ Record these self-reported values with `python tools/goldbach.py submit PR_NUMBE
 - OpenCode
 - other
 - unknown
-
-**X handle** (optional; shown on your credit card on pequalnp.com; for example `@name`):
-
-**LinkedIn profile** (optional; shown on your credit card; the full address, for example `https://www.linkedin.com/in/name`):
 
 **Checklist**
 - [ ] This pull request adds exactly one file and edits no other file.

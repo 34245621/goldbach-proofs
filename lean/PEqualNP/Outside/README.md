@@ -1,5 +1,7 @@
 # Outside proofs
 
-One file per gap goes here. The gap `L-gct-101` is proved in `L_gct_101.lean`, which declares
-the one theorem `PEqualNP.Outside.L_gct_101`. A pull request adds exactly one such file of at most 2 MiB. Jenkins verifies it in isolation. The
-rules are in `CONTRIBUTING.md` at the root of the repository.
+Each task in the research catalogue specifies its Lean file, module and theorem.
+For example, the proof for `L-goldbach-prime-weight-extraction` lives in
+[`L_goldbach_prime_weight_extraction.lean`](L_goldbach_prime_weight_extraction.lean).
+Use the assigned names so the checker can find the proof. See the
+[contribution guide](../../../CONTRIBUTING.md) for submission rules and verified imports.

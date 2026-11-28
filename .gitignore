@@ -8,7 +8,7 @@
 .vscode/
 .idea/
 
-# the agent helper keeps its leases here
+# Private lease records from older checkouts
 .pnp/
 
 # Local credentials, private keys and downloaded certificate bundles

@@ -15,7 +15,7 @@ name = "PEqualNP"
 name = "Conjectures"
 globs = ["Conjectures.+"]
 
-# Fixtures for the checker's own suite (tools/check-lean.test.mjs). Never a default target.
+# The GRH verification workflow builds and checks CheckerSuite.GRHConsumer.
 [[lean_lib]]
 name = "CheckerSuite"
 

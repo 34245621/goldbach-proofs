@@ -142,8 +142,8 @@ export function checkPlain(text) {
   if (theorems === 0) refuse('the file holds no theorem');
 }
 
-// WHAT THE BASE STEP MAY BUILD. A gap may list modules that outsiders wrote (anything under
-// PEqualNP.Outside, merged on the base branch). A Lean file runs code while it compiles, so such
+// WHAT THE BASE STEP MAY BUILD. A gap may list community proofs already on the base branch
+// under Conjectures or PEqualNP.Outside. A Lean file runs code while it compiles, so such
 // a module is never built by the base step: it is built in the locked step, by the checker's own
 // build of the judged file, as the account that compiles the judged file. This walks the imports
 // of every listed module, as plain text, and splits them:
@@ -153,8 +153,8 @@ export function checkPlain(text) {
 // outside module whose text fails the rules a proof file must pass (checkImports, checkPlain:
 // a second net, the sandbox is the first); a base module that imports an outside module (it
 // could be built neither before the locked step, which would compile outside code, nor inside
-// it, where nothing of the base may be written); a project module that is not under the
-// PEqualNP root (the checker's fixtures are never a gap's import); more than MAX_OUTSIDE
+// it, where nothing of the base may be written); a project module outside the allowed roots
+// (PEqualNP and Conjectures, which exclude the checker fixtures); more than MAX_OUTSIDE
 // outside modules (each one is compiled on every run that lists it).
 // CONSEQUENCE: a fleet module that imports an outside proof can never be a listed import. A
 // file that builds on outside proofs imports the outside modules themselves, and the gap lists

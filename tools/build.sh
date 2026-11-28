@@ -3,7 +3,7 @@
 # at most SLOTS lakes at once, each held to JOBS lean workers, however many callers
 # want one, first come first served. Run it from a tree's lean/ directory in place of lake:
 #
-#   ../tools/build.sh +PEqualNP.Library.L007        (same arguments as: lake build)
+#   ../tools/build.sh +Conjectures.Goldbach.TypeIHyperbolaBound  (same arguments as: lake build)
 #   ../tools/build.sh --lake env lean Foo.lean      (any lake command, through the same queue)
 #
 # tools/bin/lake (first in PATH) sends every bare `lake build|env|exe` here, so this

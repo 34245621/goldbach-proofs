@@ -77,17 +77,17 @@ const closureRefused = (name, listed, files, word) => test(`closure refused: ${n
 });
 
 test('closure: base modules only, as before', () => {
-  assert.deepEqual(closure(['PEqualNP.Gct.A'], { 'PEqualNP.Gct.A': 'import Mathlib\nimport PEqualNP.Gct.B\n', 'PEqualNP.Gct.B': '-- note\nimport PEqualNP.Defs\n', 'PEqualNP.Defs': 'import Mathlib\n' }),
-    { outside: [], base: ['PEqualNP.Defs', 'PEqualNP.Gct.A', 'PEqualNP.Gct.B'] });
+  assert.deepEqual(closure(['PEqualNP.Sample.A'], { 'PEqualNP.Sample.A': 'import Mathlib\nimport PEqualNP.Sample.B\n', 'PEqualNP.Sample.B': '-- note\nimport PEqualNP.Defs\n', 'PEqualNP.Defs': 'import Mathlib\n' }),
+    { outside: [], base: ['PEqualNP.Defs', 'PEqualNP.Sample.A', 'PEqualNP.Sample.B'] });
 });
 test('closure: a listed outside module is never handed to the base step; the base modules it imports are', () => {
   const buildOrder = [];
-  const r = closure(['PEqualNP.Outside.L_meta_473'], {
-    'PEqualNP.Outside.L_meta_473': proof(['Mathlib', 'PEqualNP.Defs', 'PEqualNP.Outside.L_meta_9'], 'PEqualNP.Outside.L_meta_473'),
-    'PEqualNP.Outside.L_meta_9': proof(['Mathlib', 'PEqualNP.Gct.L090'], 'PEqualNP.Outside.L_meta_9'),
-    'PEqualNP.Defs': 'import Mathlib\n', 'PEqualNP.Gct.L090': 'import PEqualNP.Defs\n' }, buildOrder);
-  assert.deepEqual(buildOrder, ['PEqualNP.Outside.L_meta_9', 'PEqualNP.Outside.L_meta_473']);
-  assert.deepEqual(r, { outside: ['PEqualNP.Outside.L_meta_473', 'PEqualNP.Outside.L_meta_9'], base: ['PEqualNP.Defs', 'PEqualNP.Gct.L090'] });
+  const r = closure(['PEqualNP.Outside.L_goldbach_derived'], {
+    'PEqualNP.Outside.L_goldbach_derived': proof(['Mathlib', 'PEqualNP.Defs', 'PEqualNP.Outside.L_goldbach_weights'], 'PEqualNP.Outside.L_goldbach_derived'),
+    'PEqualNP.Outside.L_goldbach_weights': proof(['Mathlib', 'PEqualNP.Sample.Weights'], 'PEqualNP.Outside.L_goldbach_weights'),
+    'PEqualNP.Defs': 'import Mathlib\n', 'PEqualNP.Sample.Weights': 'import PEqualNP.Defs\n' }, buildOrder);
+  assert.deepEqual(buildOrder, ['PEqualNP.Outside.L_goldbach_weights', 'PEqualNP.Outside.L_goldbach_derived']);
+  assert.deepEqual(r, { outside: ['PEqualNP.Outside.L_goldbach_derived', 'PEqualNP.Outside.L_goldbach_weights'], base: ['PEqualNP.Defs', 'PEqualNP.Sample.Weights'] });
 });
 closureRefused('the judged file itself', [judged], {}, 'the file being judged');
 closureRefused('an outside module that imports the judged file', ['PEqualNP.Outside.L_x_2'], { 'PEqualNP.Outside.L_x_2': proof([judged]) }, 'the file being judged');
@@ -102,11 +102,11 @@ test('closure: new module may import a legacy proof', () => {
   assert.deepEqual(order, [old, current]);
 });
 closureRefused('a listed module missing from the base', ['PEqualNP.Outside.L_x_9'], {}, 'not a plain file of the base tree');
-closureRefused('a listed base module missing from the base', ['PEqualNP.Gct.Nope'], {}, 'not a plain file of the base tree');
-closureRefused('a base module that imports an outside module', ['PEqualNP.Gct.A'], { 'PEqualNP.Gct.A': 'import PEqualNP.Gct.B\n', 'PEqualNP.Gct.B': '/- x -/ import PEqualNP.Outside.L_x_2\n', 'PEqualNP.Outside.L_x_2': proof(['Mathlib']) }, 'imports the outside-written');
-closureRefused('a base module behind an outside module that imports another outside module', ['PEqualNP.Outside.L_x_2'], { 'PEqualNP.Outside.L_x_2': proof(['PEqualNP.Gct.B']), 'PEqualNP.Gct.B': 'import PEqualNP.Outside.L_x_3\n', 'PEqualNP.Outside.L_x_3': proof([]) }, 'imports the outside-written');
+closureRefused('a listed base module missing from the base', ['PEqualNP.Sample.Nope'], {}, 'not a plain file of the base tree');
+closureRefused('a base module that imports an outside module', ['PEqualNP.Sample.A'], { 'PEqualNP.Sample.A': 'import PEqualNP.Sample.B\n', 'PEqualNP.Sample.B': '/- x -/ import PEqualNP.Outside.L_x_2\n', 'PEqualNP.Outside.L_x_2': proof(['Mathlib']) }, 'imports the outside-written');
+closureRefused('a base module behind an outside module that imports another outside module', ['PEqualNP.Outside.L_x_2'], { 'PEqualNP.Outside.L_x_2': proof(['PEqualNP.Sample.B']), 'PEqualNP.Sample.B': 'import PEqualNP.Outside.L_x_3\n', 'PEqualNP.Outside.L_x_3': proof([]) }, 'imports the outside-written');
 closureRefused('an outside module that runs code when it compiles', ['PEqualNP.Outside.L_x_2'], { 'PEqualNP.Outside.L_x_2': `import Mathlib\ninitialize pure ()\n${thm}` }, 'initialize');
-closureRefused('an outside module with an import below its header', ['PEqualNP.Outside.L_x_2'], { 'PEqualNP.Outside.L_x_2': `import Mathlib\n${thm}/- -/ import PEqualNP.Gct.B\n` }, 'the word "import"');
+closureRefused('an outside module with an import below its header', ['PEqualNP.Outside.L_x_2'], { 'PEqualNP.Outside.L_x_2': `import Mathlib\n${thm}/- -/ import PEqualNP.Sample.B\n` }, 'the word "import"');
 closureRefused('an outside module importing something not Mathlib and not the project', ['PEqualNP.Outside.L_x_2'], { 'PEqualNP.Outside.L_x_2': proof(['Lean.Elab']) }, 'not allowed');
 closureRefused('a module under Outside that is not a proof file name', ['PEqualNP.Outside.Helper'], { 'PEqualNP.Outside.Helper': proof(['Mathlib']) }, 'not the name of an outside proof file');
 test('closure: a cycle between outside modules ends', () => {
@@ -121,10 +121,10 @@ test('header: an import line below the header is refused, never passed over', ()
   assert.throws(() => headerImports('import Mathlib\ndef x := 1\nimport PEqualNP.Outside.L_x_2\n', 'm'), /below its header/);
 });
 
-// Reached base modules are under the PEqualNP root only, and outside modules are capped.
+// Checker fixtures are excluded from proof dependencies, and outside modules are capped.
 import { MAX_OUTSIDE } from './outside-guard.mjs';
 closureRefused('a listed fixture module', ['CheckerSuite.Pass'], { 'CheckerSuite.Pass': 'import Mathlib\n' }, 'not under an allowed project root');
-closureRefused('a base module that imports a fixture module', ['PEqualNP.Gct.A'], { 'PEqualNP.Gct.A': 'import CheckerSuite.Pass\n', 'CheckerSuite.Pass': 'import Mathlib\n' }, 'not under an allowed project root');
+closureRefused('a base module that imports a fixture module', ['PEqualNP.Sample.A'], { 'PEqualNP.Sample.A': 'import CheckerSuite.Pass\n', 'CheckerSuite.Pass': 'import Mathlib\n' }, 'not under an allowed project root');
 closureRefused('an outside module that imports a fixture module', ['PEqualNP.Outside.L_x_2'], { 'PEqualNP.Outside.L_x_2': proof(['CheckerSuite.Pass']), 'CheckerSuite.Pass': 'import Mathlib\n' }, 'not under an allowed project root');
 const many = (n) => Object.fromEntries(Array.from({ length: n }, (_, k) => [`PEqualNP.Outside.L_x_${k + 10}`, proof(['Mathlib'], `PEqualNP.Outside.L_x_${k + 10}`)]));
 test(`closure: ${MAX_OUTSIDE} outside modules pass`, () => {
