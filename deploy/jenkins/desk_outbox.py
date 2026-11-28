@@ -9,6 +9,7 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 
 from desk_verdict import send_verdict, signed_post
+from event_jobs import desk_run_id
 
 
 def initialize(db):
@@ -47,6 +48,32 @@ def enqueue_runner_failures(db, since):
     ).fetchone()
     refused = ("AND NOT EXISTS (SELECT 1 FROM proof_refusals f WHERE f.job_id=j.id)"
                if have_refusals else "")
+    max_before = db.execute(
+        "SELECT coalesce(max(job_id), 0) + 1 FROM desk_runs WHERE run_id<?", (since,)
+    ).fetchone()[0]
+    min_after = db.execute(
+        "SELECT min(job_id) FROM desk_runs WHERE run_id>=?", (since,)
+    ).fetchone()[0]
+    min_job_id = max_before if min_after is None else min(max_before, min_after)
+    unstarted = db.execute(f"""
+        SELECT j.id, j.pr, j.sha FROM ci_jobs j
+        JOIN jenkins_dispatches d ON d.job_id=j.id
+        WHERE j.kind='authoritative' AND j.pr>0 AND j.id>=?
+          AND d.result IN ('FAILURE', 'ABORTED', 'CANCELLED', 'UNSTABLE', 'NOT_BUILT')
+          AND NOT EXISTS (SELECT 1 FROM desk_runs r WHERE r.job_id=j.id)
+          AND NOT EXISTS (
+              SELECT 1 FROM ci_jobs j2 JOIN desk_runs r2 ON r2.job_id=j2.id
+              WHERE j2.kind='authoritative' AND j2.pr=j.pr AND j2.sha=j.sha
+          )
+          {refused}
+        ORDER BY j.id DESC
+    """, (min_job_id,)).fetchall()
+    seen_revisions = set()
+    for job_id, pr, sha in unstarted:
+        if (pr, sha) in seen_revisions:
+            continue
+        seen_revisions.add((pr, sha))
+        desk_run_id(db, job_id)
     rows = db.execute(f"""
         SELECT j.pr, j.sha, r.run_id FROM ci_jobs j
         JOIN desk_runs r ON r.job_id=j.id

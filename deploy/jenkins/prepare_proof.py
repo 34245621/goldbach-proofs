@@ -70,7 +70,7 @@ def generated_task(module):
 
 
 def guard(base, work, *args):
-    subprocess.run([
+    result = subprocess.run([
         "docker", "run", "--rm", "--pull", "never", "--runtime", "runsc",
         "--network", "none", "--read-only", "--cap-drop", "ALL",
         "--security-opt", "no-new-privileges", "--memory", "512m",
@@ -78,7 +78,8 @@ def guard(base, work, *args):
         "--mount", f"type=bind,source={work},target=/input",
         "--entrypoint", "node", "goldbach-site-agent:site-check",
         "/base/.github/scripts/outside-guard.mjs", *args,
-    ], check=True, timeout=30)
+    ], stdout=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", timeout=30)
+    report_guard_result(result)
 
 
 def prepare(app, number, expected_head, base, work):
