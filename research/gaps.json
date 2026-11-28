@@ -15283,6 +15283,35 @@
       "route_source": "exceptions"
     },
     {
+      "id": "L-goldbach-critical-pair-popular-sums",
+      "statement": "by\n  classical\n  let primes := fun X d r : ℕ => (Finset.Icc 1 X).filter (fun p => Nat.Prime p ∧ p % d = r)\n  let localDensity := fun (S : Set ℕ) (θ : ℝ) =>\n    ∀ d r : ℕ, 0 < d → r < d → Nat.Coprime r d → ∀ ε : ℝ, 0 < ε →\n      ∃ T : ℕ, ∀ X ≥ T, (θ - ε) * ((primes X d r).card : ℝ) ≤\n        (((primes X d r).filter (fun p => p ∈ S)).card : ℝ)\n  let reps := fun (A B : Set ℕ) (n : ℕ) => ((Finset.range (n+1)).filter (fun p => p ∈ A ∧ n-p ∈ B)).card\n  exact ∀ α β : ℝ, 0 < α → 0 < β → α + β = 1 →\n    ∀ η : ℝ, 0 < η → ∃ c : ℝ, 0 < c ∧ ∀ A B : Set ℕ,\n      (∀ p ∈ A, Nat.Prime p) → (∀ p ∈ B, Nat.Prime p) →\n      localDensity A α → localDensity B β →\n      ∃ M₀ : ℕ, ∀ M ≥ M₀, (((Finset.Icc ((M+1)/2) M).filter\n        (fun n => Even n ∧ (reps A B n : ℝ) < c * (M : ℝ) / (Real.log (M : ℝ))^2)).card : ℝ) ≤ η * M",
+      "plain_statement": {
+        "zh": "设正数 α、β 之和为 1。对每个 η>0，存在仅依赖 α、β、η 的 c>0。若素数子集 A、B 在每个固定既约剩余类中的相对下密度分别至少为 α、β，则对所有充分大的 M，闭区间 [⌈M/2⌉,M] 内至多 ηM 个偶数的有序表示 n=p+q（p∈A，q∈B）少于 cM/(log M)² 个。",
+        "en": "Let α, β>0 with α+β=1. For each η>0, some c>0 depending only on α, β and η works for all prime subsets A and B with relative lower densities at least α and β, respectively, in every fixed reduced residue class. For all sufficiently large M, at most ηM even integers in [⌈M/2⌉,M] have fewer than cM/(log M)² ordered representations n=p+q with p∈A and q∈B."
+      },
+      "brief": {
+        "zh": "待证。Alsetri–Shao 定理 1.2 对同一集合要求统一严格超过半密度。取 A=B、α=β=1/2 并对半区间求和，可恢复已核验的局部半密度端点。用其自适应区间估计分别保留两侧密度，把低表示数转成小卷积；先固定所需精度与轮模，再选择 c。对角 p=q 计一次；起始规模可依赖 A、B。全站已验证模块可在 https://www.goldbach.tech/verified-imports.json 查询。",
+        "en": "Open. Alsetri–Shao, Theorem 1.2, assumes a uniform strict excess over half-density for a single set. Taking A=B and α=β=1/2 and summing the half-interval bounds recovers the verified local half-density endpoint. Keep separate input densities in the adaptive interval estimate, and convert low multiplicity to small convolution. Fix the precision and wheel before choosing c. Count a diagonal pair once. The starting scale may depend on A and B. Search https://www.goldbach.tech/verified-imports.json for verified modules from across the project."
+      },
+      "source": "https://arxiv.org/html/2405.18576v2#S1",
+      "track": "exceptions",
+      "program": "exceptions",
+      "role": "target",
+      "parallel": true,
+      "imports": [
+        "Conjectures.Goldbach.PrimeLocalCompatibleColors",
+        "Conjectures.Goldbach.UnitNonemptyEven"
+      ],
+      "depends_on": [
+        "L-goldbach-local-density-half-endpoint",
+        "L-goldbach-prime-local-compatible-colors",
+        "L-goldbach-unit-nonempty-even"
+      ],
+      "module": "Conjectures.Goldbach.CriticalPairPopularSums",
+      "file": "lean/Conjectures/Goldbach/CriticalPairPopularSums.lean",
+      "route_source": "exceptions"
+    },
+    {
       "id": "L-goldbach-cubic-balanced-goldbach-values",
       "statement": "by\n  classical\n  exact ∀ P : Polynomial ℤ, P.natDegree=3 → 0<P.leadingCoeff → ∀ ε : ℝ, 0<ε → ∃ C : ℝ, 0<C ∧ ∀ N : ℕ, 2≤N → let bad := fun n : ℕ => let m := 2*P.eval (n:ℤ); ¬ ∃ p q : ℕ, Nat.Prime p ∧ Nat.Prime q ∧ (p:ℤ)+(q:ℤ)=m ∧ |(p:ℤ)-(q:ℤ)|^3 ≤ m^2; (((Finset.Icc 1 N).filter bad).card:ℝ) ≤ C*(N:ℝ)^((5:ℝ)/8+ε)",
       "plain_statement": {
