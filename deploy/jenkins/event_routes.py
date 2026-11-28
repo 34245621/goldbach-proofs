@@ -18,6 +18,19 @@ PROOF_PATH = re.compile(
 )
 
 
+def unsupported_lean_path(path):
+    """Catch legacy or otherwise un-routable Lean files for an explicit refusal."""
+    if not path.startswith("lean/") or not path.endswith(".lean"):
+        return False
+    allowed = (
+        path.startswith("lean/Conjectures/"),
+        path.startswith("lean/ResearchSupport/"),
+        path.startswith("lean/CheckerSuite/"),
+        path == "lean/CheckLemma.lean",
+    )
+    return not any(allowed)
+
+
 def route(event, body, paths=(), *, grh_enabled=True):
     """Route the exact revision. An unknown diff runs all applicable path checks."""
     if event == "issue_comment":
@@ -35,8 +48,8 @@ def route(event, body, paths=(), *, grh_enabled=True):
             return []
         jobs = []
         if paths is None or any(
-            path.startswith("lean/Conjectures/")
-            and path.endswith(".lean") for path in paths
+            (path.startswith("lean/Conjectures/") and path.endswith(".lean"))
+            or unsupported_lean_path(path) for path in paths
         ):
             jobs.append("advisory")
         if grh_enabled and (paths is None or any(path in GRH_PATHS or path.startswith((
