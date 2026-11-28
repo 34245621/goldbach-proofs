@@ -189,21 +189,14 @@ def compressed_asset(content):
     return gzip.compress(content, compresslevel=6, mtime=0)
 
 
-DISCUSSION_EXPIRES = datetime.fromisoformat("2026-12-04T00:00:00+08:00")
-
-
 def discussion_copy(lang):
-    if time.time() >= DISCUSSION_EXPIRES.timestamp():
-        return None
     zh = lang == "zh"
-    cutoff = DISCUSSION_EXPIRES.date()
     return {
-        "short": "扫码进群" if zh else "WeChat group",
-        "label": "扫码进群 · 讨论进度" if zh else "Join WeChat group",
-        "name": "知乎 AI4S 讨论组（哥猜 4 群）" if zh else "Zhihu AI4S Goldbach group 4",
-        "instructions": "微信扫码，讨论研究进度" if zh else "Scan in WeChat to discuss progress",
-        "validity": f"{cutoff.month} 月 {cutoff.day} 日前有效" if zh else f"Valid before {cutoff:%Y-%m-%d} (UTC+8)",
-        "alt": "知乎 AI4S 讨论组（哥猜 4 群）微信群二维码" if zh else "WeChat QR code for the Zhihu AI4S Goldbach discussion group 4",
+        "short": "扫码进 QQ 群" if zh else "Join the QQ group",
+        "label": "扫码进 QQ 群" if zh else "Join the QQ group",
+        "name": "知乎 AI4S 讨论组（哥德巴赫猜想）" if zh else "Zhihu AI4S Goldbach discussion group",
+        "number": "QQ群号 540437853" if zh else "QQ group number 540437853",
+        "alt": "QQ 群 540437853 加群二维码" if zh else "QR code to join QQ group 540437853",
     }
 
 
@@ -266,13 +259,13 @@ def hero_community_card(lang, prefix):
     items = []
     if disc:
         items.append(
-            f'<details class="community-item" id="wechat-discussion" open aria-label="{disc["name"]}">'
-            f'<summary class="community-summary"><img class="wechat-mark" src="{prefix}wechat.svg" width="22" height="22" alt="">'
+            f'<details class="community-item" id="qq-discussion" open aria-label="{disc["name"]}">'
+            f'<summary class="community-summary">'
             f'<span>{disc["short"]}</span><i aria-hidden="true"></i></summary>'
             f'<div class="community-item-body"><div class="community-copy">'
-            f'<strong class="community-title"><img class="wechat-mark" src="{prefix}wechat.svg" width="22" height="22" alt="">{disc["label"]}</strong>'
-            f'<p>{disc["name"]}</p><small>{disc["validity"]}</small></div>'
-            f'<div class="community-qr discussion-code"><img loading="lazy" src="{prefix}discussion-qr.png" alt="{disc["alt"]}" width="444" height="444"></div>'
+            f'<strong class="community-title">{disc["label"]}</strong>'
+            f'<p>{disc["name"]}</p><small>{disc["number"]}</small></div>'
+            f'<div class="community-qr discussion-code"><img loading="lazy" src="{prefix}discussion-qr.png" alt="{disc["alt"]}" width="228" height="228"></div>'
             f'</div></details>'
         )
     items.append(
@@ -297,9 +290,9 @@ def site_dock(lang, prefix, *, inline=False):
     if disc:
         cells.append(
             f'<div class="community-band-cell band-qr">'
-            f'<div class="community-copy"><strong class="community-title"><img class="wechat-mark" src="{prefix}wechat.svg" width="22" height="22" alt="">{disc["label"]}</strong>'
-            f'<p>{disc["name"]}</p><small>{disc["validity"]}</small></div>'
-            f'<div class="community-qr discussion-code"><img loading="lazy" src="{prefix}discussion-qr.png" alt="{disc["alt"]}" width="444" height="444"></div>'
+            f'<div class="community-copy"><strong class="community-title">{disc["label"]}</strong>'
+            f'<p>{disc["name"]}</p><small>{disc["number"]}</small></div>'
+            f'<div class="community-qr discussion-code"><img loading="lazy" src="{prefix}discussion-qr.png" alt="{disc["alt"]}" width="228" height="228"></div>'
             f'</div>'
         )
     cells.append(
