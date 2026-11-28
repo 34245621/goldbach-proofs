@@ -74,7 +74,9 @@ class ConfidentialDeskAndModerationTests(unittest.TestCase):
         with patch.object(
             github_identity,
             "verify_gist",
-            return_value={"id": uid, "login": handle, "gist_id": "a" * 32},
+            # Mirror the real contract of `github_identity.verify_gist`, which returns
+            # `(uid, login)`; a dict mock previously masked a production TypeError.
+            return_value=(uid, handle),
         ):
             status, verified = self.desk.auth_verify(
                 {
