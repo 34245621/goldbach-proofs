@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-unit-class",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_unit_class.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_unit_class",
+  "file": "lean/Conjectures/TwinPrimes/UnitClass.lean",
+  "module": "Conjectures.TwinPrimes.UnitClass",
   "statement": "∀ d : ℕ, Odd d → Nat.Coprime 2 d ∧ ∀ p : ℕ, d ∣ p+2 ↔ ((p:ZMod d) = -(2:ZMod d))",
   "plain_statement": {
     "zh": "新路线 · 短长除数与奇偶 · TP-0029 · 确定 −2 是每个奇模数的约化类",

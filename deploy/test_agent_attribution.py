@@ -398,7 +398,7 @@ class SubmissionToolTests(unittest.TestCase):
     def setUp(self):
         folder = self.enterContext(tempfile.TemporaryDirectory())
         self.path = Path(folder)/'lease.json'
-        self.state = dict(branch='task-branch', handle='alice', base='c'*40, token='private-lease', gap=dict(id='L-goldbach-test', file='lean/PEqualNP/Outside/Test.lean'))
+        self.state = dict(branch='task-branch', handle='alice', base='c'*40, token='private-lease', gap=dict(id='L-goldbach-test', file='lean/Conjectures/Goldbach/Test.lean'))
         self.agent = dict(model='model-a', harness='codex', harness_version='unknown')
         pr = dict(state='open', user={'login':'alice'}, head={'sha':'a'*40}, base={'ref':'main','repo':{'full_name':goldbach.REPO,'default_branch':'main'}}, changed_files=1)
         self.command = self.enterContext(patch.object(goldbach, 'command', side_effect=lambda *args: json.dumps(pr) if args[:2]==('gh','api') else ('a'*40 if args[:2]==('git','rev-parse') else '')))

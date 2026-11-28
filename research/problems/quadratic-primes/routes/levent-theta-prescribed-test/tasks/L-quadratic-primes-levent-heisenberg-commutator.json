@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-heisenberg-commutator",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_heisenberg_commutator.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_heisenberg_commutator",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventHeisenbergCommutator.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventHeisenbergCommutator",
   "statement": "∀ (N : ℕ) [NeZero N] (a b : ZMod N) (f : ZMod N → ℂ), let T := fun (g : ZMod N → ℂ) n => g (n+a); let M := fun (g : ZMod N → ℂ) n => ZMod.stdAddChar (b*n)*g n; ∀ n, T (M f) n = ZMod.stdAddChar (a*b)*M (T f) n",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0048 · 确定有限 Heisenberg 平移与调制的交换相位",

@@ -10,12 +10,25 @@ CATALOGUE_PR = {
     "research/problems.json", ".github/workflows/catalogue.yml",
 }
 GRH_PATHS = {
-    "lean/PEqualNP/GRH.lean", "lean/CheckLemma.lean", "lean/lean-toolchain",
+    "lean/ResearchSupport/GRH.lean", "lean/CheckLemma.lean", "lean/lean-toolchain",
     "deploy/jenkins/check-grh.sh", ".github/workflows/grh.yml",
 }
 PROOF_PATH = re.compile(
-    r"lean/(?:PEqualNP/Outside/L_[a-z0-9_]+|Conjectures/[A-Z][A-Za-z0-9]*/[A-Z][A-Za-z0-9]*)\.lean"
+    r"lean/Conjectures/[A-Z][A-Za-z0-9]*/[A-Z][A-Za-z0-9]*\.lean"
 )
+
+
+def unsupported_lean_path(path):
+    """Catch legacy or otherwise un-routable Lean files for an explicit refusal."""
+    if not path.startswith("lean/") or not path.endswith(".lean"):
+        return False
+    allowed = (
+        path.startswith("lean/Conjectures/"),
+        path.startswith("lean/ResearchSupport/"),
+        path.startswith("lean/CheckerSuite/"),
+        path == "lean/CheckLemma.lean",
+    )
+    return not any(allowed)
 
 
 def route(event, body, paths=(), *, grh_enabled=True):
@@ -35,12 +48,12 @@ def route(event, body, paths=(), *, grh_enabled=True):
             return []
         jobs = []
         if paths is None or any(
-            path.startswith(("lean/PEqualNP/Outside/", "lean/Conjectures/"))
-            and path.endswith(".lean") for path in paths
+            (path.startswith("lean/Conjectures/") and path.endswith(".lean"))
+            or unsupported_lean_path(path) for path in paths
         ):
             jobs.append("advisory")
         if grh_enabled and (paths is None or any(path in GRH_PATHS or path.startswith((
-            "lean/PEqualNP/GRHSource/", "lean/CheckerSuite/GRHConsumer", "lean/lake",
+            "lean/ResearchSupport/GRHSource/", "lean/CheckerSuite/GRHConsumer", "lean/lake",
         )) for path in paths)):
             jobs.append("grh")
     elif event == "push":

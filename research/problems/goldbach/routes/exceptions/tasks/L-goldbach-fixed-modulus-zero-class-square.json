@@ -24,6 +24,6 @@
     "Conjectures.Goldbach.FareyHyperbolaRectangles",
     "Conjectures.Goldbach.MajorFixed144",
     "Conjectures.Goldbach.ThreeQuartersExceptionalDirichletWindows",
-    "PEqualNP.Outside.L_goldbach_frontier_no_siegel_zero"
+    "Conjectures.Goldbach.FrontierNoSiegelZero"
   ]
 }

@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-fixed-a-prime-power-roots",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_fixed_a_prime_power_roots.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_fixed_a_prime_power_roots",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventFixedAPrimePowerRoots.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventFixedAPrimePowerRoots",
   "statement": "let roots := fun a q : ℕ => (Finset.range q).filter (fun r => q ∣ r^2+a); ∀ p k a : ℕ, p.Prime → Nat.Coprime p (2*a) → 0<k → (roots a (p^k)).card = (roots a p).card",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0056 · 在好素数的每一层保留相同的根数",

@@ -1,6 +1,6 @@
 import Mathlib
-import PEqualNP.Outside.L_twin_primes_window_bridge
-import PEqualNP.Outside.L_twin_primes_divisor_bridge
+import Conjectures.TwinPrimes.WindowBridge
+import Conjectures.TwinPrimes.DivisorBridge
 import Conjectures.TwinPrimes.EnergyBridgeV2
 
 -- child 1 zh: 存在正常数 C，使加权 Mertens 和在每个 X 上都被 C·X 控制。

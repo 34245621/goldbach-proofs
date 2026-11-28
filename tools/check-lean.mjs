@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// THE CHECKER. Nothing else can mark a lemma checked or refuted.
+// Lean checker used by the GitHub Actions workflows for community proofs.
 //
 //   node tools/check-lean.mjs <lean file> <statement file> [check|refute]
 //
@@ -9,7 +9,7 @@
 //   3. the theorem (named after its module, one lemma one file) rests on no `sorry` and on no
 //      axiom outside propext, Classical.choice, Quot.sound;
 //   4. the theorem is a proof of the recorded statement (of its negation for `refute`), where the
-//      statement is read against the pinned library and the definitions root (PEqualNP.Defs)
+//      statement is read against the pinned library and the definitions root (ResearchSupport.Defs)
 //      and nothing else of this project, whatever the file imports.
 // On acceptance it prints, before the last line, one line recorded with the result:
 //   MANIFEST {"rests_on":[{"module","sha256"}...],"defs":[{"module","sha256"}...]}
@@ -28,7 +28,7 @@
 // setting is inherited from the caller's environment.
 //
 // SEVERAL TREES. The checker itself, and its verifier, always run from THIS clone;
-// PEQUALNP_REPO_ROOT names the tree whose Lean files are being judged. So the author of a proof
+// GOLDBACH_REPO_ROOT names the tree whose Lean files are being judged. So the author of a proof
 // cannot change the checker it is judged by.
 //
 // A Lean file runs code while it compiles. Run this script on a file you do not trust only
@@ -41,10 +41,10 @@ import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const CHECKER_VERSION = 'check-lean 3';   // 2026-11-22: stricter (one name, one meaning; fixed inputs; faults told apart from rejections)
-const DEFS_ROOT = 'PEqualNP.Defs';
+const DEFS_ROOT = 'ResearchSupport.Defs';
 const CHECKER_LEAN_DIR = join(dirname(dirname(fileURLToPath(import.meta.url))), 'lean');
-const LEAN_DIR = process.env.PEQUALNP_REPO_ROOT ? join(process.env.PEQUALNP_REPO_ROOT, 'lean') : CHECKER_LEAN_DIR;
-const LIBRARIES = ['PEqualNP', 'CheckerSuite'];            // the lean_lib roots in lean/lakefile.toml
+const LEAN_DIR = process.env.GOLDBACH_REPO_ROOT ? join(process.env.GOLDBACH_REPO_ROOT, 'lean') : CHECKER_LEAN_DIR;
+const LIBRARIES = ['Conjectures', 'CheckerSuite'];  // roots accepted by this Actions checker
 const BUILD_TIMEOUT_MS = 30 * 60 * 1000;
 const LOCK = join(LEAN_DIR, '.lake', 'check.lock');
 const LOCK_STALE_MS = 2 * BUILD_TIMEOUT_MS;
@@ -101,7 +101,7 @@ if (configNow) fault(`the build configuration of the judged tree (${TREE}) is no
 
 // The pinned library must already be there, prebuilt. The checker never compiles it.
 if (!existsSync(join(LEAN_DIR, '.lake', 'packages', 'mathlib', '.lake', 'build', 'lib', 'lean', 'Mathlib.olean'))) {
-  fault('the prebuilt Mathlib cache is missing. Run `lake exe cache get` in lean/ (RUNBOOK.md, section 2).');
+  fault('the prebuilt Mathlib cache is missing. Run `lake exe cache get` in lean/ (see AGENTS.md).');
 }
 
 // One build at a time in this directory.
@@ -131,10 +131,10 @@ const QUEUE = join(dirname(CHECKER_LEAN_DIR), 'tools', 'build.sh');
 const opts = (cwd, env) => ({ cwd, encoding: 'utf8', timeout: BUILD_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024, env });
 // The queue is entered through tools/bin/lake, never through `sh`.
 const SHIM = join(dirname(CHECKER_LEAN_DIR), 'tools', 'bin', 'lake');
-const { PEQUALNP_IN_QUEUE, ...queued } = lakeEnv;
+const { GOLDBACH_IN_QUEUE, ...queued } = lakeEnv;
 const lakeIn = (cwd, args) => spawnSync(SHIM, args, opts(cwd, queued));
 const lake = (args) => lakeIn(LEAN_DIR, args);
-const lakeNow = (args) => spawnSync(SHIM, args, opts(LEAN_DIR, { ...lakeEnv, PEQUALNP_IN_QUEUE: '1' }));
+const lakeNow = (args) => spawnSync(SHIM, args, opts(LEAN_DIR, { ...lakeEnv, GOLDBACH_IN_QUEUE: '1' }));
 const tail = (r, n = 30) => (r.stdout + r.stderr).trim().split('\n').slice(-n).join('\n');
 
 // The verifier is part of the checker: built from this repository, by the pinned toolchain.
@@ -167,7 +167,7 @@ if (moved) fault(`${moved}. Nothing was judged.`);
 // 2 to 4. Read the compiled result.
 // The checker's own verifier binary, run with the judged tree's search path.
 // It reads the statement from a private copy of the bytes read at the start.
-const PRIVATE = mkdtempSync(join(tmpdir(), 'pequalnp-check-'));
+const PRIVATE = mkdtempSync(join(tmpdir(), 'goldbach-check-'));
 process.on('exit', () => { try { rmSync(PRIVATE, { recursive: true, force: true }); } catch { /* gone */ } });
 const statementCopy = join(PRIVATE, 'statement.lean');
 writeFileSync(statementCopy, statementBytes, { mode: 0o400 });

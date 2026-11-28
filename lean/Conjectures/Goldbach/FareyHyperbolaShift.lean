@@ -15,7 +15,7 @@ count is preserved (`u*j ≡ 1` vs `v*j ≡ c` with `d*c ≡ 1`), and `#I` diffe
 open scoped BigOperators
 open Finset
 
-namespace PEqualNP.Outside
+namespace Conjectures.Goldbach
 
 /-- 区间 `[l,h]` 中与 `v` 同余模 `d` 的个数与 `(h-l+1)/d` 的偏差 ≤ 1。 -/
 lemma card_Icc_residue_abs (d v l h : ℕ) (hd : 0 < d) :
@@ -401,10 +401,10 @@ theorem L_goldbach_farey_hyperbola_shift :
     rw [← hcardS]
     exact hle'
 
-end PEqualNP.Outside
+end Conjectures.Goldbach
 
 /-! Canonical module-named statement (platform checker requires a declaration
 named exactly after the gap module). -/
 theorem Conjectures.Goldbach.FareyHyperbolaShift :
     ∀ (n d b l h s c : ℕ) (J : Finset ℕ), 1 < n → 0 < d → b < d → b ≤ h → l ≤ h → h < n → s < n → (d*s)%n = b %n → (d*c)%n = 1 → let lo := (l+d-1-b)/d; let hi := (h-b)/d; let I := Finset.Icc (lo+s) (hi+s); let count := fun (I : Finset ℕ) (k : ℕ) => ((I.product J).filter (fun (x : ℕ × ℕ) => (x.1*x.2)%n = k %n)).card; hi+s < n ∧ count ((Finset.Icc l h).filter (fun u => u %d = b)) 1 = count I c ∧ |(I.card:ℝ) - ((h-l+1 : ℕ):ℝ)/d| ≤ 1
-  := PEqualNP.Outside.L_goldbach_farey_hyperbola_shift
+  := Conjectures.Goldbach.L_goldbach_farey_hyperbola_shift

@@ -13,8 +13,8 @@
   "program": "correlation",
   "parallel": true,
   "depends_on": [],
-  "file": "lean/PEqualNP/Outside/L_goldbach_finite_sieve_probe_crt_positive.lean",
-  "module": "PEqualNP.Outside.L_goldbach_finite_sieve_probe_crt_positive",
+  "file": "lean/Conjectures/Goldbach/FiniteSieveProbeCrtPositive.lean",
+  "module": "Conjectures.Goldbach.FiniteSieveProbeCrtPositive",
   "imports": [],
   "track": "representations",
   "role": "lemma"

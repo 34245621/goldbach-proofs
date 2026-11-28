@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-overlap",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_overlap.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_overlap",
+  "file": "lean/Conjectures/TwinPrimes/Overlap.lean",
+  "module": "Conjectures.TwinPrimes.Overlap",
   "statement": "∀ n m H : ℕ, n ≤ m → ((Finset.Ico n (n+H)) ∩ (Finset.Ico m (m+H))).card = H-(m-n)",
   "plain_statement": {
     "zh": "新路线 · 有限跳跃 · TP-0040 · 数出两个离散窗口的交长",

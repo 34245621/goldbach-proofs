@@ -6171,7 +6171,7 @@ open scoped BigOperators ComplexConjugate
 private noncomputable def parsevalPhase (t : ℝ) : ℂ :=
   Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I)
 
-namespace PEqualNP.Outside
+namespace Conjectures.Goldbach
 
 theorem nearParseval :
     let E := fun x : ℝ => Complex.exp (((2*Real.pi*x:ℝ):ℂ)*Complex.I); let S := fun (n : ℕ) (w : ℕ → ℝ) (t : ℝ) => Finset.sum (Finset.range (n+1)) (fun k => (w k:ℂ)*E ((k:ℝ)*t)); ∀ n w, intervalIntegral (fun t => ‖S n w t‖^2) (0:ℝ) 1 MeasureTheory.volume = Finset.sum (Finset.range (n+1)) (fun k => (w k)^2) := by
@@ -6327,7 +6327,7 @@ theorem nearParseval :
 
 
 
-end PEqualNP.Outside
+end Conjectures.Goldbach
 namespace NearModel
 /- The geometric and sine bounds adapt OpenAI, openai/math commit 3344da59991ed94f9ba711217b29c1d760badfa6 (Apache-2.0). -/
 theorem norm_geometric_sum_le_two_div {z : ℂ} (hz : ‖z‖ = 1) (hne : z ≠ 1)
@@ -6430,7 +6430,7 @@ private theorem energyPeriodic (n : ℕ) : Function.Periodic (fun t => ‖kernel
   rw [h]
 
 private theorem energyFull (n : ℕ) : kernelMass n (1/2) = n+1 := by
-  have h := PEqualNP.Outside.nearParseval n (fun _ => (1:ℝ))
+  have h := Conjectures.Goldbach.nearParseval n (fun _ => (1:ℝ))
   have he : (∫ t in (0:ℝ)..1, ‖kernel n t‖^2) = n+1 := by
     simpa [kernel,phase] using h
   have hp := (energyPeriodic n).intervalIntegral_add_eq (-(1/2):ℝ) 0

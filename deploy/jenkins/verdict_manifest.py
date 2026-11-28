@@ -3,8 +3,8 @@
 import hashlib
 import re
 
-MODULE = re.compile(r"(?:PEqualNP|Conjectures)(?:\.[A-Za-z][A-Za-z0-9_]*)+")
-PROOF_MODULE = re.compile(r"(?:PEqualNP\.Outside\.L_[a-z0-9_]+|Conjectures\.[A-Z][A-Za-z0-9]*\.[A-Z][A-Za-z0-9]*)")
+MODULE = re.compile(r"(?:ResearchSupport|Conjectures)(?:\.[A-Za-z][A-Za-z0-9_]*)+")
+PROOF_MODULE = re.compile(r"Conjectures\.[A-Z][A-Za-z0-9]*\.[A-Z][A-Za-z0-9]*")
 
 
 def module_path(module):

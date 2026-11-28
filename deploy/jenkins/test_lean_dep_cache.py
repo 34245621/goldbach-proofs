@@ -9,9 +9,9 @@ from lean_dep_cache import compile_cached, key, store_cached
 
 class LeanDependencyCacheTests(unittest.TestCase):
     def test_keys_follow_transitive_source_changes(self):
-        base = "PEqualNP.Outside.L_base"
-        middle = "PEqualNP.Outside.L_middle"
-        root = "PEqualNP.Outside.L_root"
+        base = "Conjectures.Goldbach.Base"
+        middle = "Conjectures.Goldbach.Middle"
+        root = "Conjectures.Goldbach.Root"
         state = b"frozen-toolchain-and-mathlib"
 
         def root_key(source):
@@ -28,10 +28,10 @@ class LeanDependencyCacheTests(unittest.TestCase):
             store = Path(temporary)
             first = store / "cold.olean"
             second = store / "warm.olean"
-            compile_cached(store, "PEqualNP.Outside.L_test", "a" * 64, first,
+            compile_cached(store, "Conjectures.Goldbach.Test", "a" * 64, first,
                            lambda: first.write_bytes(b"compiled in the sandbox"))
             compile_again = Mock()
-            compile_cached(store, "PEqualNP.Outside.L_test", "a" * 64, second, compile_again)
+            compile_cached(store, "Conjectures.Goldbach.Test", "a" * 64, second, compile_again)
             compile_again.assert_not_called()
             self.assertEqual(first.read_bytes(), second.read_bytes())
 

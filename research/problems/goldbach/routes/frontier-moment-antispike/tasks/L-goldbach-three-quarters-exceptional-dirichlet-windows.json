@@ -9,7 +9,7 @@
     "zh": "在长 1/n 的网格单元内，取分母最大的窗口作参照。既约性使整数行列式区分各窗口，其绝对值至多为 3。再用傅里叶和模平方的总变差、连续帕塞瓦尔公式和切比雪夫上界。原前沿任务还须处理异常分母。",
     "en": "Anchor each mesh cell of length 1/n at its largest participating denominator. The signed integer determinants distinguish the reduced pairs and have absolute value at most three. Control arbitrary mesh samples by total variation and continuous Parseval, then use the Chebyshev bound for prime weights. The original frontier task still requires the exceptional denominators."
   },
-  "source": "https://github.com/34245621/goldbach-proofs/blob/0706d414e060cf6f76c83ce6059c9413936c81b5/lean/PEqualNP/Outside/L_goldbach_three_quarters_exceptional_dirichlet_windows.lean",
+  "source": "https://github.com/34245621/goldbach-proofs/blob/0706d414e060cf6f76c83ce6059c9413936c81b5/lean/Conjectures/Goldbach/ThreeQuartersExceptionalDirichletWindows.lean",
   "program": "correlation",
   "parallel": true,
   "imports": [],

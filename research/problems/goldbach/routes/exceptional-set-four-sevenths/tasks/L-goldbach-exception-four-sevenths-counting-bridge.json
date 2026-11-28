@@ -20,6 +20,6 @@
   "parallel": true,
   "challenge_only": false,
   "imports": [
-    "PEqualNP.Outside.L_goldbach_arc_major_floor"
+    "Conjectures.Goldbach.ArcMajorFloor"
   ]
 }

@@ -117,7 +117,7 @@ private lemma key_apply (p j k : ℕ) [Fact p.Prime] (hj : 1 ≤ j) (hjk : j ≤
 /-- **PREPUB gap `L-goldbach-reflection-conductor-average`.**
 The prime-power averaging operator `P` (average over the units in a fibre of the canonical
 reduction `π : ZMod (p^k) → ZMod (p^j)`) commutes with the reflection `K : g ↦ g(N - ·)`. -/
-theorem PEqualNP.Outside.L_goldbach_reflection_conductor_average :
+theorem Conjectures.Goldbach.L_goldbach_reflection_conductor_average :
     ∀ (p j k : ℕ) [Fact p.Prime], 1 ≤ j → j ≤ k →
       ∀ (h : p^j ∣ p^k) (N : ZMod (p^k)) (f : ZMod (p^k) → ℂ),
         let π := ZMod.castHom h (ZMod (p^j))
@@ -143,4 +143,4 @@ theorem Conjectures.Goldbach.ReflectionConductorAverage :
         let K := fun (g : ZMod (p^k) → ℂ) (x : ZMod (p^k)) =>
           if IsUnit x ∧ IsUnit (N-x) then g (N-x) else 0
         P (K f) = K (P f) :=
-  PEqualNP.Outside.L_goldbach_reflection_conductor_average
+  Conjectures.Goldbach.L_goldbach_reflection_conductor_average

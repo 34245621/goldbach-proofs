@@ -20,7 +20,7 @@
   "parallel": true,
   "challenge_only": false,
   "imports": [
-    "PEqualNP.Outside.L_square_packing_rotation_norm",
-    "PEqualNP.Outside.L_square_packing_rotated_square_containment"
+    "Conjectures.SquarePacking.RotationNorm",
+    "Conjectures.SquarePacking.RotatedSquareContainment"
   ]
 }

@@ -1,5 +1,5 @@
 import Mathlib
-import PEqualNP.Outside.L_goldbach_frontier_skirt_polylog_moduli
+import Conjectures.Goldbach.FrontierSkirtPolylogModuli
 import Conjectures.Goldbach.WideSignedRemainderBridge
 
 -- 前提里保留了完整的 let 链（与父题的记号逐字对齐），其中部分 let 绑定在单个前提内

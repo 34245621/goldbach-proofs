@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-quadratic-graph-fourier",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_quadratic_graph_fourier.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_quadratic_graph_fourier",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventQuadraticGraphFourier.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventQuadraticGraphFourier",
   "statement": "∀ (p : ℕ) [NeZero p] (a n : ZMod p), (∑ t : ZMod p, ZMod.stdAddChar (t*(n^2+a))) = if n^2+a=0 then (p : ℂ) else 0",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0044 · 用加性特征提取模 p 的二次根图",

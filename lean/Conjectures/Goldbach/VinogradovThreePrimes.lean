@@ -10402,7 +10402,7 @@ end
 end BulkCircle
 end
 
-theorem PEqualNP.Outside.L_goldbach_bulk_density_one : let J := fun x : ℕ => (Finset.range (2*x+1)).filter (fun n => Even n ∧ 13*x≤12*n ∧ 4*n≤5*x); let B := fun x : ℕ => (Finset.range (x+1)).filter (fun k => x≤2*k ∧ 3*k≤2*x); let w := fun k : ℕ => if k.Prime then Real.log (k:ℝ) else 0; let R := fun x n : ℕ => ∑ p ∈ (B x).filter (fun p => n-p ∈ B x ∧ p≤n), w p*w (n-p); ∀ ε : ℝ, 0<ε → ∃ X : ℕ, ∀ x≥X, (((J x).filter (fun n => R x n=0)).card : ℝ) ≤ ε*(x:ℝ) := by
+theorem Conjectures.Goldbach.BulkDensityOne : let J := fun x : ℕ => (Finset.range (2*x+1)).filter (fun n => Even n ∧ 13*x≤12*n ∧ 4*n≤5*x); let B := fun x : ℕ => (Finset.range (x+1)).filter (fun k => x≤2*k ∧ 3*k≤2*x); let w := fun k : ℕ => if k.Prime then Real.log (k:ℝ) else 0; let R := fun x n : ℕ => ∑ p ∈ (B x).filter (fun p => n-p ∈ B x ∧ p≤n), w p*w (n-p); ∀ ε : ℝ, 0<ε → ∃ X : ℕ, ∀ x≥X, (((J x).filter (fun n => R x n=0)).card : ℝ) ≤ ε*(x:ℝ) := by
   exact BulkCircle.complete
 
 namespace Conjectures.Goldbach.VinogradovThreePrimes_aux

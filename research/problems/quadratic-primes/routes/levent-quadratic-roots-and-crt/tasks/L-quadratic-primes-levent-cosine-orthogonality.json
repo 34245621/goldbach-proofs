@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-cosine-orthogonality",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_cosine_orthogonality.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_cosine_orthogonality",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventCosineOrthogonality.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventCosineOrthogonality",
   "statement": "let angle := fun p k : ℕ => fun t : ℝ => 2 * Real.pi * k * t / p; ∀ p n r : ℕ, 0<p → (∑ k ∈ Finset.range p, Real.cos (angle p k ((n : ℝ)-r))) = if n%p=r%p then (p : ℝ) else 0",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0018 · 对剩余类的实余弦特征做完全正交求和",

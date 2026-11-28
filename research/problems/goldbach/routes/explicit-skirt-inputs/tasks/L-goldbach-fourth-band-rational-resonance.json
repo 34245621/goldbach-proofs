@@ -1,7 +1,7 @@
 {
   "id": "L-goldbach-fourth-band-rational-resonance",
-  "file": "lean/PEqualNP/Outside/L_goldbach_fourth_band_rational_resonance.lean",
-  "module": "PEqualNP.Outside.L_goldbach_fourth_band_rational_resonance",
+  "file": "lean/Conjectures/Goldbach/FourthBandRationalResonance.lean",
+  "module": "Conjectures.Goldbach.FourthBandRationalResonance",
   "statement": "let E := fun x : ℝ => Complex.exp (((2*Real.pi*x:ℝ):ℂ)*Complex.I); ∀ (A B h q a : ℕ), 0 < q → Nat.Coprime a q → let z := E ((a:ℝ)*h/q); ‖∑ l ∈ Finset.Ioc A B, E ((a:ℝ)*h*l/q)‖ ≤ if q ∣ h then ((B-A:ℕ):ℝ) else min ((B-A:ℕ):ℝ) (2/‖1-z‖)",
   "plain_statement": {
     "zh": "新路线 · 裙边与显式算术输入 · SI-8002 · 在有理中心显式分出自由因子的共振类",

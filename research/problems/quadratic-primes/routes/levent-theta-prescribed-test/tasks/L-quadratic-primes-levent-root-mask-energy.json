@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-root-mask-energy",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_root_mask_energy.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_root_mask_energy",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventRootMaskEnergy.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventRootMaskEnergy",
   "statement": "∀ (p : ℕ) [NeZero p] (a : ZMod p), let f := fun n : ZMod p => if n^2+a=0 then (1 : ℂ) else 0; (∑ k : ZMod p, ‖ZMod.dft f k‖^2) = (p : ℝ) * (((Finset.univ : Finset (ZMod p)).filter (fun n => n^2+a=0)).card : ℝ)",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0049 · 精确计算完整根掩码的 Fourier 总能量",

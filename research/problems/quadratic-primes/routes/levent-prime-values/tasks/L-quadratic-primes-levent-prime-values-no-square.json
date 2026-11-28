@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-prime-values-no-square",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_prime_values_no_square.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_prime_values_no_square",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventPrimeValuesNoSquare.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventPrimeValuesNoSquare",
   "statement": "∀ n p j : ℕ, 0<n → 0<j → n^2+1 ≠ p^(2*j)",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0064 · 排除 n²+1 等于平方及偶指数真幂",

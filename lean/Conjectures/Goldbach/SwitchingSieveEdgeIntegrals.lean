@@ -15,7 +15,7 @@ Self-contained, Mathlib only.
 
 open MeasureTheory Filter
 
-namespace PEqualNP.Outside
+namespace Conjectures.Goldbach
 
 lemma log_ten_nine_le : Real.log (10 / 9) ≤ 0.10536125 := by
   rw [Real.log_le_iff_le_exp (by norm_num : (0:ℝ) < 10/9)]
@@ -311,11 +311,11 @@ private lemma L_goldbach_switching_sieve_edge_integrals :
       linarith [hH14]
     linarith [hstep1, hstep2, hstep3, hstep4, hnum]
 
-end PEqualNP.Outside
+end Conjectures.Goldbach
 
 /-! Canonical module-named statement (platform checker requires a declaration
 named exactly after the gap module: `Conjectures.Goldbach.SwitchingSieveEdgeIntegrals`). -/
 
 theorem Conjectures.Goldbach.SwitchingSieveEdgeIntegrals :
     8 * Real.log (10 / 9) ≤ (0.84289 : ℝ) ∧ 8 * ∫ t in (2 : ℝ)..(8 / 3 : ℝ), Real.log (t - 1) / t ≤ (0.60962 : ℝ) := by
-  exact PEqualNP.Outside.L_goldbach_switching_sieve_edge_integrals
+  exact Conjectures.Goldbach.L_goldbach_switching_sieve_edge_integrals

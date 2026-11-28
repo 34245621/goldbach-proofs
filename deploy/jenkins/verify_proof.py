@@ -118,9 +118,9 @@ def verify(file, work, project, toolchain, ownership_check, *, on_container=None
     ]
     # Only the guarded closure is visible to the submission and independent replay.
     compiled = work / "compiled"
-    for root in ("PEqualNP/Outside", "Conjectures"):
-        (compiled / root).mkdir(parents=True)
-        flags += ["--mount", f"type=bind,source={compiled / root},target=/project/.lake/build/lib/lean/{root},readonly"]
+    community = compiled / "Conjectures"
+    community.mkdir(parents=True)
+    flags += ["--mount", f"type=bind,source={community},target=/project/.lake/build/lib/lean/Conjectures,readonly"]
 
     def run_sandbox(extra, *, capture=False):
         if cancelled is not None and cancelled.is_set():
@@ -375,7 +375,7 @@ class KProofWorker:
             "--env", f"LEAN_PATH={lean_path}", "--env", "LEAN_SYSROOT=/toolchain",
             "--env", "PATH=/toolchain/bin:/usr/bin:/bin",
         ]
-        for root in ("PEqualNP/Outside", "Conjectures"):
+        for root in ("Conjectures",):
             (compiled / root).mkdir(parents=True, exist_ok=True)
             flags += ["--mount", f"type=bind,source={compiled / root},target=/project/.lake/build/lib/lean/{root},readonly"]
 

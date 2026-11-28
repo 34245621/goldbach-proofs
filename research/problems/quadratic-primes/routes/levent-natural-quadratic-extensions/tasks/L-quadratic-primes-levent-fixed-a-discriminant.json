@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-fixed-a-discriminant",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_fixed_a_discriminant.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_fixed_a_discriminant",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventFixedADiscriminant.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventFixedADiscriminant",
   "statement": "∀ (p a : ℕ) [Fact p.Prime], (∃ r : ZMod p, r^2+a=0 ∧ 2*r=0) ↔ p ∣ 4*a",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0054 · 从判别式辨认奇异根的素数",

@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-unconditional-short",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_unconditional_short.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_unconditional_short",
+  "file": "lean/Conjectures/TwinPrimes/UnconditionalShort.lean",
+  "module": "Conjectures.TwinPrimes.UnconditionalShort",
   "statement": "let w := fun (X : ℕ) => (Finset.range (2*X+1)).filter (fun n => X < n ∧ 50*n < 51*X); let primes := fun X => (w X).filter Nat.Prime; let c := fun (d : ℕ) => -(ArithmeticFunction.moebius d : ℝ)*Real.log d; let short := fun (X D : ℕ) => (primes X).sum (fun p => Real.log p * (((p+2).divisors.filter (fun d => d ≤ D)).sum c))/(X:ℝ); let D := fun (X : ℕ) => Nat.floor ((X:ℝ)^(1/3:ℝ)); let f := fun (p : ℕ) => if p.Prime ∧ 2 < p then 1-1/((p:ℝ)-1)^2 else 1; let twinC := ∏' p : ℕ, f p; Filter.Tendsto (fun X : ℕ => short X (D X)) Filter.atTop (nhds (2*twinC/50))",
   "plain_statement": {
     "zh": "新路线 · 短长除数与奇偶 · TP-0035 · 无条件求立方根截点的短除数主项",
@@ -20,8 +20,8 @@
     "L-twin-primes-euler-factor"
   ],
   "imports": [
-    "PEqualNP.Outside.L_twin_primes_divisor_split",
-    "PEqualNP.Outside.L_twin_primes_euler_factor"
+    "Conjectures.TwinPrimes.DivisorSplit",
+    "Conjectures.TwinPrimes.EulerFactor"
   ],
   "challenge_only": true
 }

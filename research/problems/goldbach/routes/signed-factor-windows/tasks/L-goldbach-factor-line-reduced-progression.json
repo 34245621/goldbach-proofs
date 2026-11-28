@@ -1,7 +1,7 @@
 {
   "id": "L-goldbach-factor-line-reduced-progression",
-  "file": "lean/PEqualNP/Outside/L_goldbach_factor_line_reduced_progression.lean",
-  "module": "PEqualNP.Outside.L_goldbach_factor_line_reduced_progression",
+  "file": "lean/Conjectures/Goldbach/FactorLineReducedProgression.lean",
+  "module": "Conjectures.Goldbach.FactorLineReducedProgression",
   "statement": "let Λ := ArithmeticFunction.vonMangoldt; ∀ (n a b U : ℕ), 0 < a → 0 < b → let g := Nat.gcd a b; (∑ r ∈ Finset.Ioc U (n/a), ∑ s ∈ (Finset.Ioc U (n/b)).filter (fun s => a*r+b*s=n), Λ r * Λ s) = if g ∣ n then ∑ r ∈ (Finset.Ioc U (n/a)).filter (fun r => (a/g)*r % (b/g) = (n/g) % (b/g) ∧ U < (n-a*r)/b), Λ r * Λ ((n-a*r)/b) else 0",
   "plain_statement": {
     "zh": "新路线 · 有符号因子与移位窗 · FW-8002 · 把固定因子线的 Mangoldt 对限制到约化同余类",

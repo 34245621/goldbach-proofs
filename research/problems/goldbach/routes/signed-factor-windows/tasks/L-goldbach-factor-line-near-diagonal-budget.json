@@ -1,7 +1,7 @@
 {
   "id": "L-goldbach-factor-line-near-diagonal-budget",
-  "file": "lean/PEqualNP/Outside/L_goldbach_factor_line_near_diagonal_budget.lean",
-  "module": "PEqualNP.Outside.L_goldbach_factor_line_near_diagonal_budget",
+  "file": "lean/Conjectures/Goldbach/FactorLineNearDiagonalBudget.lean",
+  "module": "Conjectures.Goldbach.FactorLineNearDiagonalBudget",
   "statement": "∀ (J : Finset ℤ) (D : ℕ) (u v : ℤ → ℝ) (B : ℝ), 0 ≤ B → (∀ i ∈ J, |u i * v i| ≤ B) → |∑ i ∈ J, ∑ j ∈ J.filter (fun j => j ≠ i ∧ (j-i).natAbs ≤ D), u i * v i * (u j * v j)| ≤ (J.card:ℝ) * (2*(D:ℝ)) * B^2",
   "plain_statement": {
     "zh": "新路线 · 有符号因子与移位窗 · FW-8008 · 给有限纤维上近对角能量单列上界",

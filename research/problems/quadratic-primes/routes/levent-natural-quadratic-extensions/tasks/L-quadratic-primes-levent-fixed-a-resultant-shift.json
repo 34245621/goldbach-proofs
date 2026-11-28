@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-fixed-a-resultant-shift",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_fixed_a_resultant_shift.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_fixed_a_resultant_shift",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventFixedAResultantShift.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventFixedAResultantShift",
   "statement": "∀ a n h d : ℤ, d ∣ n^2+a → d ∣ (n+h)^2+a → d ∣ h^2*(h^2+4*a)",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0055 · 消去 n 得到两份平移二次值的整除约束",

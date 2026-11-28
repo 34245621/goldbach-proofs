@@ -1,7 +1,7 @@
 {
   "id": "L-goldbach-shift-normalized-support",
-  "file": "lean/PEqualNP/Outside/L_goldbach_shift_normalized_support.lean",
-  "module": "PEqualNP.Outside.L_goldbach_shift_normalized_support",
+  "file": "lean/Conjectures/Goldbach/ShiftNormalizedSupport.lean",
+  "module": "Conjectures.Goldbach.ShiftNormalizedSupport",
   "statement": "∀ (n : ℕ) (e η : ℝ) (ω : ℕ → ℝ), 0 < n → 0 < e → 0 < η → let W := (Finset.Icc n (2*n)).filter (fun m => Even m ∧ ω m ≠ 0); (∑ m ∈ W, ω m) = 1 → (∑ m ∈ W, (ω m)^2) * (n:ℝ)^(8/3+η) ≤ ((e/2)*(n:ℝ))^2 → 4*(n:ℝ)^(2/3+η) ≤ e^2*(W.card:ℝ)",
   "plain_statement": {
     "zh": "新路线 · 有符号因子与移位窗 · FW-8003 · 算出归一化偶移核的最短有效支撑",

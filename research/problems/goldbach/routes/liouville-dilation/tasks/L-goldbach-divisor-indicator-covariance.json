@@ -1,7 +1,7 @@
 {
   "id": "L-goldbach-divisor-indicator-covariance",
-  "file": "lean/PEqualNP/Outside/L_goldbach_divisor_indicator_covariance.lean",
-  "module": "PEqualNP.Outside.L_goldbach_divisor_indicator_covariance",
+  "file": "lean/Conjectures/Goldbach/DivisorIndicatorCovariance.lean",
+  "module": "Conjectures.Goldbach.DivisorIndicatorCovariance",
   "statement": "let X := fun (p t : ℕ) => (p:ℝ)*(if p ∣ t then 1 else 0)-1; ∀ (N p q : ℕ), 0 < N → Nat.Prime p → Nat.Prime q → p ∣ N → q ∣ N → ((∑ t ∈ Finset.range N, X p t * X q t)/(N:ℝ)) = if p=q then (p:ℝ)-1 else 0",
   "plain_statement": {
     "zh": "新路线 · Liouville 相关的整除膨胀 · LD-8001 · 计算模 N 均匀测度下素因子整除指示的协方差",

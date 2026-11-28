@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-abel-reciprocal",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_abel_reciprocal.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_abel_reciprocal",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventAbelReciprocal.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventAbelReciprocal",
   "statement": "let cheb := fun x : ℕ => ∑ p ∈ (Finset.Icc 1 x).filter (fun p => p.Prime ∧ p%4=1), Real.log (p : ℝ); ∀ x y : ℕ, 1 ≤ x → x < y → (∑ p ∈ (Finset.Ioc x y).filter (fun p => p.Prime ∧ p%4=1), Real.log (p : ℝ)/p) = cheb y / y - cheb x / ((x : ℝ)+1) + ∑ n ∈ Finset.Ico (x+1) y, cheb n * (1/(n : ℝ)-1/((n : ℝ)+1))",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0004 · 对 log p/p 的模 4 和离散分部求和",

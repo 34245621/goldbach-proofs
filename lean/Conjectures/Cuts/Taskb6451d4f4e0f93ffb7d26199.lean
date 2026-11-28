@@ -1,6 +1,6 @@
 import Mathlib
-import PEqualNP.Outside.L_twin_primes_window_bridge
-import PEqualNP.Outside.L_twin_primes_divisor_bridge
+import Conjectures.TwinPrimes.WindowBridge
+import Conjectures.TwinPrimes.DivisorBridge
 import Conjectures.TwinPrimes.EnergyBridgeV2
 import Conjectures.Goldbach.RoughFifthMass
 

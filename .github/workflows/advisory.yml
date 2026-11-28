@@ -2,7 +2,7 @@
 #
 # A fork can edit this workflow file, and a pull_request run uses the fork's copy. So a green
 # tick here proves nothing by itself. It is a quick answer for the author. The verdict that
-# counts comes from authoritative.yml, which runs from the base branch only.
+# counts appears as Goldbach CI / formal Lean verdict on the submitted commit.
 name: advisory
 
 on:
@@ -40,16 +40,21 @@ jobs:
           # What changed between the base side of the merge and its result. -z keeps odd file names whole.
           git diff -z --name-status --no-renames 'HEAD^1' HEAD > "$RUNNER_TEMP/changed"
           n=$(tr -cd '\0' < "$RUNNER_TEMP/changed" | wc -c)
-          if ! tr '\0' '\n' < "$RUNNER_TEMP/changed" | grep -q '^lean/PEqualNP/Outside/'; then
+          if ! tr '\0' '\n' < "$RUNNER_TEMP/changed" | grep -q '^lean/Conjectures/'; then
             echo "ADVISORY: this pull request adds no proof file. Nothing to check."
             echo "run=no" >> "$GITHUB_OUTPUT"; exit 0
           fi
           status=$(tr '\0' '\n' < "$RUNNER_TEMP/changed" | sed -n 1p)
           file=$(tr '\0' '\n' < "$RUNNER_TEMP/changed" | sed -n 2p)
           [ "$n" -eq 2 ] && [ "$status" = A ] || { echo "REFUSED: a pull request may add exactly one file and change nothing else"; exit 1; }
-          printf '%s' "$file" | grep -Eqx 'lean/PEqualNP/Outside/L_[a-z0-9_]+\.lean' || { echo "REFUSED: the file must be lean/PEqualNP/Outside/L_<gap>.lean"; exit 1; }
+          printf '%s' "$file" | grep -Eqx 'lean/Conjectures/[A-Z][A-Za-z0-9]*/[A-Z][A-Za-z0-9]*\.lean' || { echo "REFUSED: use the task's registered Conjectures path"; exit 1; }
           [ -f "$file" ] && [ ! -L "$file" ] || { echo "REFUSED: the file must be a plain file, not a link"; exit 1; }
           [ "$(wc -c < "$file")" -le 2097152 ] || { echo "REFUSED: the file is larger than 2 MiB"; exit 1; }
+          # Jenkins reads a generated task from the desk and selects its verification mode.
+          if [[ "$file" =~ ^lean/Conjectures/Cuts/(Task|Cut|Refute)[a-f0-9]{24}\.lean$ ]]; then
+            echo "ADVISORY: the Jenkins proof check reads this generated task from the research desk."
+            echo "run=no" >> "$GITHUB_OUTPUT"; exit 0
+          fi
           echo "run=yes" >> "$GITHUB_OUTPUT"
           echo "FILE=$file" >> "$GITHUB_ENV"
 
@@ -90,7 +95,7 @@ jobs:
           mb=$(( $(df -m --output=avail "$d" | awk 'NR==2{print $1}') - 6144 ))
           [ "$mb" -le 12288 ] || mb=12288
           if [ "$mb" -ge 1024 ]; then
-            f="${d%/}/pnp-swap"
+            f="${d%/}/goldbach-swap"
             sudo fallocate -l "${mb}M" "$f" && sudo chmod 600 "$f"
             sudo mkswap -q "$f" && sudo swapon "$f"
           fi

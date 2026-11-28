@@ -25,7 +25,7 @@ def grh_enabled():
 
 def check_grh_imports(modules):
     if not grh_enabled() and any(
-        module in {"PEqualNP.GRH", "PEqualNP.GRHSource"} or module.startswith("PEqualNP.GRHSource.")
+        module in {"ResearchSupport.GRH", "ResearchSupport.GRHSource"} or module.startswith("ResearchSupport.GRHSource.")
         for module in modules
     ):
         raise ValueError("GRH imports are temporarily unavailable for proof submissions")

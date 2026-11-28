@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-local-density-product",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_local_density_product.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_local_density_product",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventLocalDensityProduct.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventLocalDensityProduct",
   "statement": "let roots := fun a q : ℕ => (Finset.range q).filter (fun r => q ∣ r^2+a); ∀ S : Finset ℕ, (∀ p ∈ S, Nat.Prime p) → let Q := ∏ p ∈ S, p; (((Finset.range Q).filter (fun n => Nat.Coprime (n^2+1) Q)).card : ℝ) / Q = ∏ p ∈ S, (1-((roots 1 p).card : ℝ)/p)",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0016 · 计算有限素数集合的筛存活密度",

@@ -13,7 +13,7 @@ the right-hand side.  Self-contained, Mathlib only.
 open scoped BigOperators
 open Finset
 
-namespace PEqualNP.Outside
+namespace Conjectures.Goldbach
 
 /-- Middle-third size bounds. -/
 private lemma mid_bounds {n u : ℕ} (hn : 64 ≤ n)
@@ -571,10 +571,10 @@ theorem L_goldbach_farey_late_first_hit_factor_switch :
       rw [Nat.mul_div_cancel_left q hp1.pos]
   rw [hsplit, E1, E2, ← Finset.sum_add_distrib]
 
-end PEqualNP.Outside
+end Conjectures.Goldbach
 
-open PEqualNP.Outside
+open Conjectures.Goldbach
 
 theorem Conjectures.Goldbach.FareyLateFirstHitFactorSwitch :
   ∀ (n : ℕ) (J : Finset ℕ), 64 ≤ n → let I := Finset.Icc ((n+2)/3) ((2*n)/3); let mark := fun (u b : ℕ) => (J.filter (fun a => (a*u)%n = b)).Nonempty; let Hit := I.filter (fun u => u.Coprime n ∧ mark u 1 ∧ n < ((u*(n-u)).minFac)^3 ∧ ((u*(n-u)).minFac)^2 ≤ n); let P := (Finset.range (n+1)).filter (fun p => p.Prime ∧ n < p^3 ∧ p^2 ≤ n); let Q := fun (p b : ℕ) => (Finset.Icc p n).filter (fun q => q.Prime ∧ p*q ∈ I ∧ (p*q).Coprime n ∧ p ≤ (n-p*q).minFac ∧ mark (p*q) b); Hit.card = ∑ p ∈ P, ((Q p 1).card+(Q p (n-1)).card)
-  := PEqualNP.Outside.L_goldbach_farey_late_first_hit_factor_switch
+  := Conjectures.Goldbach.L_goldbach_farey_late_first_hit_factor_switch

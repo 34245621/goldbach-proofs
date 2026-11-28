@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-local-residues",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_local_residues.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_local_residues",
+  "file": "lean/Conjectures/TwinPrimes/LocalResidues.lean",
+  "module": "Conjectures.TwinPrimes.LocalResidues",
   "statement": "∀ p : ℕ, p.Prime → ((Finset.range p).filter (fun n => Nat.Coprime n p ∧ Nat.Coprime (n+2) p)).card = if p=2 then 1 else p-2",
   "plain_statement": {
     "zh": "新路线 · 指定平移的 Θ 提升 · TP-0045 · 分别计算 2 处和奇素数处的平移单位掩码",

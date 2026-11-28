@@ -55,7 +55,7 @@ theorem twisted_residual {N : ℕ} [NeZero N] (χ : DirichletCharacter ℂ N)
 
 end GoldbachReciprocalResidual
 
-theorem PEqualNP.Outside.L_goldbach_twisted_cutoff_residual :
+theorem Conjectures.Goldbach.TwistedCutoffResidual :
     ∀ (N : ℕ) [NeZero N] (χ : DirichletCharacter ℂ N) (c : ℝ) (s : ℂ), 1 ≤ c → 1 < s.re → let w : ℕ → ℂ := fun n => if 1 ≤ n ∧ (n : ℝ) < c then ((Real.log c - Real.log (n : ℝ) : ℝ) : ℂ) else 0; let r : ℕ → ℂ := (Real.log c : ℂ) • LSeries.delta - LSeries.convolution (fun n : ℕ => (ArithmeticFunction.moebius n : ℂ)) w; LSeries (fun n : ℕ => χ (n : ZMod N) * r n) s = (Real.log c : ℂ) - LSeries (fun n : ℕ => χ (n : ZMod N) * w n) s / χ.LFunction s := by
   intro N inst χ c s hc hs
   exact GoldbachReciprocalResidual.twisted_residual χ hc hs

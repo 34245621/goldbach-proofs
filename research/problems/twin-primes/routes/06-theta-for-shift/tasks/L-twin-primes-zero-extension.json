@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-zero-extension",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_zero_extension.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_zero_extension",
+  "file": "lean/Conjectures/TwinPrimes/ZeroExtension.lean",
+  "module": "Conjectures.TwinPrimes.ZeroExtension",
   "statement": "∀ (N : ℕ) (b : ℤ → ℝ), (∀ n, n < 0 ∨ (N:ℤ) < n → b n = 0) → let S := Finset.Icc (-2:ℤ) (N:ℤ); S.sum (fun n => (b n+b (n+2))^2) - S.sum (fun n => (b n-b (n+2))^2) = 4*S.sum (fun n => b n*b (n+2))",
   "plain_statement": {
     "zh": "新路线 · 指定平移的 Θ 提升 · TP-0044 · 在补零序列上极化平移二次型",

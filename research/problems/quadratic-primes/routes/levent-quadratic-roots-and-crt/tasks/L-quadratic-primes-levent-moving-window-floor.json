@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-moving-window-floor",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_moving_window_floor.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_moving_window_floor",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventMovingWindowFloor.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventMovingWindowFloor",
   "statement": "let block := fun x : ℕ => Finset.Ioc x (2*x); let roots := fun a q : ℕ => (Finset.range q).filter (fun r => q ∣ r^2+a); let window := fun x p : ℕ => (block x).filter (fun n => p^100000 ≤ n^132301); let countHits := fun a x p : ℕ => ((window x p).filter (fun n => p ∣ n^2+a)).card; ∀ x q : ℕ, 0<q → |(countHits 1 x q : ℝ) - ((window x q).card : ℝ)*((roots 1 q).card : ℝ)/q| ≤ ((roots 1 q).card : ℝ)",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0017 · 将端点移动的整除误差控制在一个根系内",

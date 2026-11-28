@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-tensor-fourier-test",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_tensor_fourier_test.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_tensor_fourier_test",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventTensorFourierTest.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventTensorFourierTest",
   "statement": "∀ (p q : ℕ) [NeZero p] [NeZero q] (u : ZMod p → ℂ) (v : ZMod q → ℂ) (k : ZMod p) (j : ZMod q), (∑ z : ZMod p × ZMod q, (ZMod.stdAddChar (-(z.1*k))*u z.1) * (ZMod.stdAddChar (-(z.2*j))*v z.2)) = ZMod.dft u k * ZMod.dft v j",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0046 · 在两个有限位置因式分解纯张量配对",

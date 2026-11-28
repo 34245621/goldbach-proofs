@@ -4,7 +4,7 @@ open MeasureTheory
 
 /- The Fourier orthogonality calculation and measurable-set split are adapted
 from the Apache-2.0 licensed goldbach-proofs module
-PEqualNP.Outside.L_goldbach_arc_coefficient_sum, at commit c3b16276d1c3c0be2c342ccba1a5a03016c498d3.
+Conjectures.Goldbach.ArcCoefficientSum, at commit c3b16276d1c3c0be2c342ccba1a5a03016c498d3.
 Here the two factors are restricted to the same reflected central interval. -/
 
 -- child 1 zh: 对充分大的二幂靶点，中心窗截断素数和的主弧傅里叶系数实部具有一致的正线性下界。

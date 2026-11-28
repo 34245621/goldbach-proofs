@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-no-wrap",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_no_wrap.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_no_wrap",
+  "file": "lean/Conjectures/TwinPrimes/NoWrap.lean",
+  "module": "Conjectures.TwinPrimes.NoWrap",
   "statement": "∀ (N X : ℕ) [NeZero N] (f : ℕ → ℝ), X+2 < N → (∀ n, X < n → f n=0) → (∑ j : ZMod N, f j.val * f (j+2).val) = (Finset.range (X+1)).sum (fun n => f n*f (n+2))",
   "plain_statement": {
     "zh": "新路线 · 指定平移的 Θ 提升 · TP-0050 · 用补零将整数平移配对嵌入有限循环模型",

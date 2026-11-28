@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-cofactor-switch",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_cofactor_switch.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_cofactor_switch",
+  "file": "lean/Conjectures/TwinPrimes/CofactorSwitch.lean",
+  "module": "Conjectures.TwinPrimes.CofactorSwitch",
   "statement": "∀ p d D : ℕ, 0 < d → d ∣ p+2 → (D < d ↔ D*((p+2)/d) < p+2) ∧ ((p+2)/d)*d = p+2",
   "plain_statement": {
     "zh": "新路线 · 短长除数与奇偶 · TP-0036 · 把长除数条件换成精确余因子界",

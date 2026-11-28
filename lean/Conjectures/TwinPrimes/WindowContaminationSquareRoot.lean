@@ -7527,7 +7527,7 @@ private theorem uniformAP (h b : ℕ) :
       by linarith only [main, ec, er]
     _ = _ := by ring
 
-theorem PEqualNP.Outside.L_goldbach_coset_logrange_ap :
+theorem Conjectures.Goldbach.CosetLograngeAp :
     let F := fun n q r : ℕ => (Finset.range (n+1)).filter (fun k => k % q=r); let w := fun k : ℕ => if k.Prime then Real.log (k:ℝ) else 0; let A := fun n q r : ℕ => ∑ k ∈ F n q r, w k; ∀ h b : ℕ, ∃ C : ℝ, 0<C ∧ ∃ X : ℕ, ∀ n≥X, ∀ q : ℕ, 0<q → (q:ℝ) ≤ (Real.log (n:ℝ))^h → ∀ r<q, r.Coprime q → |A n q r - (n:ℝ)/(q.totient:ℝ)| ≤ C*(n:ℝ)/(Real.log (n:ℝ))^b := by
   intro F w A h b
   obtain ⟨C,hC,he⟩ := uniformAP h b
@@ -7885,7 +7885,7 @@ private lemma main_lower {N : ℕ} (hN : 2 ≤ N) :
 private lemma ap_bound (a : ℕ) (ha : a = 1 ∨ a = 3 ∨ a = 5 ∨ a = 7) :
     ∃ C : ℝ, 0 < C ∧ ∃ X0 : ℕ, 9 ≤ X0 ∧ ∀ n : ℕ, X0 ≤ n →
       |th a n - (n:ℝ)/4| ≤ C * (n:ℝ) / (Real.log (n:ℝ))^2 := by
-  obtain ⟨C, hC, X, hX⟩ := PEqualNP.Outside.L_goldbach_coset_logrange_ap 3 2
+  obtain ⟨C, hC, X, hX⟩ := Conjectures.Goldbach.CosetLograngeAp 3 2
   refine ⟨C, hC, max X 9, le_max_right _ _, ?_⟩
   intro n hn
   have hn9 : 9 ≤ n := le_trans (le_max_right _ _) hn

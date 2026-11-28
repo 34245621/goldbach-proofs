@@ -1,7 +1,7 @@
 {
   "id": "L-goldbach-liouville-dilation-bessel",
-  "file": "lean/PEqualNP/Outside/L_goldbach_liouville_dilation_bessel.lean",
-  "module": "PEqualNP.Outside.L_goldbach_liouville_dilation_bessel",
+  "file": "lean/Conjectures/Goldbach/LiouvilleDilationBessel.lean",
+  "module": "Conjectures.Goldbach.LiouvilleDilationBessel",
   "statement": "let L := fun n : ℕ => if n=0 then (0:ℝ) else (-1:ℝ)^n.primeFactorsList.length; let C := fun n : ℕ => (∑ t ∈ Finset.range n, L t * L (n-t))/(n:ℝ); ∀ N : ℕ, 0 < N → (∑ p ∈ N.divisors.filter Nat.Prime, (C (N/p)-C N)^2/((p:ℝ)-1)) ≤ ((N-1:ℕ):ℝ)/(N:ℝ)-(C N)^2",
   "plain_statement": {
     "zh": "新路线 · Liouville 相关的整除膨胀 · LD-8003 · 给素因子整除膨胀的同时偏差一个方差预算",

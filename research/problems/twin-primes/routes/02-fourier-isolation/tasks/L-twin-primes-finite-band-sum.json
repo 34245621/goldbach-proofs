@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-finite-band-sum",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_finite_band_sum.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_finite_band_sum",
+  "file": "lean/Conjectures/TwinPrimes/FiniteBandSum.lean",
+  "module": "Conjectures.TwinPrimes.FiniteBandSum",
   "statement": "let w := fun (X : ℕ) => (Finset.range (2*X+1)).filter (fun n => X < n ∧ 50*n < 51*X); let f := fun (x n j : ℝ) => x * Real.log (1+j/n); ∀ (X : ℕ) (u : ℕ → ℝ) (H : ℝ → ℝ), 1000 ≤ X → (∀ v, 1/4 ≤ |v| → H v = 0) → (w X).sum (fun n => ((w X).filter (fun m => n < m)).sum (fun m => u n*u m*H (f X n (m-n) - 2))) = ((w X).filter (fun n => n+2 ∈ w X)).sum (fun n => u n*u (n+2)*H (f X n 2 - 2))",
   "plain_statement": {
     "zh": "新路线 · Fourier 选频 · TP-0012 · 在有限有序对和中只留下 n 与 n+2",

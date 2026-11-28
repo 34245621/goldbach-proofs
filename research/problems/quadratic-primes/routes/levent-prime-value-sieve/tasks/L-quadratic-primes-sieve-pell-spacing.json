@@ -9,7 +9,7 @@
     "zh": "写正解的商为 A+B√m，其中 A=muv−ab，B=bu−av。由范数一和商大于一得 A≥2、B≥1，再取有理坐标。旧题只处理 m=2。",
     "en": "Write the quotient of the positive solutions as A+B√m with A=muv−ab and B=bu−av. Norm one and quotient greater than one give A≥2 and B≥1. Extract the rational coordinate. The earlier task covers m=2."
   },
-  "source": "https://github.com/CGandGameEngineLearner/goldbach-proofs/blob/main/lean/PEqualNP/Outside/L_quadratic_primes_mid_pell_spacing.lean",
+  "source": "https://github.com/CGandGameEngineLearner/goldbach-proofs/blob/main/lean/Conjectures/QuadraticPrimes/MidPellSpacing.lean",
   "program": "foundation",
   "role": "lemma",
   "parallel": true,

@@ -1,7 +1,7 @@
 {
   "id": "L-goldbach-factor-band-unfold",
-  "file": "lean/PEqualNP/Outside/L_goldbach_factor_band_unfold.lean",
-  "module": "PEqualNP.Outside.L_goldbach_factor_band_unfold",
+  "file": "lean/Conjectures/Goldbach/FactorBandUnfold.lean",
+  "module": "Conjectures.Goldbach.FactorBandUnfold",
   "statement": "let E := fun x : ℝ => Complex.exp (((2*Real.pi*x:ℝ):ℂ)*Complex.I); let μ := fun d : ℕ => ((ArithmeticFunction.moebius d : ℤ) : ℝ); let Λ := ArithmeticFunction.vonMangoldt; ∀ (n U L R : ℕ) (t : ℝ), let M := fun a : ℕ => ∑ d ∈ (Nat.divisors a).filter (fun d => U < d), μ d; let T := fun m : ℕ => ∑ a ∈ (Nat.divisors m).filter (fun a => L < a ∧ a ≤ R ∧ U < m/a), M a * Λ (m/a); (∑ m ∈ Finset.range (n+1), (T m : ℂ) * E ((m:ℝ)*t)) = ∑ a ∈ Finset.Ioc L (min R n), ∑ b ∈ Finset.Ioc U (n/a), ((M a * Λ b : ℝ):ℂ) * E ((a*b:ℕ)*t)",
   "plain_statement": {
     "zh": "新路线 · 有符号因子与移位窗 · FW-8001 · 把 Vaughan 带谱展开为带乘积截断的双和",

@@ -1,5 +1,5 @@
 import Mathlib
-import PEqualNP.Outside.L_goldbach_arc_major_floor
+import Conjectures.Goldbach.ArcMajorFloor
 
 namespace GoldbachColorFixedAP
 

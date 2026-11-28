@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-fixed-a-crt-density",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_fixed_a_crt_density.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_fixed_a_crt_density",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventFixedACrtDensity.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventFixedACrtDensity",
   "statement": "let roots := fun a q : ℕ => (Finset.range q).filter (fun r => q ∣ r^2+a); ∀ a q m : ℕ, 0<q → 0 < m → Nat.Coprime q m → (roots a (q*m)).card = (roots a q).card * (roots a m).card",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0057 · 将任意固定 a 的根数在互素模数下相乘",

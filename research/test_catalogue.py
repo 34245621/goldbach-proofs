@@ -15,10 +15,21 @@ PROBLEMS = json.loads(Path(__file__).with_name("problems.json").read_text(encodi
 
 class CatalogueTests(unittest.TestCase):
     def check_proof_location(self, slug, gap):
-        legacy = "PEqualNP.Outside." + gap["id"].replace("-", "_")
-        location = ({"module": legacy, "file": f"lean/{legacy.replace('.', '/')}.lean"}
-                    if gap["module"] == legacy else proof_location(slug, gap["id"]))
-        self.assertEqual({key: gap[key] for key in location}, location)
+        # The registry owns published locations. Some older certificates joined
+        # adjacent numeric fields before new task IDs began separating them.
+        canonical = proof_location(slug, gap["id"])["module"]
+        joined = re.sub(r"(?<=\d)Part(?=\d)", "", canonical)
+        self.assertIn(gap["module"], {canonical, joined})
+        self.assertEqual(gap["file"], f"lean/{gap['module'].replace('.', '/')}.lean")
+
+    def test_numbered_certificates_keep_distinct_module_names(self):
+        assigned = {g["id"]: g["module"] for g in PROBLEMS["log-rank"]["gaps"]}
+        for right in range(1, 5):
+            ids = (f"L-log-rank-cert-1-1{right}", f"L-log-rank-cert-11-{right}")
+            modules = [proof_location("log-rank", ident)["module"] for ident in ids]
+            self.assertEqual(modules, [f"Conjectures.LogRank.Cert1Part1{right}",
+                                       f"Conjectures.LogRank.Cert11Part{right}"])
+            self.assertEqual([assigned[ident] for ident in ids], modules)
 
     def test_problem_tasks_have_unique_names_and_respect_scope(self):
         all_gaps = GAPS + [gap for problem in PROBLEMS.values() for gap in problem["gaps"]]

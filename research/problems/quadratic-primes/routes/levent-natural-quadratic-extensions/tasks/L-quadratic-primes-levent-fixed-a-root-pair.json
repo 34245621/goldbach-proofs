@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-fixed-a-root-pair",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_fixed_a_root_pair.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_fixed_a_root_pair",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventFixedARootPair.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventFixedARootPair",
   "statement": "let roots := fun a q : ℕ => (Finset.range q).filter (fun r => q ∣ r^2+a); ∀ (p a : ℕ) [Fact p.Prime], p≠2 → ((roots a p).card : ℤ) = 1 + legendreSym p (-(a : ℤ))",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0053 · 在奇素数处按二次特征精确计数 x²+a 的根",

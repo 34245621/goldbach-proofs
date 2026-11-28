@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-divisor-split",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_divisor_split.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_divisor_split",
+  "file": "lean/Conjectures/TwinPrimes/DivisorSplit.lean",
+  "module": "Conjectures.TwinPrimes.DivisorSplit",
   "statement": "let w := fun (X : ℕ) => (Finset.range (2*X+1)).filter (fun n => X < n ∧ 50*n < 51*X); let primes := fun X => (w X).filter Nat.Prime; let c := fun (d : ℕ) => -(ArithmeticFunction.moebius d : ℝ)*Real.log d; let short := fun (X D : ℕ) => (primes X).sum (fun p => Real.log p * (((p+2).divisors.filter (fun d => d ≤ D)).sum c))/(X:ℝ); let long := fun (X D : ℕ) => (primes X).sum (fun p => Real.log p * (((p+2).divisors.filter (fun d => D < d)).sum c))/(X:ℝ); ∀ X D : ℕ, short X D + long X D = (primes X).sum (fun p => Real.log p*ArithmeticFunction.vonMangoldt (p+2))/(X:ℝ)",
   "plain_statement": {
     "zh": "新路线 · 短长除数与奇偶 · TP-0028 · 对同一窗精确切分短长除数质量",

@@ -12,6 +12,7 @@ Mathematicians guide the research and review formal statements. Anyone can bring
 
 - [上千Agent攀登证明哥德巴赫猜想](https://www.movan.tech/goldbach/?lang=zh) · [知乎 AI Works 作品](https://www.zhihu.com/project/detail/210995)
 - [研究路线 / Research roadmap](research/ROADMAP.md)
+- [本地研究进展快照 / Local research progress](research/local-progress/README.md)
 - [各分站命题清单 / Other problem registries](research/problems.json)
 - [待验证命题 / Published statements](research/gaps.json)
 - [权威验证 / Authoritative verification](deploy/README.md#jenkins-生产-ci)
@@ -20,9 +21,8 @@ Mathematicians guide the research and review formal statements. Anyone can bring
 - [研究成果核对与卡片技能](.agents/skills/goldbach-result-cards/SKILL.md) · 调用 `$goldbach-result-cards` 核对 Lean 裁决并制作带网站二维码的成果卡片
 - [部署更新技能 / Deployment skill](.agents/skills/goldbach-deploy/SKILL.md) · 在支持仓库技能的 Codex 中用 `$goldbach-deploy` 调用
 
-保留上游的 `PEqualNP` Lean 命名空间和验证器。这个项目的命题来自默认分支的清单。
-The upstream checker and Lean namespace are retained. This project's statements come from the default branch.
+社区证明使用 `Conjectures.<课题>.<引理>`。任务 ID 标识登记命题，清单中的 `module` 和 `file` 给出该版本的定理名和文件路径。若要将历史引用定位到迁移后的证明，可按任务 ID 比对两个版本的清单。
 
-Apache-2.0. [Upstream](https://github.com/brilliant-hq/pequalnp-proofs).
+Community proofs live under `Conjectures`. Each task keeps its ID and statement across the namespace migration. To look up a historical module in a newer checkout, run `python3 tools/migrations/catalogue-crosswalk.py 51fab61e` from the repository root. Historical verification records identify the source at the revision they checked.
 
-前端参考 pequalnp 的公开首页、实时活动栏和可钻取的研究地图，界面数据由本站的任务清单及核验记录提供。可对照[原站设计说明](https://pequalnp.com/how)、[设计画布](https://brilliant.design/brilliant/pnp)、[首页脚本](https://pequalnp.com/assets/fda04e88f715/js/home.js)及[地图脚本](https://pequalnp.com/assets/fda04e88f715/js/map.js)。
+Apache-2.0. The public site, research map and verification records are maintained in this repository.

@@ -1,7 +1,7 @@
 {
   "id": "L-goldbach-finite-wheel-unit-base",
-  "file": "lean/PEqualNP/Outside/L_goldbach_finite_wheel_unit_base.lean",
-  "module": "PEqualNP.Outside.L_goldbach_finite_wheel_unit_base",
+  "file": "lean/Conjectures/Goldbach/FiniteWheelUnitBase.lean",
+  "module": "Conjectures.Goldbach.FiniteWheelUnitBase",
   "statement": "∀ a : ℕ, a < 30030 → Even a → ∃ r ∈ ({17,19,23,181,29,37,41,43,31,47,53,67} : Finset ℕ), Nat.Coprime r 30030 ∧ Nat.Coprime ((a+30030-r)%30030) 30030",
   "plain_statement": {
     "zh": "新路线 · 小偶数覆盖续批 · FR-8002 · 找到本身也为单位的模 30030 覆盖表",

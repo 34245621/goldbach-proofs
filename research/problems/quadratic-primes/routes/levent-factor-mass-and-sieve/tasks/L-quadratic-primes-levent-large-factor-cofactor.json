@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-large-factor-cofactor",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_large_factor_cofactor.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_large_factor_cofactor",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventLargeFactorCofactor.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventLargeFactorCofactor",
   "statement": "∀ n p : ℕ, 1≤n → p.Prime → p ∣ n^2+1 → n<p → ∃ m : ℕ, 0 < m ∧ m≤n ∧ n^2+1=p*m ∧ (Nat.Prime (n^2+1) ↔ m=1)",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0029 · 量化大素因子留下的余因子",

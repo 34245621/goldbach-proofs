@@ -1,6 +1,6 @@
 import Mathlib
 import Conjectures.TwinPrimes.CofactorTwoLinearSieve
-import PEqualNP.Outside.L_goldbach_coset_logrange_ap
+import Conjectures.Goldbach.CosetLograngeAp
 
 namespace Conjectures.TwinPrimes.PrimeSquareMinusTwoUpperSieve_aux
 
@@ -353,7 +353,7 @@ private lemma main_lower {N : ℕ} (hN : 2 ≤ N) :
 private lemma ap_bound (a : ℕ) (ha : a = 1 ∨ a = 3 ∨ a = 5 ∨ a = 7) :
     ∃ C : ℝ, 0 < C ∧ ∃ X0 : ℕ, 9 ≤ X0 ∧ ∀ n : ℕ, X0 ≤ n →
       |th a n - (n:ℝ)/4| ≤ C * (n:ℝ) / (Real.log (n:ℝ))^2 := by
-  obtain ⟨C, hC, X, hX⟩ := PEqualNP.Outside.L_goldbach_coset_logrange_ap 3 2
+  obtain ⟨C, hC, X, hX⟩ := Conjectures.Goldbach.CosetLograngeAp 3 2
   refine ⟨C, hC, max X 9, le_max_right _ _, ?_⟩
   intro n hn
   have hn9 : 9 ≤ n := le_trans (le_max_right _ _) hn

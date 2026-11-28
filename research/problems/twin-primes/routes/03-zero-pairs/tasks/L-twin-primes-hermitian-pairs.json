@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-hermitian-pairs",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_hermitian_pairs.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_hermitian_pairs",
+  "file": "lean/Conjectures/TwinPrimes/HermitianPairs.lean",
+  "module": "Conjectures.TwinPrimes.HermitianPairs",
   "statement": "∀ (n : ℕ) (A : Fin n → Fin n → ℂ), (∀ i j, A j i = star (A i j)) → ((Finset.univ : Finset (Fin n × Fin n)).filter (fun z => z.1 ≠ z.2) |>.sum (fun z => A z.1 z.2)).im = 0",
   "plain_statement": {
     "zh": "新路线 · 零点对与相位 · TP-0021 · 使有限有序非对角总和为实",

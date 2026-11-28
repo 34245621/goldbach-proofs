@@ -6,7 +6,7 @@ open scoped BigOperators
 Angular Fejér phase bound: the squared modulus of the length-(M+1) geometric sum with ratio
 `exp(4iθ)`, divided by `M+1`, is at most `min (M+1) (1/((M+1) sin²(2θ)))`.
 
-Method (adapted from `PEqualNP.Outside.L_goldbach_even_shift_phase_filter`): the phase sum is a
+Method (adapted from `Conjectures.Goldbach.EvenShiftPhaseFilter`): the phase sum is a
 geometric sum `G = Σ_{j<M+1} z^j` with `z = exp(4iθ)`, `‖z‖ = 1`; the triangle inequality gives
 `‖G‖ ≤ M+1`, and `G(z-1) = z^(M+1)-1` with `‖z-1‖ = 2|sin 2θ|` and `‖z^(M+1)-1‖ ≤ 2` gives
 `‖G‖ ≤ 1/|sin 2θ|`. Squaring and dividing by `M+1 > 0` yields both branches of the minimum.

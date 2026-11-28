@@ -10,7 +10,7 @@ SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 MARK = "route_source"
 REFUTATION_DESKS = {"goldbach", "twin-primes", "quadratic-primes", "no-three-in-line", "square-packing", "log-rank", "joshi-abc"}
 COMMUNITY_PROOF = re.compile(
-    r"(?:Conjectures\.[A-Z][A-Za-z0-9]*\.[A-Z][A-Za-z0-9]*|PEqualNP\.Outside\.L_[a-z0-9_]+)"
+    r"Conjectures\.[A-Z][A-Za-z0-9]*\.[A-Z][A-Za-z0-9]*"
 )
 
 
@@ -23,7 +23,8 @@ def proof_location(slug, ident):
     def pascal(words):
         return "".join(word.capitalize() for word in words.split("-"))
 
-    name = pascal(suffix)
+    # Keep adjacent numeric fields distinct (cert-1-11 and cert-11-1).
+    name = pascal(re.sub(r"(?<=\d)-(?=\d)", "-part-", suffix))
     if name[0].isdigit():
         name = "Lemma" + name
     module = f"Conjectures.{pascal(slug)}.{name}"
@@ -109,10 +110,7 @@ def build(root):
                 raise ValueError(f"Frozen statement changed: {ident}; create a new ID")
             location = old_locations.get(ident) or proof_location(slug, ident)
             for key, expected in location.items():
-                # Old authoring tools may still emit the legacy path for a new ID.
-                legacy_module = "PEqualNP.Outside." + ident.replace("-", "_")
-                legacy = legacy_module if key == "module" else f"lean/{legacy_module.replace('.', '/')}.lean"
-                if g.get(key, expected) not in (expected, legacy):
+                if g.get(key, expected) != expected:
                     raise ValueError(f"Unexpected {key} for {ident}")
             g.update(location)
             seen.add(ident)

@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-long-margin",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_long_margin.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_long_margin",
+  "file": "lean/Conjectures/TwinPrimes/LongMargin.lean",
+  "module": "Conjectures.TwinPrimes.LongMargin",
   "statement": "let w := fun (X : ℕ) => (Finset.range (2*X+1)).filter (fun n => X < n ∧ 50*n < 51*X); let primes := fun X => (w X).filter Nat.Prime; let c := fun (d : ℕ) => -(ArithmeticFunction.moebius d : ℝ)*Real.log d; let long := fun (X D : ℕ) => (primes X).sum (fun p => Real.log p * (((p+2).divisors.filter (fun d => D < d)).sum c))/(X:ℝ); let D := fun (X : ℕ) => Nat.floor ((X:ℝ)^(1/3:ℝ)); let f := fun (p : ℕ) => if p.Prime ∧ 2 < p then 1-1/((p:ℝ)-1)^2 else 1; let twinC := ∏' p : ℕ, f p; ∃ κ : ℝ, 0 < κ ∧ ∀ B : ℕ, ∃ X : ℕ, B < X ∧ -2*twinC/50 + κ < long X (D X)",
   "plain_statement": {
     "zh": "新路线 · 短长除数与奇偶 · TP-0038 · 在同一立方根截点证明长除数的单侧增益",
@@ -21,8 +21,8 @@
     "L-twin-primes-divisor-near-square-root-strip"
   ],
   "imports": [
-    "PEqualNP.Outside.L_twin_primes_cofactor_switch",
-    "PEqualNP.Outside.L_twin_primes_semiprime_cancellation",
+    "Conjectures.TwinPrimes.CofactorSwitch",
+    "Conjectures.TwinPrimes.SemiprimeCancellation",
     "Conjectures.TwinPrimes.DivisorNearSquareRootStrip"
   ],
   "challenge_only": true

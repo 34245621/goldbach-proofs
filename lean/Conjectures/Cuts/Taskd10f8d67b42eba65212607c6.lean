@@ -1,6 +1,6 @@
 import Mathlib
 import Conjectures.Goldbach.ThreeQuartersModelSqrtExceptions
-import PEqualNP.Outside.L_goldbach_frontier_uncond_deep_second_moment
+import Conjectures.Goldbach.FrontierUncondDeepSecondMoment
 
 open Finset Filter MeasureTheory Set
 open scoped BigOperators Classical Interval Topology

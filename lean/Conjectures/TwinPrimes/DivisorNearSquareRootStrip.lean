@@ -7340,7 +7340,7 @@ theorem hc_tannery (g : ℕ → ℝ) (hg : Summable (fun d : ℕ => |g d| * (1 +
     simpa only [hfinite] using hT
   simpa only [tsum_mul_left] using hT'
 
-theorem PEqualNP.Outside.L_twin_primes_hard_cutoff : let f := fun (p : ℕ) => if p.Prime ∧ 2 < p then 1-1/((p:ℝ)-1)^2 else 1; let twinC := ∏' p : ℕ, f p; RiemannHypothesis → Filter.Tendsto (fun D : ℕ => ((Finset.Icc 1 D).filter (fun n => n %2=1)).sum (fun n => -(ArithmeticFunction.moebius n : ℝ)*Real.log n / Nat.totient n)) Filter.atTop (nhds (2*twinC)) := by
+theorem Conjectures.TwinPrimes.HardCutoff : let f := fun (p : ℕ) => if p.Prime ∧ 2 < p then 1-1/((p:ℝ)-1)^2 else 1; let twinC := ∏' p : ℕ, f p; RiemannHypothesis → Filter.Tendsto (fun D : ℕ => ((Finset.Icc 1 D).filter (fun n => n %2=1)).sum (fun n => -(ArithmeticFunction.moebius n : ℝ)*Real.log n / Nat.totient n)) Filter.atTop (nhds (2*twinC)) := by
   intro f twinC hRH
   obtain ⟨h0, h1⟩ := hc_moebius hRH
   obtain ⟨ho0, ho1⟩ := hc_odd_moments h0 h1
@@ -7360,7 +7360,7 @@ namespace Conjectures.TwinPrimes.DivisorApErrorToSquareRoot_aux
 /-
 The uniform GRH progression error bound below is copied verbatim from
 CGandGameEngineLearner/goldbach-proofs pull request 43
-(lean/PEqualNP/Outside/L_goldbach_grh_progression_error.lean, sha256
+(historical Goldbach source L_goldbach_grh_progression_error.lean, sha256
 03213672a03b9add0dc221d60a19ef2b092252904a9d304cb6679efb3966dc4b, accepted as
 L-goldbach-grh-progression-error), Apache-2.0. Only its final theorem is renamed.
 -/
@@ -12378,7 +12378,7 @@ RiemannHypothesis → (∀ (q : ℕ) [NeZero q] (χ : DirichletCharacter ℂ q) 
   intro hRH hGRH
   dsimp only
   have hcut0 :=
-    Conjectures.TwinPrimes.DivisorNearSquareRootStrip_aux.HardProof.PEqualNP.Outside.L_twin_primes_hard_cutoff hRH
+    Conjectures.TwinPrimes.DivisorNearSquareRootStrip_aux.HardProof.Conjectures.TwinPrimes.HardCutoff hRH
   dsimp only at hcut0
   have hHard : ∃ L : ℝ, Filter.Tendsto
       Conjectures.TwinPrimes.DivisorNearSquareRootStrip_aux.Derivation.TestDerivation.hardCut

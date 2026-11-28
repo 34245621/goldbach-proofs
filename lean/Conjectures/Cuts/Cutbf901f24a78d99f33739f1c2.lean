@@ -1,6 +1,6 @@
 import Mathlib
-import PEqualNP.Outside.L_twin_primes_window_bridge
-import PEqualNP.Outside.L_twin_primes_divisor_bridge
+import Conjectures.TwinPrimes.WindowBridge
+import Conjectures.TwinPrimes.DivisorBridge
 import Conjectures.TwinPrimes.EnergyBridgeV2
 
 -- child 1 zh: 只取 Lambda(n)·log n 这一支的加权和在每个截点都是 O(X)。

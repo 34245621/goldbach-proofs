@@ -11,7 +11,7 @@ where the sign tells whether the reflection lands in the upper half of the doubl
 Self-contained, Mathlib only.
 -/
 
-namespace PEqualNP.Outside
+namespace Conjectures.Goldbach
 
 theorem L_goldbach_dyadic_carry_increment :
     ∀ (N q M : ℕ) (w : ℕ → ℝ), 0 < q → 0 < M →
@@ -139,7 +139,7 @@ theorem L_goldbach_dyadic_carry_increment :
   congr 1
   exact Finset.sum_congr rfl (fun r hr => hpoint r (Finset.mem_range.mp hr))
 
-end PEqualNP.Outside
+end Conjectures.Goldbach
 
 /-! Canonical module-named statement (platform checker requires a declaration
 named exactly after the gap module: `Conjectures.Goldbach.DyadicCarryIncrement`). -/
@@ -151,4 +151,4 @@ theorem Conjectures.Goldbach.DyadicCarryIncrement :
   let D := fun r : ℕ => A (2*q) r - A (2*q) (r+q)
   R (2*q) - R q = (q : ℝ) / M * ∑ r ∈ Finset.range q,
     (if (N+2*q-r)%(2*q) < q then (1 : ℝ) else -1) * D r * D ((N+q-r)%q) :=
-  PEqualNP.Outside.L_goldbach_dyadic_carry_increment
+  Conjectures.Goldbach.L_goldbach_dyadic_carry_increment

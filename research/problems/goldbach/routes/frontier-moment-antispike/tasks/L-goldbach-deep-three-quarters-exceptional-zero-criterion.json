@@ -9,7 +9,7 @@
     "zh": "对每个 η>0，阈值对深次弧、分子和分母一致。分母至多为 √n。用确定的二进区间分割 [1,n]，在每块左端点 l 取高度 (2l)^8，只计实部严格大于 1/2 的狄利克雷 L 函数零点及其解析重数。相位的有限傅里叶系数保留各零点项的符号。证明控制了全部积分误差，零点和本身的抵消仍需研究。",
     "en": "For every positive η the threshold is uniform in deep frequency, numerator and denominator up to √n. The blocks and their heights (2l)^8 are fixed by the left endpoints l. Count only Dirichlet zeros strictly right of one half, with analytic multiplicity. Retain the finite Fourier weights and complex phases. The theorem controls all integral errors and leaves cancellation in the signed zero sum open."
   },
-  "source": "https://github.com/34245621/goldbach-proofs/blob/bc7f93508317f741840aef81674b6888efe41734/lean/PEqualNP/Outside/L_goldbach_deep_three_quarters_exceptional_zero_criterion.lean",
+  "source": "https://github.com/34245621/goldbach-proofs/blob/bc7f93508317f741840aef81674b6888efe41734/lean/Conjectures/Goldbach/DeepThreeQuartersExceptionalZeroCriterion.lean",
   "program": "correlation",
   "parallel": true,
   "imports": [],

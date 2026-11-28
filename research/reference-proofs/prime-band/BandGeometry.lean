@@ -39,7 +39,7 @@ private theorem unique_cell {a b q r Q n : ℕ} {t : ℝ}
   obtain ⟨hr₁,hr₂⟩ := Finset.mem_Icc.mp hr
   apply same_center hq₁ hr₁ ha hb
   by_contra h
-  have hsep := PEqualNP.Outside.L_goldbach_arc_disjoint a b q r Q n t hq₁ hr₁ hq₂ hr₂ hscale h
+  have hsep := Conjectures.Goldbach.ArcDisjoint a b q r Q n t hq₁ hr₁ hq₂ hr₂ hscale h
     (in_cell.mp ht₁)
   exact (not_lt_of_ge (in_cell.mp ht₂)) hsep
 

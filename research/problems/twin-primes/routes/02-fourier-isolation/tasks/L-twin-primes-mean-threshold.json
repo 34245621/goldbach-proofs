@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-mean-threshold",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_mean_threshold.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_mean_threshold",
+  "file": "lean/Conjectures/TwinPrimes/MeanThreshold.lean",
+  "module": "Conjectures.TwinPrimes.MeanThreshold",
   "statement": "∀ θ : ℝ, θ < 7/8 → ∃ ε : ℝ, 0 < ε ∧ Filter.Tendsto (fun x : ℝ => x ^ (θ+1/8+ε) / x) Filter.atTop (nhds 0)",
   "plain_statement": {
     "zh": "新路线 · Fourier 选频 · TP-0017 · 给出微分均值容许的 7/8 严格阈值",

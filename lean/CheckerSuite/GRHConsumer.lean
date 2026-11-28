@@ -1,4 +1,4 @@
-import PEqualNP.GRH
+import ResearchSupport.GRH
 
 theorem CheckerSuite.GRHConsumer :
     RiemannHypothesis ∧ RiemannZetaZerosOnLine ∧ DirichletLNonvanishingRightOfHalf ∧

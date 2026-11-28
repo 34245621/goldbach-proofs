@@ -6,7 +6,7 @@ import Mathlib
 The identity `(μ * Λ)(n) = -μ(n) log n`, i.e. the divisor convolution identity for the
 logarithmic derivative of the Möbius series.
 
-Adapted from `PEqualNP.Outside.L_twin_primes_mangoldt_divisors` (use of
+Adapted from `Conjectures.TwinPrimes.MangoldtDivisors` (use of
 `ArithmeticFunction.sum_moebius_mul_log_eq`).
 -/
 

@@ -2,7 +2,7 @@ import Mathlib
 
 open scoped BigOperators
 
-namespace PEqualNP.Outside
+namespace Conjectures.Goldbach
 
 noncomputable section
 
@@ -52,9 +52,9 @@ lemma tau1_eq_sum_Icc (n m : ℕ) :
 
 end
 
-end PEqualNP.Outside
+end Conjectures.Goldbach
 
-namespace PEqualNP.Outside
+namespace Conjectures.Goldbach
 
 noncomputable section
 
@@ -103,9 +103,9 @@ lemma inner_reindex (n a : ℕ) (ha : 1 ≤ a) (t : ℝ) :
 
 end
 
-end PEqualNP.Outside
+end Conjectures.Goldbach
 
-namespace PEqualNP.Outside
+namespace Conjectures.Goldbach
 
 noncomputable section
 
@@ -150,9 +150,9 @@ lemma S_tau1_expand (n : ℕ) (t : ℝ) :
 
 end
 
-end PEqualNP.Outside
+end Conjectures.Goldbach
 
-namespace PEqualNP.Outside
+namespace Conjectures.Goldbach
 
 noncomputable section
 
@@ -179,9 +179,9 @@ theorem bilinear_exact :
 
 end
 
-end PEqualNP.Outside
+end Conjectures.Goldbach
 
-namespace PEqualNP.Outside
+namespace Conjectures.Goldbach
 
 noncomputable section
 
@@ -283,7 +283,7 @@ lemma S_sq_phase_expand (n : ℕ) (t : ℝ) :
 
 end
 
-end PEqualNP.Outside
+end Conjectures.Goldbach
 
 
 -- Final statement of the task, named after the module.
@@ -291,4 +291,4 @@ theorem Conjectures.Goldbach.FrontierType2B1B1PhaseQuadrupleExpansion :
     (let E := fun x : ℝ => Complex.exp (((2*Real.pi*x:ℝ):ℂ)*Complex.I); let S := fun (n : ℕ) (u : ℕ → ℝ) (t : ℝ) => Finset.sum (Finset.range (n+1)) (fun k => (u k:ℂ)*E ((k:ℝ)*t)); let U := fun n : ℕ => ⌊(n:ℝ)^(1/16:ℝ)⌋₊; let B₁ := fun n : ℕ => ⌊(n:ℝ)^(1/4:ℝ)⌋₊; let μ := fun d : ℕ => ((ArithmeticFunction.moebius d : ℤ) : ℝ); let c := fun (n a : ℕ) => ∑ d ∈ (Nat.divisors a).filter (fun d => U n < d), μ d; let τ₁ := fun (n m : ℕ) => ∑ a ∈ (Nat.divisors m).filter (fun a => U n < a ∧ a ≤ B₁ n ∧ U n < m / a), c n a * ArithmeticFunction.vonMangoldt (m / a); ∀ (n : ℕ) (t : ℝ), S n (τ₁ n) t * S n (τ₁ n) t * E (-(n:ℝ)*t) = ∑ a ∈ Finset.Icc (U n + 1) (B₁ n), ∑ b ∈ Finset.Icc (U n + 1) (B₁ n), c n a * c n b * ∑ r ∈ Finset.Icc (U n + 1) (n / a), ∑ s ∈ Finset.Icc (U n + 1) (n / b), ArithmeticFunction.vonMangoldt r * ArithmeticFunction.vonMangoldt s * E ((((a*r:ℕ):ℝ)+((b*s:ℕ):ℝ)-(n:ℝ))*t)) := by
   dsimp only
   intro n t
-  exact PEqualNP.Outside.S_sq_phase_expand n t
+  exact Conjectures.Goldbach.S_sq_phase_expand n t

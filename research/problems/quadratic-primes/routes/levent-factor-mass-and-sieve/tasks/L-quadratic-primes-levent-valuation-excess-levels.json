@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-valuation-excess-levels",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_valuation_excess_levels.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_valuation_excess_levels",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventValuationExcessLevels.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventValuationExcessLevels",
   "statement": "∀ m p : ℕ, m≠0 → p.Prime → (m.factorization p - 1) = ((Finset.Icc 2 (m.factorization p)).filter (fun j => p^j ∣ m)).card",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0021 · 逐层计数超出一次的素因子赋值",

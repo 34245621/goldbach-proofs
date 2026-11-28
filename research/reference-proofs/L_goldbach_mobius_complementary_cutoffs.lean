@@ -76,7 +76,7 @@ theorem complementary_cutoffs {n : ℕ} (hn : 1 < n) (hs : Squarefree n) (t : �
 
 end GoldbachMobiusParity
 
-theorem PEqualNP.Outside.L_goldbach_mobius_complementary_cutoffs :
+theorem Conjectures.Goldbach.MobiusComplementaryCutoffs :
     ∀ (n : ℕ) (t : ℝ), 1 < n → Squarefree n → let T := fun x : ℝ => n.divisors.sum (fun d => (ArithmeticFunction.moebius d : ℝ) * max (x - Real.log (d : ℝ)) 0); ArithmeticFunction.vonMangoldt n = T t - (ArithmeticFunction.moebius n : ℝ) * T (Real.log (n : ℝ) - t) := by
   intro n t hn hs
   exact GoldbachMobiusParity.complementary_cutoffs hn hs t

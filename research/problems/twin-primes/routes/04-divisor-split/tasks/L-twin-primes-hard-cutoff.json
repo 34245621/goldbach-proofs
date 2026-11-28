@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-hard-cutoff",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_hard_cutoff.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_hard_cutoff",
+  "file": "lean/Conjectures/TwinPrimes/HardCutoff.lean",
+  "module": "Conjectures.TwinPrimes.HardCutoff",
   "statement": "let f := fun (p : ℕ) => if p.Prime ∧ 2 < p then 1-1/((p:ℝ)-1)^2 else 1; let twinC := ∏' p : ℕ, f p; RiemannHypothesis → Filter.Tendsto (fun D : ℕ => ((Finset.Icc 1 D).filter (fun n => n%2=1)).sum (fun n => -(ArithmeticFunction.moebius n : ℝ)*Real.log n / Nat.totient n)) Filter.atTop (nhds (2*twinC))",
   "plain_statement": {
     "zh": "新路线 · 短长除数与奇偶 · TP-0034 · 识别奇除数硬截断的 2C₂ 常数",

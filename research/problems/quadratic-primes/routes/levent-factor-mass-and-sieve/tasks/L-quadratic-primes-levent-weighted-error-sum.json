@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-weighted-error-sum",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_weighted_error_sum.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_weighted_error_sum",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventWeightedErrorSum.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventWeightedErrorSum",
   "statement": "∃ C : ℝ, 0<C ∧ ∀ x : ℕ, 2≤x → (∑ q ∈ Finset.Icc 1 (Nat.sqrt x), Real.sqrt x*Real.log (4*(q : ℝ)*x)^2/q) ≤ C*Real.sqrt x*Real.log (4*(x : ℝ))^3",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0025 · 控制带 1/q 权的平方根误差和",

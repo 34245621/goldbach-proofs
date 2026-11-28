@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-cosine-plancherel",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_cosine_plancherel.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_cosine_plancherel",
+  "file": "lean/Conjectures/TwinPrimes/CosinePlancherel.lean",
+  "module": "Conjectures.TwinPrimes.CosinePlancherel",
   "statement": "∀ (N : ℕ) [NeZero N] (f : ZMod N → ℝ), (∑ k : ZMod N, (ZMod.stdAddChar (N:=N) (2*k)).re * ‖ZMod.dft (fun j => (f j : ℂ)) k‖^2) = (N:ℝ)*∑ j : ZMod N, f j*f (j+2)",
   "plain_statement": {
     "zh": "新路线 · 指定平移的 Θ 提升 · TP-0051 · 把指定间距写成 Fourier 能量的带符号余弦和",

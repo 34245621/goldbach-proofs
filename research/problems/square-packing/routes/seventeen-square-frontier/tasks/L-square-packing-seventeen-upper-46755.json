@@ -22,10 +22,10 @@
   "parallel": true,
   "challenge_only": true,
   "imports": [
-    "PEqualNP.Outside.L_square_packing_rotated_square_containment",
-    "PEqualNP.Outside.L_square_packing_rational_rotation",
-    "PEqualNP.Outside.L_square_packing_axis_dot_certificate",
-    "PEqualNP.Outside.L_square_packing_scaled_box_two_axes"
+    "Conjectures.SquarePacking.RotatedSquareContainment",
+    "Conjectures.SquarePacking.RationalRotation",
+    "Conjectures.SquarePacking.AxisDotCertificate",
+    "Conjectures.SquarePacking.ScaledBoxTwoAxes"
   ],
   "reductions": true
 }

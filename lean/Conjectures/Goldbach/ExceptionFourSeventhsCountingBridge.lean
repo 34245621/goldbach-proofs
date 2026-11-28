@@ -1,7 +1,7 @@
 import Mathlib
 
 /- The Fourier coefficient identity is adapted from the Apache-2.0 licensed
-   PEqualNP/Outside/L_goldbach_arc_coefficient_sum.lean in goldbach-proofs. -/
+   historical Goldbach source L_goldbach_arc_coefficient_sum.lean in goldbach-proofs. -/
 
 open MeasureTheory
 

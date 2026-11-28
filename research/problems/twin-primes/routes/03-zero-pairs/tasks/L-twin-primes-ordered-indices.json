@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-ordered-indices",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_ordered_indices.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_ordered_indices",
+  "file": "lean/Conjectures/TwinPrimes/OrderedIndices.lean",
+  "module": "Conjectures.TwinPrimes.OrderedIndices",
   "statement": "∀ m : ℕ, ((Finset.univ : Finset (Fin m × Fin m)).filter (fun z => z.1 ≠ z.2)).card = m*(m-1)",
   "plain_statement": {
     "zh": "新路线 · 零点对与相位 · TP-0020 · 精确保留重零点中相等纵坐标的异编号",

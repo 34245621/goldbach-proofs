@@ -683,7 +683,7 @@ end NumeratorDilationKernelHalfMass
 private noncomputable def parsevalPhase (t : ℝ) : ℂ :=
   Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I)
 
-/- Parseval argument adapted from PEqualNP.Outside.L_goldbach_continuous_parseval in this repository. -/
+/- Parseval argument adapted from Conjectures.Goldbach.ContinuousParseval in this repository. -/
 namespace NumeratorDilationKernel
 
 private theorem parseval_unit_interval :

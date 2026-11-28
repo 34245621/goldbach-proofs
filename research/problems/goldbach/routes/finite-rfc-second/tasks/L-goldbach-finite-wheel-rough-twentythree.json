@@ -1,7 +1,7 @@
 {
   "id": "L-goldbach-finite-wheel-rough-twentythree",
-  "file": "lean/PEqualNP/Outside/L_goldbach_finite_wheel_rough_twentythree.lean",
-  "module": "PEqualNP.Outside.L_goldbach_finite_wheel_rough_twentythree",
+  "file": "lean/Conjectures/Goldbach/FiniteWheelRoughTwentythree.lean",
+  "module": "Conjectures.Goldbach.FiniteWheelRoughTwentythree",
   "statement": "∀ n : ℕ, 210235 ≤ n → Even n → ∃ p : ℕ, Nat.Prime p ∧ p ≤ 210233 ∧ 2 ≤ n-p ∧ Nat.Coprime (n-p) 9699690",
   "plain_statement": {
     "zh": "新路线 · 小偶数覆盖续批 · FR-8004 · 在完整模 9699690 的轮筛上构造 23 粗余项",

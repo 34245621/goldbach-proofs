@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-zero-window-tail",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_zero_window_tail.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_zero_window_tail",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventZeroWindowTail.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventZeroWindowTail",
   "statement": "∀ (b : ℕ → ℝ) (C : ℝ), 0≤C → (∀ j, 0≤b j ∧ b j≤C*Real.log (2+(j : ℝ))) → ∃ D : ℝ, 0≤D ∧ ∀ L : ℕ, (∑' j : ℕ, b (L+j)/(1+((L+j : ℕ) : ℝ))^6) ≤ D/(1+(L : ℝ))^4",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0034 · 用单位窗重数估计控制截断零点尾部",

@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-mod-four-powers",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_mod_four_powers.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_mod_four_powers",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventModFourPowers.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventModFourPowers",
   "statement": "let psi := fun (q a x : ℕ) => ∑ n ∈ (Finset.Icc 1 x).filter (fun n => n%q=a%q), ArithmeticFunction.vonMangoldt n; let cheb := fun x : ℕ => ∑ p ∈ (Finset.Icc 1 x).filter (fun p => p.Prime ∧ p%4=1), Real.log (p : ℝ); ∃ C : ℝ, 0<C ∧ ∀ x : ℕ, 2≤x → 0 ≤ psi 4 1 x - cheb x ∧ psi 4 1 x - cheb x ≤ C * Real.sqrt x * Real.log (2*(x : ℝ))^2",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0006 · 量化模 4 的 ψ 与 θ 之间的素数幂误差",

@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-crt-root-bijection",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_crt_root_bijection.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_crt_root_bijection",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventCrtRootBijection.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventCrtRootBijection",
   "statement": "let roots := fun a q : ℕ => (Finset.range q).filter (fun r => q ∣ r^2+a); ∀ (a b : ℕ) [NeZero a] [NeZero b], Nat.Coprime a b → ∃ e : {r : ℕ // r ∈ roots 1 (a*b)} ≃ ({u : ℕ // u ∈ roots 1 a} × {v : ℕ // v ∈ roots 1 b}), ∀ r, ((e r).1.val, (e r).2.val) = (r.val % a, r.val % b)",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0013 · 把二次根的两个 CRT 坐标同时运输",

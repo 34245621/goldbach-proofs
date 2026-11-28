@@ -1,7 +1,7 @@
 {
   "id": "L-goldbach-finite-rough-fourteen-fortyseven",
-  "file": "lean/PEqualNP/Outside/L_goldbach_finite_rough_fourteen_fortyseven.lean",
-  "module": "PEqualNP.Outside.L_goldbach_finite_rough_fourteen_fortyseven",
+  "file": "lean/Conjectures/Goldbach/FiniteRoughFourteenFortyseven.lean",
+  "module": "Conjectures.Goldbach.FiniteRoughFourteenFortyseven",
   "statement": "∀ n : ℕ, 4 ≤ n → Even n → (n:ℝ) < Real.exp (Real.exp 5) → ∃ p : ℕ, Nat.Prime p ∧ 2 ≤ n-p ∧ (n-p).primeFactorsList.length ≤ 47 ∧ ((n:ℝ) < Real.exp (Real.exp (19/5)) → (n-p).primeFactorsList.length ≤ 14)",
   "plain_statement": {
     "zh": "新路线 · 小偶数覆盖续批 · FR-8005 · 把两个原型区间的因子数上界降到 14 和 47",

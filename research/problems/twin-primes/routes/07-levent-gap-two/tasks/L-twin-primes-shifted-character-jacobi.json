@@ -18,6 +18,6 @@
     "L-twin-primes-shift-fourier-phase"
   ],
   "imports": [
-    "PEqualNP.Outside.L_twin_primes_shift_fourier_phase"
+    "Conjectures.TwinPrimes.ShiftFourierPhase"
   ]
 }

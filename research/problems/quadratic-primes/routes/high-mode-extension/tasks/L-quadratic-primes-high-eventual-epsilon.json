@@ -13,8 +13,8 @@
   "program": "correlation",
   "parallel": true,
   "depends_on": [],
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_high_eventual_epsilon.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_high_eventual_epsilon",
+  "file": "lean/Conjectures/QuadraticPrimes/HighEventualEpsilon.lean",
+  "module": "Conjectures.QuadraticPrimes.HighEventualEpsilon",
   "imports": [],
   "role": "lemma"
 }

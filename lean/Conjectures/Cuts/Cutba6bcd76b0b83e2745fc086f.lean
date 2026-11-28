@@ -1,6 +1,6 @@
 import Mathlib
-import PEqualNP.Outside.L_twin_primes_window_bridge
-import PEqualNP.Outside.L_twin_primes_divisor_bridge
+import Conjectures.TwinPrimes.WindowBridge
+import Conjectures.TwinPrimes.DivisorBridge
 import Conjectures.TwinPrimes.EnergyBridgeV2
 
 -- child 1 zh: 存在正实数 C，使带符号 Möbius–von Mangoldt 加权和在每个截点的绝对值不超过 C·X，且每个自然数作为整数都大于 -1。

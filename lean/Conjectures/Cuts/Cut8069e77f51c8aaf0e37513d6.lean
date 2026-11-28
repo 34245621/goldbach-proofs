@@ -1,7 +1,7 @@
 import Mathlib
-import PEqualNP.Outside.L_twin_primes_divisor_bridge
-import PEqualNP.Outside.L_twin_primes_unconditional_short
-import PEqualNP.Outside.L_twin_primes_window_contamination
+import Conjectures.TwinPrimes.DivisorBridge
+import Conjectures.TwinPrimes.UnconditionalShort
+import Conjectures.TwinPrimes.WindowContamination
 
 -- child 1 zh: 无条件证明立方根至平方根除以对数五次方的有符号除数带趋于零。
 -- child 1 en: Prove unconditionally that the signed divisor strip from cube root to square root divided by log^5 tends to zero.
@@ -65,6 +65,6 @@ theorem Conjectures.Cuts.Cut8069e77f51c8aaf0e37513d6 :
     refine ⟨X, lt_of_le_of_lt (le_max_right N B) hX, ?_⟩
     rw [← partition X]
     linarith
-  exact PEqualNP.Outside.L_twin_primes_divisor_bridge
-    PEqualNP.Outside.L_twin_primes_unconditional_short hl
-    PEqualNP.Outside.L_twin_primes_window_contamination
+  exact Conjectures.TwinPrimes.DivisorBridge
+    Conjectures.TwinPrimes.UnconditionalShort hl
+    Conjectures.TwinPrimes.WindowContamination

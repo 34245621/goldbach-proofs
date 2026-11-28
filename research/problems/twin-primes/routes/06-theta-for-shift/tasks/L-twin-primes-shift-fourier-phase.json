@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-shift-fourier-phase",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_shift_fourier_phase.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_shift_fourier_phase",
+  "file": "lean/Conjectures/TwinPrimes/ShiftFourierPhase.lean",
+  "module": "Conjectures.TwinPrimes.ShiftFourierPhase",
   "statement": "∀ (N : ℕ) [NeZero N] (f : ZMod N → ℂ) (k : ZMod N), ZMod.dft (fun n => f (n+2)) k = ZMod.stdAddChar (N:=N) (2*k) * ZMod.dft f k",
   "plain_statement": {
     "zh": "新路线 · 指定平移的 Θ 提升 · TP-0049 · 证明平移二在指定 Fourier 频率的相位",

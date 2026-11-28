@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-dyadic-log-absorption",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_dyadic_log_absorption.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_dyadic_log_absorption",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventDyadicLogAbsorption.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventDyadicLogAbsorption",
   "statement": "let budget := fun x : ℕ => (x : ℝ) * Real.log (x : ℝ); ∀ ε : ℝ, 0<ε → ∃ X : ℕ, ∀ x ≥ X, Real.log (((2*x)^2+1 : ℕ) : ℝ) ≤ ε*budget x",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0028 · 将单点对数损失吸收到任意相对预算",

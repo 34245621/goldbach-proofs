@@ -1,7 +1,7 @@
 {
   "id": "L-goldbach-primitive-zero-window-increment",
-  "file": "lean/PEqualNP/Outside/L_goldbach_primitive_zero_window_increment.lean",
-  "module": "PEqualNP.Outside.L_goldbach_primitive_zero_window_increment",
+  "file": "lean/Conjectures/Goldbach/PrimitiveZeroWindowIncrement.lean",
+  "module": "Conjectures.Goldbach.PrimitiveZeroWindowIncrement",
   "statement": "∀ (u v : ℝ) (ρ : ℂ), 1 ≤ u → u ≤ v → 0 ≤ ρ.re → ρ ≠ 0 → ‖((v:ℂ)^ρ-(u:ℂ)^ρ)/ρ‖ ≤ (v:ℝ)^ρ.re * min (Real.log (v/u)) (2/‖ρ‖)",
   "plain_statement": {
     "zh": "新路线 · 特征与分母扩窗 · CW-8005 · 为截断显式公式的单个零点给出双端点增量界",

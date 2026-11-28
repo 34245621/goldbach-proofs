@@ -1,7 +1,7 @@
 {
   "id": "L-goldbach-factor-line-fiber-determinant",
-  "file": "lean/PEqualNP/Outside/L_goldbach_factor_line_fiber_determinant.lean",
-  "module": "PEqualNP.Outside.L_goldbach_factor_line_fiber_determinant",
+  "file": "lean/Conjectures/Goldbach/FactorLineFiberDeterminant.lean",
+  "module": "Conjectures.Goldbach.FactorLineFiberDeterminant",
   "statement": "∀ (a b N r₀ s₀ g i j : ℤ), 0 < g → g ∣ a → g ∣ b → a*r₀+b*s₀=N → (r₀+(b/g)*i)*(s₀-(a/g)*j)-(r₀+(b/g)*j)*(s₀-(a/g)*i)=-(N/g)*(j-i)",
   "plain_statement": {
     "zh": "新路线 · 有符号因子与移位窗 · FW-8007 · 计算反射纤维的两点行列式",

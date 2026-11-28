@@ -13,8 +13,8 @@
   "program": "correlation",
   "parallel": true,
   "depends_on": [],
-  "file": "lean/PEqualNP/Outside/L_goldbach_fixed_ap_theta_half_budget.lean",
-  "module": "PEqualNP.Outside.L_goldbach_fixed_ap_theta_half_budget",
+  "file": "lean/Conjectures/Goldbach/FixedApThetaHalfBudget.lean",
+  "module": "Conjectures.Goldbach.FixedApThetaHalfBudget",
   "imports": [],
   "track": "representations",
   "role": "lemma"

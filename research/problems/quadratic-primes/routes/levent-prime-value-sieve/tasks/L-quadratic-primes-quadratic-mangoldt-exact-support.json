@@ -19,6 +19,6 @@
     "L-quadratic-primes-levent-prime-values-no-square"
   ],
   "imports": [
-    "PEqualNP.Outside.L_quadratic_primes_levent_prime_values_no_square"
+    "Conjectures.QuadraticPrimes.LeventPrimeValuesNoSquare"
   ]
 }

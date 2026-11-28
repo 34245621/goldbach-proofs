@@ -1,5 +1,5 @@
-name = "pequalnp"
-defaultTargets = ["PEqualNP"]
+name = "conjectures"
+defaultTargets = ["ResearchSupport"]
 
 # Mathlib is pinned to one commit (the v4.36.0 release). The Lean version in
 # lean-toolchain is the one that commit names. Change both together or neither.
@@ -9,13 +9,13 @@ git = "https://github.com/leanprover-community/mathlib4"
 rev = "fc4f59e577feb1a4956671bc04ac18aaaf8cd842"
 
 [[lean_lib]]
-name = "PEqualNP"
+name = "ResearchSupport"
 
 [[lean_lib]]
 name = "Conjectures"
 globs = ["Conjectures.+"]
 
-# Fixtures for the checker's own suite (tools/check-lean.test.mjs). Never a default target.
+# The GRH verification workflow builds and checks CheckerSuite.GRHConsumer.
 [[lean_lib]]
 name = "CheckerSuite"
 
@@ -28,7 +28,7 @@ supportInterpreter = true
 # GRH source uses the elaboration options of the upstream proof.
 [[lean_lib]]
 name = "GRHCompact"
-roots = ["PEqualNP.GRHSource"]
+roots = ["ResearchSupport.GRHSource"]
 moreLeanArgs = ["--tstack=400000"]
 
 [lean_lib.leanOptions]

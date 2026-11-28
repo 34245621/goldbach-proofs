@@ -13,8 +13,8 @@
   "program": "correlation",
   "parallel": true,
   "depends_on": [],
-  "file": "lean/PEqualNP/Outside/L_goldbach_fixed_ap_bmor_reduction.lean",
-  "module": "PEqualNP.Outside.L_goldbach_fixed_ap_bmor_reduction",
+  "file": "lean/Conjectures/Goldbach/FixedApBmorReduction.lean",
+  "module": "Conjectures.Goldbach.FixedApBmorReduction",
   "imports": [],
   "track": "representations",
   "role": "conditional"

@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-fixed-a-exchange",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_fixed_a_exchange.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_fixed_a_exchange",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventFixedAExchange.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventFixedAExchange",
   "statement": "let block := fun x : ℕ => Finset.Ioc x (2*x); let primes := fun x : ℕ => (Finset.Ioc x ((2*x)^2+1)).filter (fun p => Nat.Prime p ∧ p^100000 ≤ (2*x)^132301); let window := fun x p : ℕ => (block x).filter (fun n => p^100000 ≤ n^132301); let countHits := fun a x p : ℕ => ((window x p).filter (fun n => p ∣ n^2+a)).card; let band := fun a x n : ℕ => (n^2+a).primeFactors.filter (fun p => x<p ∧ p^100000 ≤ n^132301); let inc := fun a x : ℕ => ∑ p ∈ primes x, (countHits a x p : ℝ) * Real.log (p : ℝ); ∀ a x : ℕ, (∑ n ∈ block x, ∑ p ∈ band a x n, Real.log (p : ℝ)) = inc a x",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0061 · 交换固定二次式中段首次整除的两层求和",

@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-gap-one-sum",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_gap_one_sum.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_gap_one_sum",
+  "file": "lean/Conjectures/TwinPrimes/GapOneSum.lean",
+  "module": "Conjectures.TwinPrimes.GapOneSum",
   "statement": "∃ C : ℝ, 0 < C ∧ ∀ X : ℕ, (Finset.range X).sum (fun n => ArithmeticFunction.vonMangoldt n*ArithmeticFunction.vonMangoldt (n+1)) ≤ C * Real.log (2+(X:ℝ))^2",
   "plain_statement": {
     "zh": "新路线 · 零点对与相位 · TP-0024 · 控制差一相关总量的平方对数上界",

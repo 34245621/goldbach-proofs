@@ -13,8 +13,8 @@
   "program": "correlation",
   "parallel": true,
   "depends_on": [],
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_fixed_offset_endpoint_count.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_fixed_offset_endpoint_count",
+  "file": "lean/Conjectures/QuadraticPrimes/FixedOffsetEndpointCount.lean",
+  "module": "Conjectures.QuadraticPrimes.FixedOffsetEndpointCount",
   "imports": [],
   "role": "lemma"
 }

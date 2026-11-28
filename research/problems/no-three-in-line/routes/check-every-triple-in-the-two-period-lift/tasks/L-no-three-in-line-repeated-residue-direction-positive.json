@@ -1,7 +1,7 @@
 {
   "id": "L-no-three-in-line-repeated-residue-direction-positive",
-  "file": "lean/PEqualNP/Outside/L_no_three_in_line_repeated_residue_direction_positive.lean",
-  "module": "PEqualNP.Outside.L_no_three_in_line_repeated_residue_direction_positive",
+  "file": "lean/Conjectures/NoThreeInLine/RepeatedResidueDirectionPositive.lean",
+  "module": "Conjectures.NoThreeInLine.RepeatedResidueDirectionPositive",
   "statement": "∀ (p x y u v s t : ℤ), 0 < p → (((x+p*u)-x)*(t-y) = ((y+p*v)-y)*(s-x) ↔ u*(t-y) = v*(s-x))",
   "plain_statement": {
     "zh": "两个提升点相差 p(u,v) 时，第三点与它们共线当且仅当 u(t−y)=v(s−x)。",

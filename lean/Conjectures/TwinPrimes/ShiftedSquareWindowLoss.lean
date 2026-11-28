@@ -211,6 +211,6 @@ theorem Conjectures.TwinPrimes.ShiftedSquareWindowLoss :
           _ = 8 * Real.log 4 * (2 * Real.sqrt (X:ℝ)) * Real.log (2 + (X:ℝ)) := by ring
     _ = 16 * Real.log 4 * Real.sqrt (X:ℝ) * Real.log (2 + (X:ℝ)) := by ring
 
-theorem PEqualNP.Outside.L_twin_primes_shifted_square_window_loss :
+theorem Conjectures.TwinPrimes.L_twin_primes_shifted_square_window_loss :
     let w := fun (X : ℕ) => (Finset.range (2*X+1)).filter (fun n => X < n ∧ 50*n < 51*X); let Q := fun (X : ℕ) => ((w X).filter (fun p => p.Prime ∧ (Nat.sqrt (p+2)).Prime ∧ p+2=(Nat.sqrt (p+2))^2)); let L := fun (p : ℕ) => Real.log p * Real.log (p+2); ∃ C : ℝ, 0 < C ∧ ∀ X : ℕ, 2 ≤ X → (Q X).sum L ≤ C*Real.sqrt X*Real.log (2+(X:ℝ)) :=
   Conjectures.TwinPrimes.ShiftedSquareWindowLoss

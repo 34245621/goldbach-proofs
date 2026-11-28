@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-finite-dft-shift-phase",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_finite_dft_shift_phase.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_finite_dft_shift_phase",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventFiniteDftShiftPhase.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventFiniteDftShiftPhase",
   "statement": "∀ (N : ℕ) [NeZero N] (f : ZMod N → ℂ) (h k : ZMod N), ZMod.dft (fun n => f (n+h)) k = ZMod.stdAddChar (h*k) * ZMod.dft f k",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0042 · 给任意平移量计算有限 Fourier 相位",

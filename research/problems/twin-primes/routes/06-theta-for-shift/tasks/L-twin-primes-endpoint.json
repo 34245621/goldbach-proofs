@@ -1,7 +1,7 @@
 {
   "id": "L-twin-primes-endpoint",
-  "file": "lean/PEqualNP/Outside/L_twin_primes_endpoint.lean",
-  "module": "PEqualNP.Outside.L_twin_primes_endpoint",
+  "file": "lean/Conjectures/TwinPrimes/Endpoint.lean",
+  "module": "Conjectures.TwinPrimes.Endpoint",
   "statement": "∀ B : ℕ, ∃ p : ℕ, B < p ∧ p.Prime ∧ (p+2).Prime",
   "plain_statement": {
     "zh": "新路线 · 指定平移的 Θ 提升 · TP-0054 · 在任意界外找到差恰为二的两个素数",
@@ -21,8 +21,8 @@
     "L-twin-primes-energy-bridge-v2"
   ],
   "imports": [
-    "PEqualNP.Outside.L_twin_primes_window_bridge",
-    "PEqualNP.Outside.L_twin_primes_divisor_bridge",
+    "Conjectures.TwinPrimes.WindowBridge",
+    "Conjectures.TwinPrimes.DivisorBridge",
     "Conjectures.TwinPrimes.EnergyBridgeV2"
   ],
   "challenge_only": true,

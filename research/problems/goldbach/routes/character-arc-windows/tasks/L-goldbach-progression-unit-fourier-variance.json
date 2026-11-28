@@ -1,7 +1,7 @@
 {
   "id": "L-goldbach-progression-unit-fourier-variance",
-  "file": "lean/PEqualNP/Outside/L_goldbach_progression_unit_fourier_variance.lean",
-  "module": "PEqualNP.Outside.L_goldbach_progression_unit_fourier_variance",
+  "file": "lean/Conjectures/Goldbach/ProgressionUnitFourierVariance.lean",
+  "module": "Conjectures.Goldbach.ProgressionUnitFourierVariance",
   "statement": "let E := fun x : ℝ => Complex.exp (((2*Real.pi*x:ℝ):ℂ)*Complex.I); let Λ := ArithmeticFunction.vonMangoldt; ∀ (q n : ℕ), 0 < q → let D := fun r : ℕ => if Nat.Coprime r q then (∑ k ∈ (Finset.range (n+1)).filter (fun k => k%q=r), Λ k) - (n:ℝ)/Nat.totient q else 0; (∑ a ∈ Finset.range q, ‖∑ r ∈ Finset.range q, (D r:ℂ)*E ((a:ℝ)*r/q)‖^2) = (q:ℝ)*(∑ r ∈ Finset.range q, (D r)^2)",
   "plain_statement": {
     "zh": "新路线 · 特征与分母扩窗 · CW-8004 · 把有理频率总能量精确还原为单位余类方差",

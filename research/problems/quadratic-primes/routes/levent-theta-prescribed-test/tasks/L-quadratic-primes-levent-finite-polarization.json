@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-finite-polarization",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_finite_polarization.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_finite_polarization",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventFinitePolarization.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventFinitePolarization",
   "statement": "∀ (S : Finset ℕ) (u v : ℕ → ℂ), (∑ k ∈ S, ‖u k+v k‖^2) - (∑ k ∈ S, ‖u k-v k‖^2) = 4*∑ k ∈ S, (u k * star (v k)).re",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0041 · 在一个频段上极化两个不同的复测试",

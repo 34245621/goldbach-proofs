@@ -1,7 +1,7 @@
 {
   "id": "L-quadratic-primes-levent-explicit-formula-truncation",
-  "file": "lean/PEqualNP/Outside/L_quadratic_primes_levent_explicit_formula_truncation.lean",
-  "module": "PEqualNP.Outside.L_quadratic_primes_levent_explicit_formula_truncation",
+  "file": "lean/Conjectures/QuadraticPrimes/LeventExplicitFormulaTruncation.lean",
+  "module": "Conjectures.QuadraticPrimes.LeventExplicitFormulaTruncation",
   "statement": "∀ (q : ℕ) (u : ℝ), 1≤q → 4≤u → let T := Real.sqrt u; 2≤T ∧ T≤u ∧ u*Real.log ((q : ℝ)*u*T)^2/T ≤ 4*Real.sqrt u*Real.log ((q : ℝ)*u)^2",
   "plain_statement": {
     "zh": "新路线 · Levent GRH 与自然扩张 · QP-0007 · 在截断显式公式中选择平方根高度",

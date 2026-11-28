@@ -13,9 +13,9 @@
 import { lstatSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export const FILE_RE = /^lean\/(?:PEqualNP\/Outside\/L_[a-z0-9_]+|Conjectures\/[A-Z][A-Za-z0-9]*\/[A-Z][A-Za-z0-9]*)\.lean$/;
+export const FILE_RE = /^lean\/Conjectures\/[A-Z][A-Za-z0-9]*\/[A-Z][A-Za-z0-9]*\.lean$/;
 export const GAP_RE = /^L-[a-z0-9]+(-[a-z0-9]+)*$/;
-export const MODULE_RE = /^(?:PEqualNP|Conjectures)(\.[A-Za-z][A-Za-z0-9_]*)+$/;
+export const MODULE_RE = /^(?:ResearchSupport|Conjectures)(\.[A-Za-z][A-Za-z0-9_]*)+$/;
 export const MAX_BYTES = 2 * 1024 * 1024;
 const SHA_RE = /^[0-9a-f]{40}$/;
 const LOGIN_RE = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(\[bot\])?$/;
@@ -88,7 +88,7 @@ export function checkImports(bytes, allowed) {
     const m = /^import ([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)*)[ \t]*$/.exec(l);
     if (!m) break;
     const name = m[1];
-    if (!(name === 'Mathlib' || name.startsWith('Mathlib.') || ok.has(name) || (ok.has('PEqualNP.GRH') && name.startsWith('PEqualNP.GRHSource.')))) refuse(`line ${i + 1}: import ${name} is not allowed (only Mathlib and the modules the gap lists)`);
+    if (!(name === 'Mathlib' || name.startsWith('Mathlib.') || ok.has(name) || (ok.has('ResearchSupport.GRH') && name.startsWith('ResearchSupport.GRHSource.')))) refuse(`line ${i + 1}: import ${name} is not allowed (only Mathlib and the modules the gap lists)`);
     seen.push(name);
   }
   for (; i < lines.length; i += 1) {
@@ -142,8 +142,8 @@ export function checkPlain(text) {
   if (theorems === 0) refuse('the file holds no theorem');
 }
 
-// WHAT THE BASE STEP MAY BUILD. A gap may list modules that outsiders wrote (anything under
-// PEqualNP.Outside, merged on the base branch). A Lean file runs code while it compiles, so such
+// WHAT THE BASE STEP MAY BUILD. A gap may list community proofs already on the base branch
+// under Conjectures. A Lean file runs code while it compiles, so such
 // a module is never built by the base step: it is built in the locked step, by the checker's own
 // build of the judged file, as the account that compiles the judged file. This walks the imports
 // of every listed module, as plain text, and splits them:
@@ -153,17 +153,17 @@ export function checkPlain(text) {
 // outside module whose text fails the rules a proof file must pass (checkImports, checkPlain:
 // a second net, the sandbox is the first); a base module that imports an outside module (it
 // could be built neither before the locked step, which would compile outside code, nor inside
-// it, where nothing of the base may be written); a project module that is not under the
-// PEqualNP root (the checker's fixtures are never a gap's import); more than MAX_OUTSIDE
+// it, where nothing of the base may be written); a project module outside the allowed roots
+// (ResearchSupport and Conjectures, which exclude the checker fixtures); more than MAX_OUTSIDE
 // outside modules (each one is compiled on every run that lists it).
 // CONSEQUENCE: a fleet module that imports an outside proof can never be a listed import. A
 // file that builds on outside proofs imports the outside modules themselves, and the gap lists
 // them; fleet helpers built on outside proofs stay off the lists.
-export const OUTSIDE_MODULE_RE = /^(?:PEqualNP\.Outside\.L_[a-z0-9_]+|Conjectures\.[A-Z][A-Za-z0-9]*\.[A-Z][A-Za-z0-9]*)$/;
+export const OUTSIDE_MODULE_RE = /^Conjectures\.[A-Z][A-Za-z0-9]*\.[A-Z][A-Za-z0-9]*$/;
 export const MAX_OUTSIDE = 16;
-const PROJECT_RE = /^(PEqualNP|Conjectures|CheckerSuite)(\.[A-Za-z][A-Za-z0-9_]*)*$/;
-const BASE_ROOT_RE = /^(?:PEqualNP|Conjectures)(\.[A-Za-z][A-Za-z0-9_]*)*$/;
-const isOutside = (m) => ['PEqualNP.Outside', 'Conjectures'].some(root => m === root || m.startsWith(root + '.'));
+const PROJECT_RE = /^(ResearchSupport|Conjectures|CheckerSuite)(\.[A-Za-z][A-Za-z0-9_]*)*$/;
+const BASE_ROOT_RE = /^(?:ResearchSupport|Conjectures)(\.[A-Za-z][A-Za-z0-9_]*)*$/;
+const isOutside = (m) => m === 'Conjectures' || m.startsWith('Conjectures.');
 
 // The import lines of a base module, read the way Lean reads a header: comments, `module`,
 // `prelude` and the modifiers `public`, `meta`, `private`, `all` are passed over. Base files are
