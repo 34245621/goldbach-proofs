@@ -1755,7 +1755,11 @@ class Desk:
                     _RECOVER_FAILURES.append((now, ip_key))
             return error(exc.status, exc.code)
 
-        github_uid = identity["id"]
+        # `github_identity.verify_gist` returns `(uid, login)`; unpack it instead of
+        # indexing a dict. The old `identity["id"]` raised TypeError, which the HTTP
+        # layer reported as 400 "invalid request body" for every first-time
+        # confidential submission.
+        github_uid, _login = identity
         self.record_identity(github_uid, handle, now)
         ban = self.ban_status(github_uid, handle, now)
         if ban is not None:
