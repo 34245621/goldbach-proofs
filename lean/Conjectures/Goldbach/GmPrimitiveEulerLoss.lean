@@ -1,10 +1,10 @@
 import Mathlib
-import PEqualNP.Outside.L_goldbach_finite_fixed_nonunit_mangoldt
+import Conjectures.Goldbach.FiniteFixedNonunitMangoldt
 
 /-!
 Credit: the non-coprime von Mangoldt mass bound used below comes from the accepted module
-`PEqualNP.Outside.L_goldbach_finite_fixed_nonunit_mangoldt`; the per-term estimate follows the
-pattern of the accepted module `PEqualNP.Outside.L_goldbach_primitive_induced_discrepancy`.
+`Conjectures.Goldbach.FiniteFixedNonunitMangoldt`; the per-term estimate follows the
+pattern of the accepted module `Conjectures.Goldbach.PrimitiveInducedDiscrepancy`.
 -/
 
 namespace Conjectures.Goldbach.GmPrimitiveEulerLoss_aux
@@ -12,7 +12,7 @@ namespace Conjectures.Goldbach.GmPrimitiveEulerLoss_aux
 private lemma noncoprime_Icc_le (q N : ℕ) (hq : 1 ≤ q) (hN : 1 ≤ N) :
     (∑ n ∈ (Finset.Icc 1 N).filter (fun n => ¬ Nat.Coprime n q),
       ArithmeticFunction.vonMangoldt n) ≤ (q.primeFactors.card : ℝ) * Real.log (N : ℝ) := by
-  have h := PEqualNP.Outside.L_goldbach_finite_fixed_nonunit_mangoldt q N hq hN
+  have h := Conjectures.Goldbach.FiniteFixedNonunitMangoldt q N hq hN
   have hsub : (Finset.Icc 1 N).filter (fun n => ¬ Nat.Coprime n q) ⊆
       (Finset.range (N + 1)).filter (fun n => ¬ Nat.Coprime n q) := by
     intro n hn

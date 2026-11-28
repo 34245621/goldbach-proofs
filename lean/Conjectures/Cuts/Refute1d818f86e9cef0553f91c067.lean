@@ -1,5 +1,5 @@
 import Mathlib
-import PEqualNP.Outside.L_goldbach_arc_major_floor
+import Conjectures.Goldbach.ArcMajorFloor
 import Conjectures.Goldbach.ExceptionFourSeventhsCountingBridge
 import Conjectures.Goldbach.FiniteMajorRescaledIntervalKernel
 import Conjectures.Goldbach.FiniteMajorSincMass

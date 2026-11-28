@@ -2,7 +2,7 @@ import Mathlib.NumberTheory.LSeries.WeakPNT
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
-import PEqualNP.Outside.L_goldbach_frontier_skirt_polylog_moduli
+import Conjectures.Goldbach.FrontierSkirtPolylogModuli
 
 /-!
 At modulus one, the verified short-progression mean bounds the total

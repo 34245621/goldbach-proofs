@@ -428,7 +428,7 @@ _GUARD_INVISIBLE = re.compile(r"[\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]"
 _GUARD_IMPORT_LINE = re.compile(r"^import ([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)*)[ \t]*$")
 _GUARD_IMPORT_WORD = re.compile(r"(?:^|[^A-Za-z0-9_])import(?:[^A-Za-z0-9_]|$)")
 _GUARD_THEOREM_LINE = re.compile(r"^\s*(?:@\[(?:local )?simp\] )?(?:(?:private|protected) )?theorem ")
-_COMMUNITY_MODULE = re.compile(r"^(?:PEqualNP\.Outside\.L_[a-z0-9_]+|Conjectures\.[A-Z][A-Za-z0-9]*\.[A-Z][A-Za-z0-9]*)$")
+_COMMUNITY_MODULE = re.compile(r"^Conjectures\.[A-Z][A-Za-z0-9]*\.[A-Z][A-Za-z0-9]*$")
 BUNDLE_MAGIC = b"GBDL\x01"
 MAX_PROOF_BYTES = 2 * 1024 * 1024
 
@@ -461,7 +461,7 @@ def local_check_proof(lean_bytes, gap, repo_root):
         if not match:
             break
         mod = match.group(1)
-        if mod in {"PEqualNP.GRH", "PEqualNP.GRHSource"} or mod.startswith("PEqualNP.GRHSource."):
+        if mod in {"ResearchSupport.GRH", "ResearchSupport.GRHSource"} or mod.startswith("ResearchSupport.GRHSource."):
             raise SystemExit(f"REFUSED: line {idx + 1}: GRH imports ({mod}) are temporarily disabled.")
         community_ok = (
             bool(_COMMUNITY_MODULE.fullmatch(mod))
@@ -782,8 +782,8 @@ def normalize_review_body(body):
     return body
 
 
-REVIEW_MODULE_RE = re.compile(r"(?:PEqualNP|Conjectures)(?:\.[A-Za-z][A-Za-z0-9_]*)+")
-REVIEW_PATH_RE = re.compile(r"lean/(?:PEqualNP|Conjectures)/[A-Za-z0-9_/]+\.lean")
+REVIEW_MODULE_RE = re.compile(r"Conjectures(?:\.[A-Za-z][A-Za-z0-9_]*)+")
+REVIEW_PATH_RE = re.compile(r"lean/Conjectures/[A-Za-z0-9_/]+\.lean")
 
 
 def parse_review_target(raw):

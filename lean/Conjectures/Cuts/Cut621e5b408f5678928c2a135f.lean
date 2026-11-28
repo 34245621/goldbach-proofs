@@ -1,5 +1,5 @@
 import Mathlib
-import PEqualNP.Outside.L_goldbach_frontier_skirt_polylog_moduli
+import Conjectures.Goldbach.FrontierSkirtPolylogModuli
 import Conjectures.Goldbach.WideSignedRemainderBridge
 
 -- 父目标 T n = remainder n ∩ inner n 二分 / two-way split of the parent target:

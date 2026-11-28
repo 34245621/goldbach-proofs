@@ -2,7 +2,7 @@
 
 **提交者**　千早爱音（[Visio-Vanitas](https://github.com/Visio-Vanitas)） · [上游源码快照（`d5081e7`）](https://github.com/Visio-Vanitas/buchstab-switching/tree/d5081e7a2dae5d8067c43d92cf35403ce12f0ee4/1%2B1) · [复核指南](README.md)
 
-**定位与诚实边界。** 本提交稿在**仅假设 Dirichlet $L$ 函数广义黎曼猜想**（`DirichletLNonvanishingRightOfHalf`，与 `lean/PEqualNP/GRH.lean` 及 `lsernau/grh-lean@72fead1` 逐字一致；其中定理 1B 仅需普通 RH）与**已发表强哥德巴赫经验验证界** $E(4\cdot 10^{18}) = 0$（Oliveira e Silva–Herzog–Pardi, 2014）的前提下，给出围绕强哥德巴赫（`1+1`）猜想的三组**全体偶数/全实数起点（$N_0 = 4$ / $N_0 = 40$）**显式定量推进、零浮点计算证书及 Lean `v4.36.0` 条件归约。本轮 **v2 完整收口版** 将定理 1A 从 `12731` 压缩 **795.7×** 至 **`16`**、定理 1B 从 `6281` 压缩 **785.1×** 至 **`8`**（优于 Chirre–Hagen 2026 的 $123(\log X)^2$ 达 **15.4×**）、定理 3 Linnik–Goldbach 全范围显式常数从 **`22` 压缩至 `18`**（纯有效渐近 GRH 从 `7` 推进至 **`6`**，无 Siegel 非构造依赖）、在 `HasLinnikRep` 类型中直接补严正指数约束 $k_j \ge 1$，并**彻底移除全部黑箱经验缓冲常数**（消除 v1 中的 `+4.00` 与 `+0.06`）。对任意 $N > 4\cdot 10^{18}$ 的无条件逐点 `1+1`（$K = 1, s = 0$）依然开放。
+**定位与诚实边界。** 本提交稿在**仅假设 Dirichlet $L$ 函数广义黎曼猜想**（`DirichletLNonvanishingRightOfHalf`，与 `lean/ResearchSupport/GRH.lean` 及 `lsernau/grh-lean@72fead1` 逐字一致；其中定理 1B 仅需普通 RH）与**已发表强哥德巴赫经验验证界** $E(4\cdot 10^{18}) = 0$（Oliveira e Silva–Herzog–Pardi, 2014）的前提下，给出围绕强哥德巴赫（`1+1`）猜想的三组**全体偶数/全实数起点（$N_0 = 4$ / $N_0 = 40$）**显式定量推进、零浮点计算证书及 Lean `v4.36.0` 条件归约。本轮 **v2 完整收口版** 将定理 1A 从 `12731` 压缩 **795.7×** 至 **`16`**、定理 1B 从 `6281` 压缩 **785.1×** 至 **`8`**（优于 Chirre–Hagen 2026 的 $123(\log X)^2$ 达 **15.4×**）、定理 3 Linnik–Goldbach 全范围显式常数从 **`22` 压缩至 `18`**（纯有效渐近 GRH 从 `7` 推进至 **`6`**，无 Siegel 非构造依赖）、在 `HasLinnikRep` 类型中直接补严正指数约束 $k_j \ge 1$，并**彻底移除全部黑箱经验缓冲常数**（消除 v1 中的 `+4.00` 与 `+0.06`）。对任意 $N > 4\cdot 10^{18}$ 的无条件逐点 `1+1`（$K = 1, s = 0$）依然开放。
 
 ---
 

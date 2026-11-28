@@ -375,7 +375,7 @@ class KProofWorker:
             "--env", f"LEAN_PATH={lean_path}", "--env", "LEAN_SYSROOT=/toolchain",
             "--env", "PATH=/toolchain/bin:/usr/bin:/bin",
         ]
-        for root in ("PEqualNP/Outside", "Conjectures"):
+        for root in ("Conjectures",):
             (compiled / root).mkdir(parents=True, exist_ok=True)
             flags += ["--mount", f"type=bind,source={compiled / root},target=/project/.lake/build/lib/lean/{root},readonly"]
 

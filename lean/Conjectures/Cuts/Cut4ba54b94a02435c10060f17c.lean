@@ -1,5 +1,5 @@
 import Mathlib
-import PEqualNP.Outside.L_twin_primes_unconditional_short
+import Conjectures.TwinPrimes.UnconditionalShort
 
 open Filter
 
@@ -35,7 +35,7 @@ theorem Conjectures.Cuts.Cut4ba54b94a02435c10060f17c
       Real.log (p : ℝ) * Real.log ((p + 2 : ℕ) : ℝ)
     else 0
   have hS : Tendsto short atTop (nhds (2 * C / 50)) :=
-    PEqualNP.Outside.L_twin_primes_unconditional_short
+    Conjectures.TwinPrimes.UnconditionalShort
   have hM : Tendsto middle atTop (nhds 0) := hMedium
   have hSM : Tendsto (fun X => short X + middle X) atTop (nhds (2 * C / 50)) := by
     simpa only [add_zero] using hS.add hM

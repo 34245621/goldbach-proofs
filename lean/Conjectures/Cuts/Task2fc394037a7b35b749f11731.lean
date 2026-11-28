@@ -1,6 +1,6 @@
 import Mathlib
-import PEqualNP.Outside.L_twin_primes_window_bridge
-import PEqualNP.Outside.L_twin_primes_divisor_bridge
+import Conjectures.TwinPrimes.WindowBridge
+import Conjectures.TwinPrimes.DivisorBridge
 import Conjectures.TwinPrimes.EnergyBridgeV2
 
 theorem Conjectures.Cuts.Task2fc394037a7b35b749f11731 : (∀ (x1 x2 x3 : ℝ), (0 : ℝ) < x1 → (0 : ℝ) ≤ x2 → (0 : ℝ) ≤ x3 → x1 / (2 : ℝ) * x2 * x3 ≤ x1 * x2 * x3) := by
