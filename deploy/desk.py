@@ -1359,6 +1359,22 @@ class Desk:
         return ({gap for gap, target in self.refutation_targets.items() if target in proved}
                 | {target for gap, target in self.refutation_targets.items() if gap in proved})
 
+    def gap_is_resolved(self, conn, gap_id):
+        # The accepted_lemma index permits an exact lookup without reading every verdict.
+        keys = tuple(self.resolution_group({gap_id}))
+        placeholders = ",".join("?" for _ in keys)
+        if conn.execute(f"SELECT 1 FROM assembled_proofs WHERE gap IN ({placeholders}) LIMIT 1", keys).fetchone():
+            return True
+        if any(key in keys for key in reductions.refutations(conn)):
+            return True
+        if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='verdicts'").fetchone():
+            return False
+        return conn.execute(f"""SELECT 1 FROM verdicts
+            WHERE json_extract(CAST(body AS TEXT),'$.lemma_id') IN ({placeholders})
+              AND json_extract(CAST(body AS TEXT),'$.verdict')='ACCEPTED'
+              AND COALESCE(json_extract(CAST(body AS TEXT),'$.kind'),'prove')='prove'
+            LIMIT 1""", keys).fetchone() is not None
+
     def resolved_gaps(self, conn):
         return self.resolution_group(self.proved_gaps(conn) | reductions.refutations(conn).keys())
 

@@ -532,7 +532,7 @@ def task_detail(desk, gap_id):
         gap = next(desk.research_gaps(conn, gap_id), None)
         if gap is None:
             return None
-        if gap_id in desk.resolved_gaps(conn):
+        if desk.gap_is_resolved(conn, gap_id):
             gap.update(takes_cuts=False, cut_reason="settled")
         active, pending = desk.claim_counts(conn, int(time.time()), gap_id).get(gap_id, (0, 0))
         return {**{key: gap[key] for key in TASK_DETAIL_FIELDS if key in gap},
