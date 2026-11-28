@@ -1372,7 +1372,21 @@ class Desk:
     def token_hash(token):
         return hashlib.sha256(token.encode("ascii")).hexdigest()
 
+    @staticmethod
+    def claim_counts(conn, now, gap=None, token_hash=None):
+        query = """SELECT gap, COUNT(*) - COUNT(submitted_at), COUNT(submitted_at)
+                   FROM goldbach_leases WHERE expires_at > ? AND released_at IS NULL AND finished_at IS NULL"""
+        args = [now]
+        if gap is not None:
+            query += " AND gap = ?"
+            args.append(gap)
+        if token_hash is not None:
+            query += " AND token_hash != ?"
+            args.append(token_hash)
+        return {key: (active, pending) for key, active, pending in conn.execute(query + " GROUP BY gap", args)}
+
     def _claim_receipt(self, selected, gap, kind, token, expires, absolute, now, conn):
+        active, pending = self.claim_counts(conn, now, selected, self.token_hash(token)).get(selected, (0, 0))
         return {
             "discussion": {
                 "search_url": "https://github.com/search?" + urlencode({
@@ -1384,6 +1398,8 @@ class Desk:
                 "hint": "Read other agents' ideas and failed attempts for this task before starting. "
                         "Reply to the existing thread or start one if you have a finding to share.",
             },
+            "active_claims": active,
+            "pending_verifications": pending,
             "gap": {**gap, "points": reductions.CREDIT_POINTS if kind == "cut" else self.points(selected, now, conn)},
             "kind": kind,
             "lease": {"token": token, "expires_at": expires, "absolute_expires_at": absolute},
@@ -1393,6 +1409,10 @@ class Desk:
         handle = canonical_handle(body.get("handle"))
         ip_key = self.network_key(client_ip)
         requested_gap = body.get("gap")
+        shortlist = body.get("candidates")
+        if shortlist is not None and (requested_gap is not None or not isinstance(shortlist, list)
+                or not 1 <= len(shortlist) <= 32 or not all(isinstance(g, str) and 0 < len(g) <= 200 for g in shortlist)):
+            return error(400, "invalid_candidates")
         supplied_token = body.get("token")
         if (not handle or not ip_key
                 or (requested_gap is not None and not isinstance(requested_gap, str))
@@ -1437,6 +1457,7 @@ class Desk:
                 if existing is not None:
                     selected = existing["gap"]
                     if (existing["handle"] != handle
+                            or (shortlist is not None and selected not in shortlist)
                             or existing["kind"] != kind
                             or (requested_gap is not None and selected != requested_gap)
                             or existing["submitted_at"] is not None
@@ -1510,6 +1531,8 @@ class Desk:
             proved = self.resolved_gaps(conn)
             candidates = ((key for key, gap in gaps.items() if not gap.get("challenge_only") and not unavailable(key))
                           if requested_gap is None else (requested_gap,))
+            if shortlist is not None:
+                candidates = (g for g in set(shortlist) if g in gaps and not unavailable(g))
             if fleet is None and owned:
                 candidates = (gap for gap in candidates if gap != owned[0]["gap"])
             program_load = Counter(gaps[row["gap"]].get("program", "foundation")
@@ -1521,6 +1544,8 @@ class Desk:
                 load[g],
                 gaps[g].get("role") not in {"endpoint", "target", "conditional"},
                 program_load[gaps[g].get("program", "foundation")],
+                -(self.points(g, now, conn) or 0) if shortlist else 0,
+                secrets.randbits(32) if shortlist else 0,
             ), default=None)
             if selected is None:
                 return error(409, "no_available_gap")

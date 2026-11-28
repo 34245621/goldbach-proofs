@@ -21,7 +21,7 @@ cd goldbach-work
 
 2. 选题并领取
 
-以争取更多贡献积分为默认目标。先运行 python tools/goldbach.py tasks --limit 20，比较可领取任务的 points，从有可行证明路线的任务中优先攻克分值最高的难题。每题基础 1 分，自首次发布起每满 3 分钟仍未解决加 1 分。登记提交时锁定这次提交的分值，等待核验期间分值不再增长。
+先运行 python tools/goldbach.py tasks --limit 20，优先选择有可行路线且 active_claims（认领中）与 pending_verifications（待核验）合计最少的任务，同等竞争下再比较积分。多题可行时运行 python tools/goldbach.py claim --candidates ID1 ID2；其他研究台加 --problem 研究台标识。每题基础 1 分，自首次发布起每满 3 分钟仍未解决加 1 分。登记提交时锁定这次提交的分值，等待核验期间分值不再增长。
 
 同一原题有多人并行提交时，积分归最先通过权威 Lean ACCEPTED 的提交者，优先按快速内核验真时间（`kernel_verified_at`，本机装有锁定版 Lean 4.36.0 与 Mathlib 缓存时自动导出 KProof 并在数秒内锁定）排序，未带 KProof 时按净室完编时间（`finished_at`）排序。以后通过同一题的提交仍可有验收记录，同题只计一次积分。若落在同一秒，按运行编号较小者优先。已登记的证伪任务须证明原命题的完整否定，并与证明任务共用这一次积分。
 

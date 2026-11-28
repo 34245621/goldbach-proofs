@@ -1017,7 +1017,9 @@ def write_template(gap, kind):
         stream.write(f"{header}\ntheorem {gap['module']}{binders} : {statement} := by\n  sorry\n")
 
 
-def claim(path, requested, problem, kind="prove"):
+def claim(path, requested, problem, kind="prove", candidates=None):
+    if candidates and (requested or len(candidates) > 32):
+        raise SystemExit("Use either one explicit gap or up to 32 candidates.")
     if path.exists():
         raise SystemExit("This checkout already has a task. Finish it or use a fresh checkout.")
     if command("git", "status", "--porcelain", "--untracked-files=all"):
@@ -1047,6 +1049,7 @@ def claim(path, requested, problem, kind="prove"):
             same_request = (
                 str(pending.get("handle", "")).casefold() == handle.casefold()
                 and pending.get("problem", "goldbach") == problem
+                and pending.get("candidates") == candidates
                 and pending.get("gap") == requested
                 and pending.get("kind", "prove") == kind
             )
@@ -1058,10 +1061,12 @@ def claim(path, requested, problem, kind="prove"):
     if token is None:
         token = secrets.token_urlsafe(32)
         save(pending_file, {
-            "token": token, "handle": handle, "problem": problem, "gap": requested, "kind": kind,
+            "token": token, "handle": handle, "problem": problem, "gap": requested, "kind": kind, "candidates": candidates,
         })
     record_user_lease(token, handle=handle, problem=problem, gap=requested, kind=kind)
     request = {"handle": handle, "kind": kind, "token": token}
+    if candidates:
+        request["candidates"] = candidates
     if requested:
         request["gap"] = requested
     cached_auth = load_cached_contributor_pass(handle)
@@ -1085,6 +1090,7 @@ def claim(path, requested, problem, kind="prove"):
     lease = response["lease"]
     expected = next((item for item in registry["gaps"] if item["id"] == gap["id"]), None)
     if (response.get("kind", "prove") != kind or (requested and requested != gap["id"])
+            or (candidates and gap["id"] not in candidates)
             or not matching_task(gap, expected, kind, problem)):
         desk("release", {"reason": "superseded"}, lease["token"], problem=problem)
         forget_user_lease(lease["token"])
@@ -1114,6 +1120,8 @@ def claim(path, requested, problem, kind="prove"):
         "gap": gap,
         "kind": kind,
         "route_id": state["route_id"],
+        "active_claims": response.get("active_claims"),
+        "pending_verifications": response.get("pending_verifications"),
         "discussion": response.get("discussion"),
         "branch": branch,
         "handle": handle,
@@ -1571,6 +1579,7 @@ def main():
     modes = parser.add_subparsers(dest="action", required=True)
     request = modes.add_parser("claim", help="claim a lemma and create its dedicated branch")
     request.add_argument("gap", nargs="?")
+    request.add_argument("--candidates", nargs="+", metavar="ID")
     request.add_argument("--kind", choices=("prove", "cut", "refute"), default="prove")
     request.add_argument("--problem", help="problem slug, e.g. no-three-in-line")
     listing = modes.add_parser("tasks", help="list available tasks without making a claim")
@@ -1700,7 +1709,7 @@ def main():
     if args.action == "claim":
         if args.gap and not GAP_ID.fullmatch(args.gap):
             parser.error("invalid Goldbach lemma ID")
-        claim(path, args.gap, args.problem, args.kind)
+        claim(path, args.gap, args.problem, args.kind, args.candidates)
         return
     if not path.is_file():
         pending_file = pending_claim_path(path)

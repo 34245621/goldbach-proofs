@@ -480,6 +480,11 @@ function drawGapDetail(gap) {
     element('pre', gap.statement, 'detail-statement')
   );
 
+  if (Number.isInteger(gap.active_claims)) {
+    detailContent.append(element('p', lang === 'zh'
+      ? `${gap.active_claims} 份认领中 · ${gap.pending_verifications} 份待核验`
+      : `${gap.active_claims} working · ${gap.pending_verifications} awaiting verification`, 'detail-context'));
+  }
   detailContent.append(cutEvidence(gap));
   if (gap.brief?.[lang]) detailContent.append(element('p', gap.brief[lang], 'detail-context'));
   if (gap.source) detailContent.append(anchor(lang === 'zh' ? '阅读来源 ↗' : 'Read the source ↗', gap.source, 'evidence-link'));

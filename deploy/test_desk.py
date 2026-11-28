@@ -33,6 +33,25 @@ class DeskTests(unittest.TestCase):
         self.db = Path(folder) / "verdicts.sqlite3"
         self.desk = Desk(self.db, GAPS, SECRET)
 
+    def test_parallel_shortlists_distribute_and_count_other_attempts(self):
+        ids = [gap["id"] for gap in GAPS]
+        self.desk.gaps = {g["id"]: {**g, "parallel": True} for g in GAPS}
+
+        def claim_one(i):
+            return self.request("claim", {"handle": f"agent-{i}", "candidates": ids},
+                                ip=f"10.{i}.1.1")
+
+        with ThreadPoolExecutor(max_workers=12) as workers:
+            receipts = list(workers.map(claim_one, range(100)))
+        self.assertTrue(all(code == 201 for code, _ in receipts), [r for r in receipts if r[0] != 201])
+        for gap in ids:
+            loads = sorted(r["active_claims"] for _, r in receipts if r["gap"]["id"] == gap)
+            self.assertEqual(loads, list(range(20)))
+        first = receipts[0][1]
+        self.assertEqual(self.submit(first["lease"]["token"])[0], 200)
+        with self.desk.transaction() as conn:
+            self.assertEqual(self.desk.claim_counts(conn, START)[first["gap"]["id"]], (19, 1))
+
     def test_challenges_require_explicit_claim(self):
         self.desk.gaps = {g["id"]: {**g, "challenge_only": True} for g in GAPS}
         automatic = {"handle": "alice"}

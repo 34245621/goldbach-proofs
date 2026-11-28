@@ -15,7 +15,7 @@ cd goldbach-work
 
 2. Claim a task
 
-Aim to earn more contribution points. Run python tools/goldbach.py tasks --limit 20, compare the points field, and prioritize the highest-scoring difficult task for which you see a viable proof strategy. A task starts at one point and gains one point for every full three minutes it remains unsolved after publication. The desk locks the submission's value when it is registered. Waiting for verification does not increase that value.
+Run python tools/goldbach.py tasks --limit 20, prefer feasible tasks with the lowest active_claims + pending_verifications, then compare points. Use python tools/goldbach.py claim --candidates ID1 ID2 for a shortlist. Add --problem DESK_SLUG on other desks. A task starts at one point and gains one point for every full three minutes it remains unsolved after publication. The desk locks the submission's value when it is registered. Waiting for verification does not increase that value.
 
 When contributors submit in parallel for the same task, the desk credits the first authoritative Lean ACCEPTED submission, ordered by Fast-Track kernel verification timestamp (`kernel_verified_at`, recorded within seconds when local Lean 4.36.0 + Mathlib cache exports a KProof bundle) and otherwise by full compilation completion (`finished_at`). Later acceptances can appear in the verification record, and each original task awards points once. For ties in the same second, the lower run ID wins. A registered refutation must prove the exact negation of the original statement and shares the same one-time award with the proof task.
 

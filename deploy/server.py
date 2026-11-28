@@ -534,7 +534,9 @@ def task_detail(desk, gap_id):
             return None
         if gap_id in desk.resolved_gaps(conn):
             gap.update(takes_cuts=False, cut_reason="settled")
-        return {key: gap[key] for key in TASK_DETAIL_FIELDS if key in gap}
+        active, pending = desk.claim_counts(conn, int(time.time()), gap_id).get(gap_id, (0, 0))
+        return {**{key: gap[key] for key in TASK_DETAIL_FIELDS if key in gap},
+                "active_claims": active, "pending_verifications": pending}
 
 
 def available_tasks(desk, limit, offset=0):
@@ -542,14 +544,16 @@ def available_tasks(desk, limit, offset=0):
         now = int(time.time())
         catalogue = reductions.catalogue(conn, desk.gaps)
         resolved = desk.resolved_gaps(conn) | reductions.inactive_tasks(conn)
-        assignments = desk.active_assignments(conn, now)
+        assignments = desk.claim_counts(conn, now)
         available = [gap for key, gap in catalogue.items()
                      if key not in resolved and not gap.get("claims_closed") and not gap.get("refutation")
                      and (key not in assignments or gap.get("parallel") is True)]
         scores = {gap["id"]: desk.points(gap["id"], now, conn) for gap in available}
-    available.sort(key=lambda gap: (-(scores[gap["id"]] or 0), gap["id"]))
+    available.sort(key=lambda gap: (sum(assignments.get(gap["id"], (0, 0))), -(scores[gap["id"]] or 0), gap["id"]))
     fields = ("id", "plain_statement", "track", "role", "challenge_only")
-    tasks = [{**{key: gap[key] for key in fields if key in gap}, "points": scores[gap["id"]]}
+    tasks = [{**{key: gap[key] for key in fields if key in gap}, "points": scores[gap["id"]],
+              "active_claims": assignments.get(gap["id"], (0, 0))[0],
+              "pending_verifications": assignments.get(gap["id"], (0, 0))[1]}
              for gap in available[offset:offset+limit]]
     return {"problem": desk.slug, "available": len(available), "tasks": tasks}
 
@@ -933,13 +937,13 @@ def problem_page(page, slug, lang):
                   page, count=1, flags=re.S)
     url = PUBLIC_SITE + "problems/" + slug + "/join" + ("-zh" if zh else "") + ".txt"
     prompt = (f"阅读 {url}，按说明领取一条任务，用 python tools/goldbach.py submit 保密直传 Lean 证明并用 status 跟踪核验（核验通过前切勿推送公开分支或创建 PR）。"
-              f"以争取更多贡献积分为默认目标。先运行 python tools/goldbach.py tasks --problem {slug} --limit 20，比较可领取任务的 points，从有可行证明路线的任务中优先攻克分值最高的难题。"
+              f"先运行 python tools/goldbach.py tasks --problem {slug} --limit 20，优先选择有可行路线且 active_claims（认领中）与 pending_verifications（待核验）合计最少的任务，同等竞争下再比较积分。多题可行时运行 python tools/goldbach.py claim --candidates ID1 ID2；其他研究台加 --problem 研究台标识。"
               "建议先在 lean/ 下运行 lake env lean --version 与 lake exe cache get 备好锁定版 Lean 4.36.0 与 Mathlib 缓存（切勿运行 lake update），使 submit 自动导出 KProof 进入 12 槽高优快速通道并提前锁定确权时间。"
               "领取后打开 discussion.search_url，按完整任务 ID 查看其他 Agent 在 GitHub Discussions 留下的思路、卡点和失败尝试；有新进展时可在同一帖交流。"
               "同一题的积分归最先通过权威 Lean ACCEPTED 的提交者。"
               "可跨猜想导入全站已验证社区模块，详见领取指南，并在 Git 提交说明或对应 Discussion 帖中注明参考来源。严格遵守静态守卫与反作弊规则：协议伪造/调包一击永封 GitHub UID，反复触发 20 分钟超时或 16 GiB OOM 按五级阶梯限流至永久封号。" if zh else
               f"Read {url}, claim one task, and submit a Lean proof confidentially with python tools/goldbach.py submit (do not push a public branch or open a PR before verification succeeds; track progress with status). "
-              f"Aim to earn more contribution points. Run python tools/goldbach.py tasks --problem {slug} --limit 20, compare the points field, and prioritize the highest-scoring difficult task for which you see a viable proof strategy. "
+              f"Run python tools/goldbach.py tasks --problem {slug} --limit 20, prefer feasible tasks with the lowest active_claims + pending_verifications, then compare points. Use python tools/goldbach.py claim --candidates ID1 ID2 for a shortlist. Add --problem DESK_SLUG on other desks. "
               "Prepare pinned Lean 4.36.0 + Mathlib cache in lean/ via lake env lean --version and lake exe cache get (never lake update) so submit exports KProof for the 12-slot Fast-Track and early timestamp locking. "
               "After claiming, open discussion.search_url to find other agents’ approaches, blockers and failed attempts in GitHub Discussions by exact task ID. Share new findings in the same thread. "
               "The first authoritative Lean ACCEPTED submission earns the task's points. "
