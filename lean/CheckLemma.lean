@@ -241,7 +241,7 @@ def decidesFalse (env : Environment) (t : Expr) : IO Bool := do
 
 /-- Everything `reduce` adds to `check`. On success, the children with the text each is
 printed as (which has been read back and checked by the kernel against the submitted child). -/
-unsafe def reduceShape (stmtEnv full : Environment) (libEnv : Kernel.Environment)
+unsafe def reduceShape (stmtEnv : Environment) (modExtras : Option (Array Name)) (libEnv : Kernel.Environment)
     (checked : Name → Option ConstantInfo) (mod : Name) (thm : TheoremVal) (recorded : Expr) :
     IO (Except (String × String) (Array (Expr × String))) := do
   let fail (cls msg : String) : IO (Except (String × String) (Array (Expr × String))) :=
@@ -307,11 +307,8 @@ unsafe def reduceShape (stmtEnv full : Environment) (libEnv : Kernel.Environment
     if ← decidesFalse stmtEnv t then
       return ← fail "reduce-waste" s!"{which} is decidable and `decide` evaluates it to false (kernel-confirmed); a false child can never be closed"
   -- EXTRA: the module declares the theorem and nothing else.
-  let some idx := full.header.moduleNames.idxOf? mod
+  let some extra := modExtras
     | return ← fail "reduce-extra" s!"{mod} is not among the imported modules"
-  let mut extra : Array Name := #[]
-  for c in full.header.moduleData[idx]!.constants do
-    unless c.name == mod || generatedFor full mod c do extra := extra.push c.name
   unless extra.isEmpty do
     return ← fail "reduce-extra" s!"{mod} declares more than its theorem: {extra.toList}. A reduction file holds the one theorem and nothing else"
   -- PRINT, then read back: the text the desk posts must mean exactly the child.
@@ -363,16 +360,536 @@ unsafe def reduceShape (stmtEnv full : Environment) (libEnv : Kernel.Environment
     out := out.push printedChild
   return .ok out
 
-unsafe def run (modStr stmtPath kind : String) : IO UInt32 := do
-  let mod := modStr.toName
-  unless kind == "check" || kind == "refute" || kind == "reduce" do
-    IO.eprintln s!"kind must be check, refute or reduce, got {kind}"; return 3
-  initSearchPath (← findSysroot)
-  let stmt ← IO.FS.readFile stmtPath
+/-! ## Pointer-free kernel proof DAG (`KProof`) and persistent pre-warmed verifier.
 
-  -- The statement environment: the whole pinned library and the definitions root, and nothing
-  -- else of this project. The kernel environment the proof is checked in is built ON it, so a
-  -- name means one thing for the statement and for the proof.
+A `.kproof` file carries ONLY the kernel declarations of one project module as a bottom-up
+acyclic DAG (`Name`, `Level`, `Expr`, `ConstantInfo`). Every node at index `i` may reference only
+indices `< i`, so the safe decoder (`decodeModule`, plain `def`, no `unsafe`) runs in flat `O(N)`
+loops with zero recursion and zero C++ `.olean` pointer deserialization. -/
+
+namespace KProof
+
+def magic : ByteArray := "KPRF".toUTF8.push 1
+
+def maxNames : Nat := 2000000
+def maxLevels : Nat := 500000
+def maxExprs : Nat := 50000000
+def maxConstants : Nat := 200000
+def maxListLen : Nat := 100000
+def maxStrBytes : Nat := 4194304
+
+partial def putVarNat (b : ByteArray) (n : Nat) : ByteArray :=
+  if n < 128 then
+    b.push n.toUInt8
+  else
+    putVarNat (b.push ((n % 128).toUInt8 ||| 0x80)) (n / 128)
+
+def putByte (b : ByteArray) (x : UInt8) : ByteArray := b.push x
+
+def putBool (b : ByteArray) (v : Bool) : ByteArray := b.push (if v then 1 else 0)
+
+def putBytes (b : ByteArray) (bs : ByteArray) : ByteArray :=
+  (putVarNat b bs.size) ++ bs
+
+def putStr (b : ByteArray) (s : String) : ByteArray :=
+  putBytes b s.toUTF8
+
+def putNatList (b : ByteArray) (xs : List Nat) : ByteArray := Id.run do
+  let mut out := putVarNat b xs.length
+  for x in xs do
+    out := putVarNat out x
+  return out
+
+partial def stripTopMData : Expr → Expr
+  | .mdata _ e => stripTopMData e
+  | e => e
+
+structure ExportState where
+  nameMap : Std.HashMap Name Nat := ({} : Std.HashMap Name Nat).insert .anonymous 0
+  nameBuf : ByteArray := ByteArray.emptyWithCapacity 4096
+  nameCount : Nat := 1
+  levelMap : Std.HashMap Level Nat := ({} : Std.HashMap Level Nat).insert .zero 0
+  levelBuf : ByteArray := ByteArray.emptyWithCapacity 512
+  levelCount : Nat := 1
+  exprPtrs : Std.HashMap USize (Expr × Nat) := {}
+  exprBuf : ByteArray := ByteArray.emptyWithCapacity 65536
+  exprCount : Nat := 0
+
+partial def internName (n : Name) : StateM ExportState Nat := do
+  if let some idx := (← get).nameMap[n]? then
+    return idx
+  match n with
+  | .anonymous => return 0
+  | .str p s =>
+    let pidx ← internName p
+    modifyGet fun st =>
+      let idx := st.nameCount
+      let buf := putStr (putVarNat (putByte st.nameBuf 1) pidx) s
+      (idx, { st with nameMap := st.nameMap.insert n idx, nameBuf := buf, nameCount := idx + 1 })
+  | .num p k =>
+    let pidx ← internName p
+    modifyGet fun st =>
+      let idx := st.nameCount
+      let buf := putVarNat (putVarNat (putByte st.nameBuf 2) pidx) k
+      (idx, { st with nameMap := st.nameMap.insert n idx, nameBuf := buf, nameCount := idx + 1 })
+
+partial def internLevel (u : Level) : StateM ExportState (Except String Nat) := do
+  if let some idx := (← get).levelMap[u]? then
+    return .ok idx
+  match u with
+  | .zero => return .ok 0
+  | .succ v =>
+    let .ok vidx ← internLevel v | return .error "level contains metavariable"
+    modifyGet fun st =>
+      let idx := st.levelCount
+      let buf := putVarNat (putByte st.levelBuf 1) vidx
+      (.ok idx, { st with levelMap := st.levelMap.insert u idx, levelBuf := buf, levelCount := idx + 1 })
+  | .max v w =>
+    let .ok vidx ← internLevel v | return .error "level contains metavariable"
+    let .ok widx ← internLevel w | return .error "level contains metavariable"
+    modifyGet fun st =>
+      let idx := st.levelCount
+      let buf := putVarNat (putVarNat (putByte st.levelBuf 2) vidx) widx
+      (.ok idx, { st with levelMap := st.levelMap.insert u idx, levelBuf := buf, levelCount := idx + 1 })
+  | .imax v w =>
+    let .ok vidx ← internLevel v | return .error "level contains metavariable"
+    let .ok widx ← internLevel w | return .error "level contains metavariable"
+    modifyGet fun st =>
+      let idx := st.levelCount
+      let buf := putVarNat (putVarNat (putByte st.levelBuf 3) vidx) widx
+      (.ok idx, { st with levelMap := st.levelMap.insert u idx, levelBuf := buf, levelCount := idx + 1 })
+  | .param nm =>
+    let nidx ← internName nm
+    modifyGet fun st =>
+      let idx := st.levelCount
+      let buf := putVarNat (putByte st.levelBuf 4) nidx
+      (.ok idx, { st with levelMap := st.levelMap.insert u idx, levelBuf := buf, levelCount := idx + 1 })
+  | .mvar _ => return .error "level contains metavariable"
+
+def encodeBinderInfo : BinderInfo → UInt8
+  | .default => 0
+  | .implicit => 1
+  | .strictImplicit => 2
+  | .instImplicit => 3
+
+/-- Iterative post-order DAG interning: O(1) C stack depth regardless of expression depth. -/
+unsafe def internExpr (root : Expr) : StateM ExportState (Except String Nat) := do
+  let rootClean := stripTopMData root
+  if let some (_, idx) := (← get).exprPtrs[ptrAddrUnsafe rootClean]? then
+    return .ok idx
+  let mut stack : Array (Expr × Bool) := #[(rootClean, false)]
+  while stack.size > 0 do
+    let (e, ready) := stack.back!
+    stack := stack.pop
+    let addr := ptrAddrUnsafe e
+    if (← get).exprPtrs.contains addr then
+      continue
+    if !ready then
+      stack := stack.push (e, true)
+      match e with
+      | .app f a =>
+        stack := stack.push (stripTopMData a, false)
+        stack := stack.push (stripTopMData f, false)
+      | .lam _ t b _ | .forallE _ t b _ =>
+        stack := stack.push (stripTopMData b, false)
+        stack := stack.push (stripTopMData t, false)
+      | .letE _ t v b _ =>
+        stack := stack.push (stripTopMData b, false)
+        stack := stack.push (stripTopMData v, false)
+        stack := stack.push (stripTopMData t, false)
+      | .proj _ _ s =>
+        stack := stack.push (stripTopMData s, false)
+      | .bvar _ | .sort _ | .const _ _ | .lit _ => pure ()
+      | .fvar _ | .mvar _ | .mdata _ _ =>
+        return .error "expression contains free or meta variables"
+    else
+      let lookupChild (child : Expr) : StateM ExportState Nat := do
+        let c := stripTopMData child
+        return ((← get).exprPtrs[ptrAddrUnsafe c]!).2
+      let mut nodeBuf := (← get).exprBuf
+      match e with
+      | .bvar k =>
+        nodeBuf := putVarNat (putByte nodeBuf 0) k
+      | .sort u =>
+        let .ok uidx ← internLevel u | return .error "sort level contains metavariable"
+        nodeBuf := putVarNat (putByte nodeBuf 1) uidx
+      | .const nm us =>
+        let nidx ← internName nm
+        let mut lidxs : List Nat := []
+        for u in us do
+          let .ok uidx ← internLevel u | return .error "const level contains metavariable"
+          lidxs := uidx :: lidxs
+        nodeBuf := putNatList (putVarNat (putByte nodeBuf 2) nidx) lidxs.reverse
+      | .app f a =>
+        let fidx ← lookupChild f
+        let aidx ← lookupChild a
+        nodeBuf := putVarNat (putVarNat (putByte nodeBuf 3) fidx) aidx
+      | .lam nm t b bi =>
+        let nidx ← internName nm
+        let tidx ← lookupChild t
+        let bidx ← lookupChild b
+        nodeBuf := putByte (putVarNat (putVarNat (putVarNat (putByte nodeBuf 4) nidx) tidx) bidx) (encodeBinderInfo bi)
+      | .forallE nm t b bi =>
+        let nidx ← internName nm
+        let tidx ← lookupChild t
+        let bidx ← lookupChild b
+        nodeBuf := putByte (putVarNat (putVarNat (putVarNat (putByte nodeBuf 5) nidx) tidx) bidx) (encodeBinderInfo bi)
+      | .letE nm t v b nd =>
+        let nidx ← internName nm
+        let tidx ← lookupChild t
+        let vidx ← lookupChild v
+        let bidx ← lookupChild b
+        nodeBuf := putBool (putVarNat (putVarNat (putVarNat (putVarNat (putByte nodeBuf 6) nidx) tidx) vidx) bidx) nd
+      | .lit (.natVal k) =>
+        nodeBuf := putVarNat (putByte nodeBuf 7) k
+      | .lit (.strVal s) =>
+        nodeBuf := putStr (putByte nodeBuf 8) s
+      | .proj tn idx s =>
+        let tnidx ← internName tn
+        let sidx ← lookupChild s
+        nodeBuf := putVarNat (putVarNat (putVarNat (putByte nodeBuf 9) tnidx) idx) sidx
+      | .fvar _ | .mvar _ | .mdata _ _ =>
+        return .error "unexpected open expression"
+      modify fun st =>
+        let idx := st.exprCount
+        { st with exprPtrs := st.exprPtrs.insert addr (e, idx), exprBuf := nodeBuf, exprCount := idx + 1 }
+  let some (_, finalIdx) := (← get).exprPtrs[ptrAddrUnsafe rootClean]?
+    | return .error "internal DAG export miss"
+  return .ok finalIdx
+
+def internNameList (ns : List Name) : StateM ExportState (List Nat) :=
+  ns.mapM internName
+
+unsafe def encodeConstant (c : ConstantInfo) : StateM ExportState (Except String ByteArray) := do
+  let nidx ← internName c.name
+  let lps ← internNameList c.levelParams
+  let .ok tidx ← internExpr c.type | return .error s!"failed to export type of {c.name}"
+  let putHeader (tag : UInt8) : ByteArray :=
+    putVarNat (putNatList (putVarNat (ByteArray.emptyWithCapacity 64 |>.push tag) nidx) lps) tidx
+  match c with
+  | .thmInfo v =>
+    let .ok vidx ← internExpr v.value | return .error s!"failed to export proof of {c.name}"
+    let all ← internNameList v.all
+    return .ok (putNatList (putVarNat (putHeader 0) vidx) all)
+  | .defnInfo v =>
+    let .ok vidx ← internExpr v.value | return .error s!"failed to export value of {c.name}"
+    let all ← internNameList v.all
+    let (htag, hval) : UInt8 × Nat := match v.hints with
+      | .opaque => (0, 0) | .abbrev => (1, 0) | .regular h => (2, h.toNat)
+    let stag : UInt8 := match v.safety with
+      | .unsafe => 0 | .safe => 1 | .partial => 2
+    return .ok (putNatList (putByte (putVarNat (putByte (putVarNat (putHeader 1) vidx) htag) hval) stag) all)
+  | .opaqueInfo v =>
+    let .ok vidx ← internExpr v.value | return .error s!"failed to export opaque value of {c.name}"
+    let all ← internNameList v.all
+    return .ok (putNatList (putBool (putVarNat (putHeader 2) vidx) v.isUnsafe) all)
+  | .axiomInfo v =>
+    return .ok (putBool (putHeader 3) v.isUnsafe)
+  | .inductInfo v =>
+    let all ← internNameList v.all
+    let ctors ← internNameList v.ctors
+    let mut b := putHeader 4
+    b := putVarNat (putVarNat b v.numParams) v.numIndices
+    b := putNatList (putNatList b all) ctors
+    b := putBool (putBool (putBool (putVarNat b v.numNested) v.isRec) v.isUnsafe) v.isReflexive
+    return .ok b
+  | .ctorInfo v =>
+    let indIdx ← internName v.induct
+    let mut b := putHeader 5
+    b := putBool (putVarNat (putVarNat (putVarNat (putVarNat b indIdx) v.cidx) v.numParams) v.numFields) v.isUnsafe
+    return .ok b
+  | .recInfo v =>
+    let all ← internNameList v.all
+    let mut b := putNatList (putHeader 6) all
+    b := putVarNat (putVarNat (putVarNat (putVarNat b v.numParams) v.numIndices) v.numMotives) v.numMinors
+    b := putVarNat b v.rules.length
+    for r in v.rules do
+      let cidx ← internName r.ctor
+      let .ok ridx ← internExpr r.rhs | return .error s!"failed to export recursor rhs of {c.name}"
+      b := putVarNat (putVarNat (putVarNat b cidx) r.nfields) ridx
+    b := putBool (putBool b v.k) v.isUnsafe
+    return .ok b
+  | .quotInfo _ =>
+    return .error s!"quotient primitive {c.name} cannot be declared in a user module"
+
+unsafe def encodeModule (mod : Name) (extras : Array Name) (constants : Array ConstantInfo) :
+    Except String ByteArray := Id.run do
+  let runExport : StateM ExportState (Except String (Nat × List Nat × ByteArray)) := do
+    let midx ← internName mod
+    let eidxs ← internNameList extras.toList
+    let mut cbuf := putVarNat (ByteArray.emptyWithCapacity 4096) constants.size
+    for c in constants do
+      match ← encodeConstant c with
+      | .error msg => return .error msg
+      | .ok encoded => cbuf := cbuf ++ encoded
+    return .ok (midx, eidxs, cbuf)
+  let (res, st) := runExport.run {}
+  match res with
+  | .error msg => return .error msg
+  | .ok (midx, eidxs, cbuf) =>
+    let mut out := magic
+    out := (putVarNat out st.nameCount) ++ st.nameBuf
+    out := (putVarNat out st.levelCount) ++ st.levelBuf
+    out := (putVarNat out st.exprCount) ++ st.exprBuf
+    out := putNatList (putVarNat out midx) eidxs
+    out := out ++ cbuf
+    return .ok out
+
+structure DecodedModule where
+  module : Name
+  extras : Array Name
+  constants : Array ConstantInfo
+
+abbrev DecodeM := StateT Nat (Except String)
+
+def readByte (bs : ByteArray) : DecodeM UInt8 := do
+  let pos ← get
+  if h : pos < bs.size then
+    set (pos + 1)
+    return bs[pos]
+  else
+    throw "unexpected end of kproof stream"
+
+def readBool (bs : ByteArray) : DecodeM Bool := do
+  match ← readByte bs with
+  | 0 => return false
+  | 1 => return true
+  | _ => throw "invalid boolean byte in kproof"
+
+def readVarNatBounded (bs : ByteArray) (maxBytes : Nat) : DecodeM Nat := do
+  let mut acc : Nat := 0
+  let mut shift : Nat := 0
+  for _ in [0:maxBytes] do
+    let byte ← readByte bs
+    acc := acc + ((byte &&& 0x7f).toNat <<< shift)
+    if (byte &&& 0x80) == 0 then
+      return acc
+    shift := shift + 7
+  throw "varint exceeds byte limit in kproof"
+
+def readCount (bs : ByteArray) (limit : Nat) : DecodeM Nat := do
+  let n ← readVarNatBounded bs 10
+  if n > limit then
+    throw s!"kproof count {n} exceeds limit {limit}"
+  return n
+
+def readBigNat (bs : ByteArray) : DecodeM Nat :=
+  readVarNatBounded bs 65536
+
+def readStr (bs : ByteArray) : DecodeM String := do
+  let len ← readCount bs maxStrBytes
+  let pos ← get
+  if pos + len > bs.size then
+    throw "truncated string in kproof"
+  set (pos + len)
+  match String.fromUTF8? (bs.extract pos (pos + len)) with
+  | some s => return s
+  | none => throw "invalid UTF-8 string in kproof"
+
+def getAt (arr : Array α) (idx : Nat) (label : String) : DecodeM α := do
+  if h : idx < arr.size then
+    return arr[idx]
+  else
+    throw s!"out-of-bounds {label} index {idx} (size {arr.size})"
+
+def readIndexedList (bs : ByteArray) (arr : Array α) (label : String) : DecodeM (List α) := do
+  let len ← readCount bs maxListLen
+  let mut out : Array α := Array.mkEmpty len
+  for _ in [0:len] do
+    let idx ← readVarNatBounded bs 10
+    out := out.push (← getAt arr idx label)
+  return out.toList
+
+/-- Total, non-recursive, memory-safe decoder for `KProof` binary DAGs. -/
+def decodeModule (bs : ByteArray) : Except String DecodedModule := do
+  if bs.size < magic.size || bs.extract 0 magic.size != magic then
+    throw "invalid kproof header magic"
+  let action : DecodeM DecodedModule := do
+    let nNames ← readCount bs maxNames
+    if nNames < 1 then throw "kproof name table must include anonymous root"
+    let mut names : Array Name := Array.mkEmpty nNames
+    names := names.push .anonymous
+    for _ in [1:nNames] do
+      let tag ← readByte bs
+      let pidx ← readVarNatBounded bs 10
+      let parent ← getAt names pidx "name parent"
+      match tag with
+      | 1 => names := names.push (.str parent (← readStr bs))
+      | 2 => names := names.push (.num parent (← readBigNat bs))
+      | _ => throw s!"invalid name tag {tag}"
+
+    let nLevels ← readCount bs maxLevels
+    if nLevels < 1 then throw "kproof level table must include zero root"
+    let mut levels : Array Level := Array.mkEmpty nLevels
+    levels := levels.push .zero
+    for _ in [1:nLevels] do
+      let tag ← readByte bs
+      match tag with
+      | 1 =>
+        let u ← getAt levels (← readVarNatBounded bs 10) "level"
+        levels := levels.push (.succ u)
+      | 2 =>
+        let u ← getAt levels (← readVarNatBounded bs 10) "level"
+        let v ← getAt levels (← readVarNatBounded bs 10) "level"
+        levels := levels.push (.max u v)
+      | 3 =>
+        let u ← getAt levels (← readVarNatBounded bs 10) "level"
+        let v ← getAt levels (← readVarNatBounded bs 10) "level"
+        levels := levels.push (.imax u v)
+      | 4 =>
+        let nm ← getAt names (← readVarNatBounded bs 10) "level param name"
+        levels := levels.push (.param nm)
+      | _ => throw s!"invalid level tag {tag}"
+
+    let decodeBI (b : UInt8) : DecodeM BinderInfo :=
+      match b with
+      | 0 => return .default
+      | 1 => return .implicit
+      | 2 => return .strictImplicit
+      | 3 => return .instImplicit
+      | _ => throw s!"invalid binder info {b}"
+
+    let nExprs ← readCount bs maxExprs
+    let mut exprs : Array Expr := Array.mkEmpty nExprs
+    for _ in [0:nExprs] do
+      let tag ← readByte bs
+      match tag with
+      | 0 => exprs := exprs.push (.bvar (← readVarNatBounded bs 10))
+      | 1 => exprs := exprs.push (.sort (← getAt levels (← readVarNatBounded bs 10) "sort level"))
+      | 2 =>
+        let nm ← getAt names (← readVarNatBounded bs 10) "const name"
+        let us ← readIndexedList bs levels "const level"
+        exprs := exprs.push (.const nm us)
+      | 3 =>
+        let f ← getAt exprs (← readVarNatBounded bs 10) "app fn"
+        let a ← getAt exprs (← readVarNatBounded bs 10) "app arg"
+        exprs := exprs.push (.app f a)
+      | 4 =>
+        let nm ← getAt names (← readVarNatBounded bs 10) "lam binder"
+        let ty ← getAt exprs (← readVarNatBounded bs 10) "lam type"
+        let bd ← getAt exprs (← readVarNatBounded bs 10) "lam body"
+        let bi ← decodeBI (← readByte bs)
+        exprs := exprs.push (.lam nm ty bd bi)
+      | 5 =>
+        let nm ← getAt names (← readVarNatBounded bs 10) "forall binder"
+        let ty ← getAt exprs (← readVarNatBounded bs 10) "forall type"
+        let bd ← getAt exprs (← readVarNatBounded bs 10) "forall body"
+        let bi ← decodeBI (← readByte bs)
+        exprs := exprs.push (.forallE nm ty bd bi)
+      | 6 =>
+        let nm ← getAt names (← readVarNatBounded bs 10) "let binder"
+        let ty ← getAt exprs (← readVarNatBounded bs 10) "let type"
+        let vl ← getAt exprs (← readVarNatBounded bs 10) "let val"
+        let bd ← getAt exprs (← readVarNatBounded bs 10) "let body"
+        let nd ← readBool bs
+        exprs := exprs.push (.letE nm ty vl bd nd)
+      | 7 => exprs := exprs.push (.lit (.natVal (← readBigNat bs)))
+      | 8 => exprs := exprs.push (.lit (.strVal (← readStr bs)))
+      | 9 =>
+        let tn ← getAt names (← readVarNatBounded bs 10) "proj type"
+        let idx ← readVarNatBounded bs 10
+        let st ← getAt exprs (← readVarNatBounded bs 10) "proj struct"
+        exprs := exprs.push (.proj tn idx st)
+      | _ => throw s!"invalid expr tag {tag}"
+
+    let mod ← getAt names (← readVarNatBounded bs 10) "module name"
+    let extrasList ← readIndexedList bs names "module extra"
+    let nConsts ← readCount bs maxConstants
+    let mut consts : Array ConstantInfo := Array.mkEmpty nConsts
+    for _ in [0:nConsts] do
+      let ctag ← readByte bs
+      let cName ← getAt names (← readVarNatBounded bs 10) "decl name"
+      let lps ← readIndexedList bs names "level param"
+      let cType ← getAt exprs (← readVarNatBounded bs 10) "decl type"
+      let base : ConstantVal := { name := cName, levelParams := lps, type := cType }
+      match ctag with
+      | 0 =>
+        let val ← getAt exprs (← readVarNatBounded bs 10) "thm value"
+        let all ← readIndexedList bs names "thm all"
+        consts := consts.push (.thmInfo { toConstantVal := base, value := val, all })
+      | 1 =>
+        let val ← getAt exprs (← readVarNatBounded bs 10) "defn value"
+        let htag ← readByte bs
+        let hval ← readVarNatBounded bs 10
+        let hints : ReducibilityHints ← match htag with
+          | 0 => pure .opaque
+          | 1 => pure .abbrev
+          | 2 => pure (.regular hval.toUInt32)
+          | _ => throw s!"invalid reducibility hint {htag}"
+        let safety : DefinitionSafety ← match ← readByte bs with
+          | 0 => pure .unsafe
+          | 1 => pure .safe
+          | 2 => pure .partial
+          | s => throw s!"invalid definition safety {s}"
+        let all ← readIndexedList bs names "defn all"
+        consts := consts.push (.defnInfo { toConstantVal := base, value := val, hints, safety, all })
+      | 2 =>
+        let val ← getAt exprs (← readVarNatBounded bs 10) "opaque value"
+        let isUnsafe ← readBool bs
+        let all ← readIndexedList bs names "opaque all"
+        consts := consts.push (.opaqueInfo { toConstantVal := base, value := val, isUnsafe, all })
+      | 3 =>
+        let isUnsafe ← readBool bs
+        consts := consts.push (.axiomInfo { toConstantVal := base, isUnsafe })
+      | 4 =>
+        let numParams ← readVarNatBounded bs 10
+        let numIndices ← readVarNatBounded bs 10
+        let all ← readIndexedList bs names "induct all"
+        let ctors ← readIndexedList bs names "induct ctors"
+        let numNested ← readVarNatBounded bs 10
+        let isRec ← readBool bs
+        let isUnsafe ← readBool bs
+        let isReflexive ← readBool bs
+        consts := consts.push (.inductInfo {
+          toConstantVal := base, numParams, numIndices, all, ctors, numNested, isRec, isUnsafe, isReflexive
+        })
+      | 5 =>
+        let induct ← getAt names (← readVarNatBounded bs 10) "ctor induct"
+        let cidx ← readVarNatBounded bs 10
+        let numParams ← readVarNatBounded bs 10
+        let numFields ← readVarNatBounded bs 10
+        let isUnsafe ← readBool bs
+        consts := consts.push (.ctorInfo { toConstantVal := base, induct, cidx, numParams, numFields, isUnsafe })
+      | 6 =>
+        let all ← readIndexedList bs names "rec all"
+        let numParams ← readVarNatBounded bs 10
+        let numIndices ← readVarNatBounded bs 10
+        let numMotives ← readVarNatBounded bs 10
+        let numMinors ← readVarNatBounded bs 10
+        let nRules ← readCount bs maxListLen
+        let mut rules : Array RecursorRule := Array.mkEmpty nRules
+        for _ in [0:nRules] do
+          let ctor ← getAt names (← readVarNatBounded bs 10) "rec rule ctor"
+          let nfields ← readVarNatBounded bs 10
+          let rhs ← getAt exprs (← readVarNatBounded bs 10) "rec rule rhs"
+          rules := rules.push { ctor, nfields, rhs }
+        let k ← readBool bs
+        let isUnsafe ← readBool bs
+        consts := consts.push (.recInfo {
+          toConstantVal := base, all, numParams, numIndices, numMotives, numMinors, rules := rules.toList, k, isUnsafe
+        })
+      | _ => throw s!"invalid constant tag {ctag}"
+
+    let endPos ← get
+    if endPos != bs.size then
+      throw s!"trailing bytes in kproof ({bs.size - endPos} extra bytes)"
+    return { module := mod, extras := extrasList.toArray, constants := consts }
+  (action.run magic.size).map Prod.fst
+
+end KProof
+
+structure StmtContext where
+  stmtEnv : Environment
+  stmtModules : Array Name
+  libEnv : Kernel.Environment
+  defsConsts : Std.HashMap Name ConstantInfo
+  defsModules : Array Name
+
+def formatReject (cls msg : String) : UInt32 × Array String :=
+  (1, #[s!"REJECTED ({cls}): {msg.replace "\n" " "}"])
+
+unsafe def loadStmtContext : IO (Except (UInt32 × Array String) StmtContext) := do
+  initSearchPath (← findSysroot)
   enableInitializersExecution
   let stmtEnv ← importModules #[{ module := statementLibrary }, { module := defsRoot }] {}
     (trustLevel := 0) (loadExts := true)
@@ -384,63 +901,39 @@ unsafe def run (modStr stmtPath kind : String) : IO UInt32 := do
     let m := stmtModules[i]!
     if isProject m then
       unless isDefs m do
-        return ← reject "defs-root" s!"the statement environment reached {m}, which is outside the definitions root"
+        return .error (formatReject "defs-root" s!"the statement environment reached {m}, which is outside the definitions root")
       defsModules := defsModules.push m
       let d := stmtEnv.header.moduleData[i]!
       for c in d.constants do
         if reserved.isPrefixOf c.name then
-          return ← reject "reserved-name" s!"{m} declares {c.name}; names under {reserved} belong to the checker"
+          return .error (formatReject "reserved-name" s!"{m} declares {c.name}; names under {reserved} belong to the checker")
         defsConsts := defsConsts.insert c.name c
       for imp in d.imports do
         if isProject imp.module then
           unless isDefs imp.module do
-            return ← reject "defs-root" s!"{m}, in the definitions root, imports {imp.module}, which is outside it. The definitions root may import only the pinned library and itself"
+            return .error (formatReject "defs-root" s!"{m}, in the definitions root, imports {imp.module}, which is outside it. The definitions root may import only the pinned library and itself")
         else unless defsBaseImports.any (·.module == imp.module) do
           defsBaseImports := defsBaseImports.push { module := imp.module }
-
-  -- The compiled lemma module and every project module under it.
-  let full ← importModules #[{ module := mod }] {} (trustLevel := 0)
-  let names := full.header.moduleNames
-  let mut consts : Std.HashMap Name ConstantInfo := {}
-  let mut projectModules : Array Name := #[]
-  let libEnv := stmtEnv.toKernelEnv
-  for i in [0:names.size] do
-    let m := names[i]!
-    if isProject m && !stmtModules.contains m then
-      let d := full.header.moduleData[i]!
-      projectModules := projectModules.push m
-      if isDefs m then
-        defsModules := defsModules.push m
-        for imp in d.imports do
-          if isProject imp.module && !isDefs imp.module then
-            return ← reject "defs-root" s!"{m}, in the definitions root, imports {imp.module}, which is outside it. The definitions root may import only the pinned library and itself"
-      for c in d.constants do
-        if reserved.isPrefixOf c.name then
-          return ← reject "reserved-name" s!"{m} declares {c.name}; names under {reserved} belong to the checker"
-        -- A name of the pinned library or of the definitions root is theirs alone, whether or
-        -- not the declaring file imports the module that holds it. A second copy of one of
-        -- their theorems (`sameTheorem`) is left out of what is checked: the name stays theirs.
-        if let some l := libEnv.find? c.name then
-          if sameTheorem c l then continue
-          return ← reject "redeclares" s!"{m} declares {c.name}, a name the pinned library or the definitions root already declares. A project module may not declare it again"
-        consts := consts.insert c.name c
-  unless names.contains mod && isProject mod do
-    return ← reject "not-a-project-module" s!"{mod} is not under one of the project's libraries"
-
-  -- 1. KERNEL: every project constant goes to the kernel again. The definitions root on top of
-  -- the pinned modules it imports, alone; everything else on top of the statement environment,
-  -- where a name that is already declared cannot be declared a second time.
   let defsBase ← importModules defsBaseImports {} (trustLevel := 0)
   try
     discard <| defsBase.toKernelEnv.replay defsConsts
   catch e =>
-    return ← reject "kernel" s!"the kernel refused a declaration of the definitions root: {e}"
+    return .error (formatReject "kernel" s!"the kernel refused a declaration of the definitions root: {e}")
+  return .ok {
+    stmtEnv, stmtModules, libEnv := stmtEnv.toKernelEnv, defsConsts, defsModules
+  }
+
+unsafe def verifyLoaded (ctx : StmtContext) (mod : Name) (stmt kind : String)
+    (projectModules : Array Name) (defsModules : Array Name)
+    (consts : Std.HashMap Name ConstantInfo) (modExtras : Option (Array Name)) :
+    IO (UInt32 × Array String) := do
+  let { stmtEnv, stmtModules, libEnv, defsConsts, .. } := ctx
+  let mut out : Array String := #[]
+  -- 1. KERNEL
   let kenv ← try
-      libEnv.replay consts
+      pure (← libEnv.replay consts)
     catch e =>
-      return ← reject "kernel" s!"the kernel refused a declaration under {mod}: {e}"
-  -- What the walks below may rest on: a pinned constant, or a project constant the kernel has
-  -- just accepted (the replay passes over unsafe and partial ones, so they do not count).
+      return formatReject "kernel" s!"the kernel refused a declaration under {mod}: {e}"
   let checked (n : Name) : Option ConstantInfo := do
     let ci ← kenv.find? n
     match stmtEnv.getModuleIdxFor? n with
@@ -453,50 +946,47 @@ unsafe def run (modStr stmtPath kind : String) : IO UInt32 := do
 
   -- 2. THEOREM
   let some ci := checked mod
-    | return ← reject "no-theorem" s!"the file declares no theorem named {mod} (one lemma, one file: the theorem carries the module's name)"
+    | return formatReject "no-theorem" s!"the file declares no theorem named {mod} (one lemma, one file: the theorem carries the module's name)"
   let .thmInfo thm := ci
-    | return ← reject "no-theorem" s!"{mod} is not a theorem"
+    | return formatReject "no-theorem" s!"{mod} is not a theorem"
 
   -- 3. AXIOMS
   let (_, w) := (walk checked mod).run {}
   unless w.missing.isEmpty do
-    return ← reject "kernel" s!"{mod} rests on constants the kernel never accepted: {w.missing.toList}"
+    return formatReject "kernel" s!"{mod} rests on constants the kernel never accepted: {w.missing.toList}"
   if w.axioms.contains ``sorryAx then
-    return ← reject "sorry" s!"{mod} rests on sorry (read from the compiled proof)"
+    return formatReject "sorry" s!"{mod} rests on sorry (read from the compiled proof)"
   let extra := w.axioms.filter (!allowedAxioms.contains ·)
   unless extra.isEmpty do
-    return ← reject "axiom" s!"{mod} rests on axioms outside the allowlist: {extra.toList}"
+    return formatReject "axiom" s!"{mod} rests on axioms outside the allowlist: {extra.toList}"
 
-  -- 4. STATEMENT: elaborated against the pinned library and the definitions root, and nothing
-  -- else of this project.
+  -- 4. STATEMENT
   match Parser.runParserCategory stmtEnv `term stmt "<recorded statement>" with
-  | .error e => return ← reject "statement" s!"the recorded statement is not one Lean term: {e}"
+  | .error e => return formatReject "statement" s!"the recorded statement is not one Lean term: {e}"
   | .ok _ => pure ()
   let src := "set_option autoImplicit false\ntheorem ResearchChecker.recorded :\n(\n" ++ stmt ++ "\n) := sorry\n"
   let (stmtEnv', msgs) ← Elab.process src stmtEnv {} (fileName := "<recorded statement>")
   if msgs.hasErrors then
     for m in msgs.toList do
-      if m.severity matches .error then IO.println (← m.toString)
-    return ← reject "statement" s!"the recorded statement does not elaborate. A statement may only use the pinned library and the definitions root ({defsRoot}); nothing declared in a lemma file or a helper module exists for it"
+      if m.severity matches .error then out := out.push (← m.toString)
+    let (_, rej) := formatReject "statement" s!"the recorded statement does not elaborate. A statement may only use the pinned library and the definitions root ({defsRoot}); nothing declared in a lemma file or a helper module exists for it"
+    return (1, out ++ rej)
   let some rec := stmtEnv'.find? `ResearchChecker.recorded
-    | return ← reject "statement" "the recorded statement did not produce a declaration"
-  -- Every constant the recorded statement speaks of, however deep, is one the statement
-  -- environment held before the statement was read, and one the kernel has accepted: the
-  -- kernel environment extends that environment, so it is the same constant there.
+    | return formatReject "statement" "the recorded statement did not produce a declaration"
   let mut sw : Walk := {}
   for c in rec.type.getUsedConstantsAsSet do
     sw := ((walk (fun n => if (libEnv.find? n).isSome then checked n else none) c).run sw).2
   unless sw.missing.isEmpty do
-    return ← reject "statement" s!"the recorded statement rests on declarations that are not in the pinned library or the definitions root as the kernel accepted them: {sw.missing.toList}. Write it as one term that needs no auxiliary declaration"
+    return formatReject "statement" s!"the recorded statement rests on declarations that are not in the pinned library or the definitions root as the kernel accepted them: {sw.missing.toList}. Write it as one term that needs no auxiliary declaration"
   unless rec.levelParams.length == thm.levelParams.length do
-    return ← reject "statement" s!"universe parameters differ: recorded {rec.levelParams}, proved {thm.levelParams}"
+    return formatReject "statement" s!"universe parameters differ: recorded {rec.levelParams}, proved {thm.levelParams}"
   let us := thm.levelParams.map mkLevelParam
   let recorded := rec.type.instantiateLevelParams rec.levelParams us
   let mut goal := if kind == "refute" then mkApp (mkConst ``Not) recorded else recorded
   let mut children : Array (Expr × String) := #[]
   if kind == "reduce" then
-    match ← reduceShape stmtEnv full libEnv checked mod thm recorded with
-    | .error (cls, msg) => return ← reject cls msg
+    match ← reduceShape stmtEnv modExtras libEnv checked mod thm recorded with
+    | .error (cls, msg) => return formatReject cls msg
     | .ok cs =>
       children := cs
       goal := cs.foldr (fun (t, _) b => mkForall `h .default t b) recorded
@@ -507,24 +997,172 @@ unsafe def run (modStr stmtPath kind : String) : IO UInt32 := do
   | .error ex =>
     let what := if kind == "refute" then "the negation of the recorded statement" else "the recorded statement"
     let why ← try (ex.toMessageData {}).toString catch _ => pure "(the kernel's message could not be printed)"
-    IO.println s!"kernel: {why}"
-    return ← reject "statement" s!"{mod} is not a proof of {what}. It proves: {thm.type}"
+    out := out.push s!"kernel: {why}"
+    let (_, rej) := formatReject "statement" s!"{mod} is not a proof of {what}. It proves: {thm.type}"
+    return (1, out ++ rej)
 
-  -- The count first, as one fixed line the workflow compares with the CHILD lines it receives, so
-  -- a forged extra child line (even numbered next in order) makes the two disagree (red team).
-  if kind == "reduce" then IO.println s!"CHILDREN {children.size}"
+  if kind == "reduce" then out := out.push s!"CHILDREN {children.size}"
   for h : i in [0:children.size] do
-    IO.println s!"CHILD {i + 1} {children[i].2}"
-  IO.println s!"MODULES {" ".intercalate (projectModules.filter (!isDefs ·) |>.toList.map toString)}"
-  IO.println s!"DEFS {" ".intercalate (defsModules.toList.map toString)}"
-  IO.println s!"ACCEPTED ({kind}): {mod}; axioms {w.axioms.toList}; kernel re-checked {consts.size + defsConsts.size} constants of {(defsModules ++ projectModules.filter (!isDefs ·)).toList}"
+    out := out.push s!"CHILD {i + 1} {children[i].2}"
+  out := out.push s!"MODULES {" ".intercalate (projectModules.filter (!isDefs ·) |>.toList.map toString)}"
+  out := out.push s!"DEFS {" ".intercalate (defsModules.toList.map toString)}"
+  out := out.push s!"ACCEPTED ({kind}): {mod}; axioms {w.axioms.toList}; kernel re-checked {consts.size + defsConsts.size} constants of {(defsModules ++ projectModules.filter (!isDefs ·)).toList}"
+  return (0, out)
+
+def emitResult (res : UInt32 × Array String) : IO UInt32 := do
+  for line in res.2 do
+    IO.println line
+  return res.1
+
+unsafe def run (modStr stmtPath kind : String) : IO UInt32 := do
+  let mod := modStr.toName
+  unless kind == "check" || kind == "refute" || kind == "reduce" do
+    IO.eprintln s!"kind must be check, refute or reduce, got {kind}"; return 3
+  let stmt ← IO.FS.readFile stmtPath
+  let ctx ← match ← loadStmtContext with
+    | .error res => return ← emitResult res
+    | .ok c => pure c
+
+  let full ← importModules #[{ module := mod }] {} (trustLevel := 0)
+  let names := full.header.moduleNames
+  let mut consts : Std.HashMap Name ConstantInfo := {}
+  let mut projectModules : Array Name := #[]
+  let mut defsModules := ctx.defsModules
+  for i in [0:names.size] do
+    let m := names[i]!
+    if isProject m && !ctx.stmtModules.contains m then
+      let d := full.header.moduleData[i]!
+      projectModules := projectModules.push m
+      if isDefs m then
+        defsModules := defsModules.push m
+        for imp in d.imports do
+          if isProject imp.module && !isDefs imp.module then
+            return ← emitResult (formatReject "defs-root" s!"{m}, in the definitions root, imports {imp.module}, which is outside it. The definitions root may import only the pinned library and itself")
+      for c in d.constants do
+        if reserved.isPrefixOf c.name then
+          return ← emitResult (formatReject "reserved-name" s!"{m} declares {c.name}; names under {reserved} belong to the checker")
+        if let some l := ctx.libEnv.find? c.name then
+          if sameTheorem c l then continue
+          return ← emitResult (formatReject "redeclares" s!"{m} declares {c.name}, a name the pinned library or the definitions root already declares. A project module may not declare it again")
+        consts := consts.insert c.name c
+  unless names.contains mod && isProject mod do
+    return ← emitResult (formatReject "not-a-project-module" s!"{mod} is not under one of the project's libraries")
+
+  let modExtras : Option (Array Name) := full.header.moduleNames.idxOf? mod |>.map fun idx => Id.run do
+    let mut extra : Array Name := #[]
+    for c in full.header.moduleData[idx]!.constants do
+      unless c.name == mod || generatedFor full mod c do extra := extra.push c.name
+    return extra
+  emitResult (← verifyLoaded ctx mod stmt kind projectModules defsModules consts modExtras)
+
+unsafe def exportKProofFile (modStr outPath : String) : IO UInt32 := do
+  let mod := modStr.toName
+  unless isProject mod && !isDefs mod do
+    IO.eprintln s!"cannot export non-proof module {mod}"; return 1
+  initSearchPath (← findSysroot)
+  enableInitializersExecution
+  let full ← importModules #[{ module := mod }] {} (trustLevel := 0)
+  let some idx := full.header.moduleNames.idxOf? mod
+    | IO.eprintln s!"module {mod} not found in imported header"; return 1
+  let d := full.header.moduleData[idx]!
+  let mut extras : Array Name := #[]
+  for c in d.constants do
+    unless c.name == mod || generatedFor full mod c do extras := extras.push c.name
+  match KProof.encodeModule mod extras d.constants with
+  | .error msg => IO.eprintln s!"kproof export failed: {msg}"; return 1
+  | .ok bytes =>
+    IO.FS.writeBinFile outPath bytes
+    return 0
+
+unsafe def checkKProofWithContext (ctx : StmtContext) (modStr stmtPath kind : String)
+    (depPaths : List String) (leafPath : String) : IO (UInt32 × Array String) := do
+  let mod := modStr.toName
+  unless kind == "check" || kind == "refute" || kind == "reduce" do
+    return (3, #[s!"kind must be check, refute or reduce, got {kind}"])
+  unless isProject mod && !isDefs mod && !ctx.stmtModules.contains mod do
+    return formatReject "not-a-project-module" s!"{mod} is not an outside proof module"
+  let stmt ← try IO.FS.readFile stmtPath catch e => return (3, #[s!"cannot read statement: {e}"])
+  let mut consts : Std.HashMap Name ConstantInfo := {}
+  let mut projectModules : Array Name := #[]
+  let mut modExtras : Option (Array Name) := none
+  let allFiles := depPaths.map (·, false) ++ [(leafPath, true)]
+  for (path, isLeaf) in allFiles do
+    let raw ← try IO.FS.readBinFile path catch e => return (3, #[s!"cannot read kproof {path}: {e}"])
+    let decoded ← match KProof.decodeModule raw with
+      | .error msg => return formatReject "kproof" s!"malformed kproof artifact: {msg}"
+      | .ok d => pure d
+    let m := decoded.module
+    if isLeaf && m != mod then
+      return formatReject "kproof" s!"kproof declares module {m}, expected {mod}"
+    unless isProject m && !isDefs m && !ctx.stmtModules.contains m do
+      return formatReject "not-a-project-module" s!"{m} is not an outside project module"
+    if projectModules.contains m then
+      return formatReject "kproof" s!"duplicate module {m} in kproof bundle"
+    projectModules := projectModules.push m
+    if isLeaf then
+      modExtras := some decoded.extras
+    for c in decoded.constants do
+      if reserved.isPrefixOf c.name then
+        return formatReject "reserved-name" s!"{m} declares {c.name}; names under {reserved} belong to the checker"
+      if let some l := ctx.libEnv.find? c.name then
+        if sameTheorem c l then continue
+        return formatReject "redeclares" s!"{m} declares {c.name}, a name the pinned library or the definitions root already declares. A project module may not declare it again"
+      if consts.contains c.name then
+        return formatReject "redeclares" s!"{m} redeclares {c.name} already provided by another module"
+      consts := consts.insert c.name c
+  verifyLoaded ctx mod stmt kind projectModules ctx.defsModules consts modExtras
+
+unsafe def serveKProof : IO UInt32 := do
+  let ctx ← match ← loadStmtContext with
+    | .error (code, lines) =>
+      for l in lines do IO.eprintln l
+      return code
+    | .ok c => pure c
+  let stdin ← IO.getStdin
+  let stdout ← IO.getStdout
+  stdout.putStr "READY\n"
+  stdout.flush
+  repeat do
+    let rawLine ← stdin.getLine
+    if rawLine.isEmpty then break
+    let line := (rawLine.replace "\r" "").replace "\n" ""
+    if line.isEmpty then continue
+    if line == "QUIT" then break
+    let res : UInt32 × Array String ← try
+        match line.splitOn "\t" with
+        | [modStr, stmtPath, kind, leafPath, depsCsv] =>
+          let deps := if depsCsv.isEmpty then [] else depsCsv.splitOn ","
+          checkKProofWithContext ctx modStr stmtPath kind deps leafPath
+        | [modStr, stmtPath, kind, leafPath] =>
+          checkKProofWithContext ctx modStr stmtPath kind [] leafPath
+        | _ => pure (3, #["malformed request line"])
+      catch e =>
+        pure (3, #[s!"checker fault: {e}"])
+    stdout.putStr s!"BEGIN_RESULT {res.1} {res.2.size}\n"
+    for outLine in res.2 do
+      stdout.putStr (outLine ++ "\n")
+    stdout.putStr "END_RESULT\n"
+    stdout.flush
   return 0
 
 end ResearchChecker
 
 unsafe def main (args : List String) : IO UInt32 := do
-  match args with
-  | [mod, stmt, kind] =>
-    try ResearchChecker.run mod stmt kind
-    catch e => IO.eprintln s!"checker fault: {e}"; return 3
-  | _ => IO.eprintln "usage: CheckLemma <module> <statement file> <check|refute|reduce>"; return 3
+  try
+    match args with
+    | ["--export-kproof", mod, outPath] =>
+      ResearchChecker.exportKProofFile mod outPath
+    | "--check-kproof" :: mod :: stmt :: kind :: leaf :: deps =>
+      match ← ResearchChecker.loadStmtContext with
+      | .error res => ResearchChecker.emitResult res
+      | .ok ctx => ResearchChecker.emitResult (← ResearchChecker.checkKProofWithContext ctx mod stmt kind deps leaf)
+    | ["--serve-kproof"] =>
+      ResearchChecker.serveKProof
+    | [mod, stmt, kind] =>
+      ResearchChecker.run mod stmt kind
+    | _ =>
+      IO.eprintln "usage: CheckLemma <module> <statement file> <check|refute|reduce> | --export-kproof <module> <out> | --check-kproof <module> <stmt> <kind> <leaf.kproof> [dep.kproof...] | --serve-kproof"
+      return 3
+  catch e =>
+    IO.eprintln s!"checker fault: {e}"
+    return 3
