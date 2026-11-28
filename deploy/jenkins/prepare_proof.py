@@ -7,9 +7,8 @@ import re
 import subprocess
 from pathlib import Path
 from urllib.parse import urlencode
-from urllib.request import build_opener
 
-from desk_verdict import NoRedirect
+from desk_verdict import open_with_retry
 
 from github_revision import REPO, SHA, StaleDelivery, pull_request
 from proof_blob import proof_blob
@@ -58,8 +57,7 @@ def generated_task(module):
         raise ValueError("Invalid generated module")
     desk = os.environ.get("GOLDBACH_DESK_URL", "https://www.movan.tech/goldbach/api/desk")
     url = desk.rstrip("/") + "/task?" + urlencode({"module": module})
-    with build_opener(NoRedirect()).open(url, timeout=15) as response:
-        data = response.read(262145)
+    _, data = open_with_retry(url)
     if len(data) > 262144:
         raise ValueError("Oversized Desk task descriptor")
     receipt = json.loads(data)

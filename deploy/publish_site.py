@@ -112,19 +112,21 @@ def jenkins_release(sha):
 
 def restart(expected):
     subprocess.run(["systemctl", "restart", "goldbach-web"], check=True, timeout=30)
-    for _ in range(10):
+    last_error = "no health check attempted"
+    for _ in range(30):
         try:
             for url in HEALTH:
                 with urlopen(url, timeout=4) as response:
                     health = json.load(response)
                 if health.get("status") != "ok" or health.get("site_revision") != expected:
+                    last_error = f"{url} returned {health!r}"
                     break
             else:
                 return
-        except (OSError, ValueError):
-            pass
+        except (OSError, ValueError) as error:
+            last_error = f"{type(error).__name__}: {error}"
         time.sleep(1)
-    raise RuntimeError(f"Public health did not confirm website revision {expected}")
+    raise RuntimeError(f"Public health did not confirm website revision {expected} ({last_error})")
 
 
 def blob(commit, name):
