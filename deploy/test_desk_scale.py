@@ -651,6 +651,72 @@ class RetiredStatusTest(DeskServerTestCase):
             self.assertIn("statement_sha256", catalogue["gaps"][0])
             self.assertNotIn("statement", catalogue["gaps"][0])
 
+    def test_cached_task_reads_stay_fast_and_invalidate_on_verdict(self):
+        listing = self.request("/api/tasks?limit=20")
+        self.assertGreater(listing["available"], 0)
+        ids = [task["id"] for task in listing["tasks"]]
+        self.assertTrue(ids)
+
+        def fetch(i):
+            if i % 4 == 0:
+                return self.request("/health")
+            if i % 4 == 1:
+                return self.request("/api/tasks?limit=20")
+            if i % 4 == 2:
+                return self.request("/problems/", text=True)
+            return self.request("/api/task?" + urlencode({"lemma": ids[i % len(ids)]}))
+
+        with ThreadPoolExecutor(max_workers=32) as pool:
+            started = time.monotonic()
+            results = list(pool.map(fetch, range(64)))
+            elapsed = time.monotonic() - started
+        self.assertEqual(len(results), 64)
+        self.assertLess(elapsed, 15.0, f"64 concurrent cached reads took {elapsed:.2f}s")
+
+        # Claim, submit, authorize, and accept a lemma; cached task detail and listing must reflect it immediately.
+        claim = self.request("/api/desk/claim", {"handle": "cachecheck", "gap": ids[0]}, ip="198.51.100.1", expected=201)
+        gap, token = claim["gap"], claim["lease"]["token"]
+        head = "c" * 40
+        self.request("/api/desk/submit", {
+            "pr": 999, "head": head, "agent": {"model": "test-model", "harness": "codex"},
+        }, token=token)
+        self.request("/api/desk/authorize", {
+            "gap": gap["id"], "pr": 999, "head": head, "handle": "cachecheck", "run_id": 99901,
+            "statement_sha256": hashlib.sha256(gap["statement"].encode()).hexdigest(),
+        }, signed=True)
+        self.request("/api/verdict", {
+            "lemma_id": gap["id"], "run_id": 99901, "run_attempt": 1, "verdict": "ACCEPTED",
+            "manifest": {"rests_on": [{"module": gap["module"], "sha256": "c" * 64}], "defs": []},
+        }, signed=True)
+
+        detail = self.request("/api/task?" + urlencode({"lemma": gap["id"]}))
+        self.assertTrue(detail["proved"])
+        self.assertEqual(detail["cut_reason"], "settled")
+        self.assertFalse(detail["takes_cuts"])
+        self.assertIn("active_claims", detail)
+        self.assertIn("pending_verifications", detail)
+        self.assertIsInstance(detail["dependents"], list)
+        after_listing = self.request("/api/tasks?limit=100")
+        self.assertNotIn(gap["id"], {task["id"] for task in after_listing["tasks"]})
+
+        with closing(sqlite3.connect(self.folder / "verdicts.sqlite3")) as conn:
+            indexes = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='index'")}
+            self.assertTrue({
+                "goldbach_leases_active",
+                "goldbach_leases_refutations",
+                "goldbach_leases_accepted",
+                "accepted_proved_lemma",
+            } <= indexes)
+            plan = " ".join(
+                row[3] for row in conn.execute("""EXPLAIN QUERY PLAN
+                    SELECT DISTINCT json_extract(CAST(body AS TEXT), '$.lemma_id')
+                    FROM verdicts
+                    WHERE json_extract(CAST(body AS TEXT), '$.verdict') = 'ACCEPTED'
+                      AND COALESCE(json_extract(CAST(body AS TEXT), '$.kind'), 'prove') = 'prove'
+                """)
+            )
+            self.assertIn("accepted_proved_lemma", plan)
+
 
 if __name__ == "__main__":
     unittest.main()

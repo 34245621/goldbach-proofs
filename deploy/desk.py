@@ -1161,6 +1161,20 @@ class Desk:
                 conn.execute("ALTER TABLE goldbach_leases ADD COLUMN private_diagnostic TEXT")
             if "published_sha" not in columns:
                 conn.execute("ALTER TABLE goldbach_leases ADD COLUMN published_sha TEXT")
+            conn.execute("""CREATE INDEX IF NOT EXISTS goldbach_leases_active
+                ON goldbach_leases(expires_at, gap, submitted_at, run_id)
+                WHERE released_at IS NULL AND finished_at IS NULL""")
+            conn.execute("""CREATE INDEX IF NOT EXISTS goldbach_leases_refutations
+                ON goldbach_leases(run_id DESC)
+                WHERE kind = 'refute' AND verdict = 'ACCEPTED'""")
+            conn.execute("""CREATE INDEX IF NOT EXISTS goldbach_leases_accepted
+                ON goldbach_leases(verdict, kind, finished_at)
+                WHERE verdict = 'ACCEPTED' AND run_id IS NOT NULL""")
+            if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='verdicts'").fetchone():
+                conn.execute("""CREATE INDEX IF NOT EXISTS accepted_proved_lemma ON verdicts
+                    (json_extract(CAST(body AS TEXT), '$.lemma_id'))
+                    WHERE json_extract(CAST(body AS TEXT), '$.verdict') = 'ACCEPTED'
+                      AND COALESCE(json_extract(CAST(body AS TEXT), '$.kind'), 'prove') = 'prove'""")
             conn.execute("""CREATE TABLE IF NOT EXISTS goldbach_task_openings (
                 gap TEXT PRIMARY KEY, opened_at INTEGER NOT NULL
             )""")
@@ -1201,6 +1215,7 @@ class Desk:
         if opened_at is None:
             with (nullcontext(conn) if conn is not None else self.transaction()) as db:
                 opened_at, = db.execute("SELECT opened_at FROM goldbach_task_openings WHERE gap=?", (target,)).fetchone()
+            self.openings[target] = opened_at
         return 1 + max(0, now - opened_at) // 180
 
     @contextmanager
@@ -1365,7 +1380,9 @@ class Desk:
         placeholders = ",".join("?" for _ in keys)
         if conn.execute(f"SELECT 1 FROM assembled_proofs WHERE gap IN ({placeholders}) LIMIT 1", keys).fetchone():
             return True
-        if any(key in keys for key in reductions.refutations(conn)):
+        if conn.execute(f"""SELECT 1 FROM goldbach_leases
+            WHERE kind='refute' AND verdict='ACCEPTED' AND gap IN ({placeholders})
+            LIMIT 1""", keys).fetchone():
             return True
         if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='verdicts'").fetchone():
             return False
