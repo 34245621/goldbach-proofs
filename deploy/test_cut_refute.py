@@ -350,6 +350,7 @@ class CutFlow(DeskServerTestCase):
         self.assertEqual(scores["c1"]["points"], 1)
 
     def test_cli_receipt_and_templates(self):
+        state_home = self.enterContext(tempfile.TemporaryDirectory())
         for kind in ("cut", "refute"):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory, chdir(directory):
                 subprocess.run(["git", "init", "-q"], check=True)
@@ -361,7 +362,10 @@ class CutFlow(DeskServerTestCase):
                 state = Path(".git/goldbach-lease.json")
                 with patch.object(cli, "authenticated_login", return_value="cli-user"), patch.object(
                         cli, "SITE", f"https://127.0.0.1:{self.port}"), patch.dict(
-                        os.environ, {"SSL_CERT_FILE": str(self.published / "fullchain.pem")}), redirect_stdout(StringIO()):
+                        os.environ, {
+                            "SSL_CERT_FILE": str(self.published / "fullchain.pem"),
+                            "XDG_STATE_HOME": state_home,
+                        }), redirect_stdout(StringIO()):
                     cli.claim(state, PARENT, "goldbach", kind)
                     receipt = json.loads(state.read_bytes())
                     gap = receipt["gap"]
@@ -373,6 +377,67 @@ class CutFlow(DeskServerTestCase):
                     self.assertIn("expires_at", cli.desk("beat", {}, receipt["token"]))
                     cli.desk("release", {"reason": "statement_seems_false"}, receipt["token"])
                 self.assertFalse(any(g.get("refutation") for g in self.request("/fixture-status")["gaps"] if g["id"] == PARENT))
+
+        # Simulate a post-commit response timeout during `claim`: the server commits the lease,
+        # both initial HTTP reads time out, and a subsequent `claim` recovers via the pending journal.
+        with tempfile.TemporaryDirectory() as directory, chdir(directory):
+            subprocess.run(["git", "init", "-q"], check=True)
+            Path("research").mkdir()
+            Path("research/gaps.json").write_bytes((self.published / "gaps.json").read_bytes())
+            subprocess.run(["git", "add", "research"], check=True)
+            subprocess.run(["git", "-c", "user.name=test", "-c", "user.email=test@example.org",
+                            "commit", "-qm", "catalogue"], check=True)
+            state = Path(".git/goldbach-lease.json")
+            pending = Path(".git/goldbach-claim-pending.json")
+            real_build_opener = cli.urllib.request.build_opener
+            dropped = {"calls": 0}
+
+            def flaky_opener(*handlers):
+                opener = real_build_opener(*handlers)
+                real_open = opener.open
+
+                def open_and_drop(req, timeout=30):
+                    resp = real_open(req, timeout=timeout)
+                    resp.read()
+                    resp.close()
+                    dropped["calls"] += 1
+                    if dropped["calls"] == 2:
+                        # Simulate Nginx 504 Gateway Timeout on second retry to ensure 5xx preserves pending journal.
+                        raise cli.urllib.error.HTTPError(req.full_url, 504, "Gateway Time-out", {}, None)
+                    raise TimeoutError("timed out waiting for claim response")
+
+                opener.open = open_and_drop
+                return opener
+
+            with patch.object(cli, "authenticated_login", return_value="timeout-user"), patch.object(
+                cli, "SITE", f"https://127.0.0.1:{self.port}"
+            ), patch.object(cli.time, "sleep"), patch.dict(
+                os.environ, {
+                    "SSL_CERT_FILE": str(self.published / "fullchain.pem"),
+                    "XDG_STATE_HOME": state_home,
+                }
+            ), redirect_stdout(StringIO()):
+                with patch.object(cli.urllib.request, "build_opener", side_effect=flaky_opener):
+                    with self.assertRaises(SystemExit):
+                        cli.claim(state, PARENT, "goldbach", "cut")
+                self.assertEqual(dropped["calls"], 2)
+                self.assertFalse(state.exists())
+                self.assertTrue(pending.is_file())
+
+                # Re-running `claim` in the same checkout replays the journaled token instead of 409.
+                cli.claim(state, PARENT, "goldbach", "cut")
+                self.assertTrue(state.is_file())
+                self.assertFalse(pending.exists())
+
+                # Deleting `.git/goldbach-lease.json` on the same machine still recovers via user-state store
+                # without creating any GitHub Gist or calling api.github.com.
+                state.unlink()
+                with patch.object(cli.subprocess, "check_output", side_effect=AssertionError("should not call gh gist")):
+                    cli.recover_lease("other")
+                self.assertEqual(
+                    self.request(DESK + "claim", {"gap": PARENT, "handle": "timeout-user", "kind": "cut"}, expected=201)["kind"],
+                    "cut",
+                )
 
     @skipUnless(os.environ.get("GOLDBACH_TEST_LEAN") == "1", "requires pinned Lean and built mathlib cache")
     def test_kernel_flow(self):
