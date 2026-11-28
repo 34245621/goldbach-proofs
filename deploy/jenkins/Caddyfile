@@ -10,6 +10,16 @@ jenkins-hook.goldbach.tech {
     handle @webhook {
         reverse_proxy 127.0.0.1:18081
     }
+    @submissions {
+        method PUT
+        path /submissions/upload
+    }
+    handle @submissions {
+        request_body {
+            max_size 128MB
+        }
+        reverse_proxy 127.0.0.1:18081
+    }
     handle {
         respond 404
     }

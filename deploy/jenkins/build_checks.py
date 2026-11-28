@@ -16,6 +16,9 @@ CONCLUSIONS = {
 
 
 def refusal_summary(reason):
+    if reason.startswith("Task desk refused authorization:"):
+        return ("REFUSED: The task desk refused this submission before Lean ran. "
+                f"No Lean verdict or points were issued.\n\n    {reason}")
     summary = ("REFUSED: The file guard stopped this submission before Lean ran. "
                f"No Lean verdict or points were issued.\n\n    {reason}")
     if re.match(r'^line \d+: "[A-Za-z0-9_]%" is not allowed\b', reason):

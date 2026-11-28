@@ -11,6 +11,8 @@ python3 -B -m unittest \
   deploy.test_github_identity \
   deploy.test_presence \
   deploy.test_desk \
+  deploy.test_confidential_submit \
+  deploy.test_review_tool \
   deploy.test_cut_refute \
   deploy.test_agent_attribution \
   deploy.test_desk_scale.DeskScaleTest.test_agent_attribution_across_problem_desks \
@@ -23,4 +25,4 @@ python3 -B -m unittest \
   deploy.test_publish_catalogue \
   research.test_catalogue
 
-PYTHONPATH=deploy/jenkins python3 -B -m unittest discover -s deploy/jenkins -p test_proof_refusals.py
+PYTHONPATH=deploy/jenkins:. python3 -B -m unittest discover -s deploy/jenkins -p 'test_*.py'

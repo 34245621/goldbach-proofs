@@ -6,7 +6,7 @@ from tempfile import TemporaryDirectory
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
-from merge_proofs import REPO, SkipMerge, drain, git_blob, merge
+from merge_proofs import REPO, SkipMerge, drain, git_blob, merge, prune_snapshots
 
 
 class MergeProofTests(unittest.TestCase):
@@ -122,3 +122,40 @@ class MergeProofTests(unittest.TestCase):
         self.assertEqual(action.call_count, 1)
         self.assertEqual(action.call_args.args[1], 51)
         publish.assert_called_once_with(store, self.base, self.merged, self.file, self.proof)
+
+    def test_prune_snapshots_preserves_current_recent_and_young_directories(self):
+        store = Path(self.enterContext(TemporaryDirectory()))
+        now = 1_700_000_000
+
+        def make_snapshot(idx, age):
+            folder = store / f"{idx:040x}-stage-snap{idx}"
+            folder.mkdir()
+            (folder / "marker").write_text("ok")
+            mtime = now - age
+            import os
+            os.utime(folder, (mtime, mtime))
+            return folder
+
+        oldest_active = make_snapshot(1, 20_000)
+        (store / "current").symlink_to(oldest_active)
+        expired_a = make_snapshot(2, 19_000)
+        expired_b = make_snapshot(3, 18_000)
+        young_beyond_keep = make_snapshot(4, 1_800)  # rank 3, but < 3h window: must be preserved
+        recent_a = make_snapshot(5, 1_200)  # rank 2: preserved by keep_recent=2
+        recent_b = make_snapshot(6, 600)    # rank 1: preserved by keep_recent=2
+        in_flight_stage = store / "stage-inflight"
+        in_flight_stage.mkdir()
+
+        removed = prune_snapshots(store, keep_recent=2, min_age_seconds=10_800, max_delete=1, now=now)
+        self.assertEqual(removed, 1)
+        self.assertFalse(expired_a.exists())
+        self.assertTrue(expired_b.exists())  # respected max_delete=1
+        self.assertTrue(oldest_active.exists())  # current symlink target never deleted
+
+        removed_second = prune_snapshots(store, keep_recent=2, min_age_seconds=10_800, max_delete=5, now=now)
+        self.assertEqual(removed_second, 1)
+        self.assertFalse(expired_b.exists())
+        self.assertTrue(young_beyond_keep.exists())
+        self.assertTrue(recent_a.exists())
+        self.assertTrue(recent_b.exists())
+        self.assertTrue(in_flight_stage.exists())

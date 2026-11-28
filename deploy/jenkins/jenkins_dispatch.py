@@ -11,15 +11,38 @@ def initialize(db):
     )""")
 
 
+MAX_SLOW_AUTHORITATIVE_INFLIGHT = 2
+
+
+def is_fast_bundle(pr, trigger):
+    return pr == 0 and isinstance(trigger, str) and trigger.startswith("bundle:fast:")
+
+
 def dispatch(db, client, job_names, prepare=None, *, first_job_id=1):
     """Dispatch configured jobs. An ambiguous enqueue requires reconciliation."""
+    slow_inflight = db.execute("""
+        SELECT COUNT(*) FROM jenkins_dispatches d
+        JOIN ci_jobs j ON j.id = d.job_id
+        WHERE d.result IS NULL AND j.kind = 'authoritative'
+          AND NOT (j.pr = 0 AND j.trigger LIKE 'bundle:fast:%')
+    """).fetchone()[0]
     rows = db.execute("""SELECT id,kind,sha,pr,trigger FROM ci_jobs j
                          WHERE j.id>=? AND NOT EXISTS (
                              SELECT 1 FROM jenkins_dispatches d WHERE d.job_id=j.id)
-                         ORDER BY id""", (first_job_id,)).fetchall()
+                         ORDER BY
+                             CASE
+                                 WHEN j.kind = 'authoritative' AND j.pr = 0 AND j.trigger LIKE 'bundle:fast:%' THEN 2
+                                 WHEN j.kind = 'authoritative' AND j.pr = 0 THEN 1
+                                 ELSE 0
+                             END DESC,
+                             j.id""",
+                      (first_job_id,)).fetchall()
     for job_id, kind, sha, pr, trigger in rows:
         name = job_names.get(kind + '-pr', job_names.get(kind)) if pr else job_names.get(kind)
         if name is None:
+            continue
+        is_slow_auth = kind == "authoritative" and not is_fast_bundle(pr, trigger)
+        if is_slow_auth and slow_inflight >= MAX_SLOW_AUTHORITATIVE_INFLIGHT:
             continue
         if prepare is not None and prepare(job_id, kind, sha, pr, name) is False:
             continue
@@ -30,6 +53,8 @@ def dispatch(db, client, job_names, prepare=None, *, first_job_id=1):
             ).rowcount
         if not claimed:
             continue
+        if is_slow_auth:
+            slow_inflight += 1
         try:
             queue = client.enqueue(name, {"CI_JOB_ID": job_id, "CI_HEAD": sha,
                                           "CI_PR": pr, "CI_TRIGGER": trigger})
