@@ -385,6 +385,34 @@ class ConfidentialDeskAndModerationTests(unittest.TestCase):
             ROOT,
         )
 
+    def test_try_export_local_kproof_recognizes_lake_package_mathlib_cache(self):
+        with tempfile.TemporaryDirectory() as folder:
+            repo_root = Path(folder)
+            lean_dir = repo_root / "lean"
+            (lean_dir / "lean-toolchain").parent.mkdir(parents=True)
+            (lean_dir / "lean-toolchain").write_text("leanprover/lean4:v4.36.0\n", encoding="utf-8")
+            mathlib_olean = lean_dir / ".lake/packages/mathlib/.lake/build/lib/lean/Mathlib.olean"
+            mathlib_olean.parent.mkdir(parents=True)
+            mathlib_olean.write_bytes(b"olean")
+            checklemma_bin = lean_dir / ".lake/build/bin/checklemma"
+            checklemma_bin.parent.mkdir(parents=True)
+            checklemma_bin.write_bytes(b"bin")
+            out_path = repo_root / "proof.kproof"
+
+            def fake_run(cmd, **kwargs):
+                if "--export-kproof" in cmd:
+                    Path(cmd[-1]).write_bytes(b"KPRF\x01ok")
+                return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+            with patch.object(cli.shutil, "which", return_value="/usr/bin/lake"), \
+                 patch.object(cli.subprocess, "check_output", return_value="Lean (version 4.36.0)\n"), \
+                 patch.object(cli.subprocess, "run", side_effect=fake_run):
+                ok, note = cli.try_export_local_kproof(repo_root, SAMPLE_GAPS[0], "prove", out_path)
+
+            self.assertTrue(ok, note)
+            self.assertIsNone(note)
+            self.assertEqual(out_path.read_bytes(), b"KPRF\x01ok")
+
 
 if __name__ == "__main__":
     unittest.main()

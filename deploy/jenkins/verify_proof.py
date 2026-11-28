@@ -415,7 +415,9 @@ class KProofWorker:
                 subprocess.run([
                     "bash", str(ownership_check), str(out), str(marker), str(out / kp_name), "0", "1000",
                 ], check=True, timeout=30)
-                (out / kp_name).replace(kp_dest)
+                # `out` lives under /tmp while `kp_dest` lives under /run (tmpfs);
+                # use shutil.move so cross-device staging never fails with EXDEV.
+                shutil.move(str(out / kp_name), str(kp_dest))
                 os.chmod(kp_dest, 0o644)
 
             if cache is None:

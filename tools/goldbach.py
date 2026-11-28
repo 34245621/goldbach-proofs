@@ -510,7 +510,11 @@ def try_export_local_kproof(repo_root, gap, kind, out_path):
         return False, "local Lean toolchain is not initialized"
     if "4.36.0" not in version:
         return False, f"local Lean version differs from pinned 4.36.0 ({version.splitlines()[0] if version else 'unknown'})"
-    if not (lean_dir / ".lake" / "build" / "lib" / "lean" / "Mathlib.olean").is_file():
+    mathlib_oleans = (
+        lean_dir / ".lake" / "packages" / "mathlib" / ".lake" / "build" / "lib" / "lean" / "Mathlib.olean",
+        lean_dir / ".lake" / "build" / "lib" / "lean" / "Mathlib.olean",
+    )
+    if not any(candidate.is_file() for candidate in mathlib_oleans):
         return False, "local Mathlib .olean cache not found (run `cd lean && lake exe cache get`)"
 
     checklemma_bin = lean_dir / ".lake" / "build" / "bin" / "checklemma"
