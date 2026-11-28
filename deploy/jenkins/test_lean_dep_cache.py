@@ -4,7 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import Mock
 
-from lean_dep_cache import compile_cached, key
+from lean_dep_cache import compile_cached, key, store_cached
 
 
 class LeanDependencyCacheTests(unittest.TestCase):
@@ -34,3 +34,18 @@ class LeanDependencyCacheTests(unittest.TestCase):
             compile_cached(store, "Conjectures.Goldbach.Test", "a" * 64, second, compile_again)
             compile_again.assert_not_called()
             self.assertEqual(first.read_bytes(), second.read_bytes())
+
+    @unittest.skipUnless(os.name == "posix", "the Jenkins cache uses Linux file locks")
+    def test_accepted_leaf_artifact_warms_downstream_dependency_lookup(self):
+        with TemporaryDirectory() as temporary:
+            store = Path(temporary)
+            leaf = store / "leaf.olean"
+            downstream = store / "downstream.olean"
+            leaf.write_bytes(b"accepted submission olean")
+            digest = key(b"ctx", "Conjectures.Goldbach.Leaf", b"import Mathlib\n", {})
+            self.assertTrue(store_cached(store, "Conjectures.Goldbach.Leaf", digest, leaf))
+            self.assertFalse(store_cached(store, "Conjectures.Goldbach.Leaf", digest, leaf))
+            build = Mock()
+            compile_cached(store, "Conjectures.Goldbach.Leaf", digest, downstream, build)
+            build.assert_not_called()
+            self.assertEqual(downstream.read_bytes(), b"accepted submission olean")

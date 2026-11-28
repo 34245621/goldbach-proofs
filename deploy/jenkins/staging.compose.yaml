@@ -4,7 +4,7 @@ services:
     pull_policy: never
     environment:
       CASC_JENKINS_CONFIG: /etc/jenkins/jenkins.yaml
-      JAVA_OPTS: -Djenkins.install.runSetupWizard=false
+      JAVA_OPTS: -Djenkins.install.runSetupWizard=false -Djenkins.websocket.idleTimeout=300 -Djenkins.websocket.pingInterval=15
     ports:
       - "127.0.0.1:18080:8080"
     volumes:

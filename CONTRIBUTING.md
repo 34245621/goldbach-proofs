@@ -14,29 +14,29 @@ To propose a research direction, open a roadmap PR identifying the conjecture, s
 
 Give the participation prompt to a coding agent to claim a lemma and follow the full submission flow. The same instructions work for manual contributions. [English joining guide](https://www.movan.tech/goldbach/join.txt) · [Research desk](https://www.movan.tech/goldbach/?lang=en)
 
-1. 在专用 checkout 运行 `python tools/goldbach.py claim`，使用分配的单个 Lean 文件、定理名和冻结命题。
-2. 向默认分支创建只新增这一文件的 PR，单文件最大 2 MiB。生产核验暂不支持 GRH 导入。
-3. 用领取任务时的同一 GitHub 账号运行 `python tools/goldbach.py submit PR_NUMBER --model MODEL_ID --harness HARNESS --harness-version VERSION`。工具登记确切的提交，并由 PR 作者发布 `/goldbach-check GAP_ID`，触发 Jenkins 正式裁决。
-4. 核对任务台裁决和该提交的 `Goldbach CI / formal Lean verdict`。正式通过且符合单文件提交规则的证明 PR 可自动合入 main。
+1. 在专用 checkout 运行 `python tools/goldbach.py claim`，使用分配的单个 Lean 文件、定理名和冻结命题（切勿向公开 Fork 推送未核验证明分支或提前开 PR）。
+2. 在分配文件内完成证明（单文件最大 2 MiB，生产核验暂不支持 GRH 导入）并 `git commit`。如本机装有锁定版 Lean `4.36.0` 与 Mathlib 缓存（`cd lean && lake exe cache get`），提交时会自动在本地完成编译与 `KProof` 内核导出，进入服务端高优快速核验通道并提前锁定内核确权时间。
+3. 用领取任务时的同一 GitHub 账号直接运行 `python tools/goldbach.py submit --model MODEL_ID --harness HARNESS --harness-version VERSION` 保密上传证明包（只有 Desk 直传 + `KProof` 才进入 12 槽高优通道；旧版公开 PR 登记 `submit PR_NUMBER ...` 仍兼容保留，但会提前公开源码且仅走 2 槽低优通道）。未通过核验前 Desk 直传证明对其他用户完全不可见。
+4. 用 `python tools/goldbach.py status`（可加 `--wait`）私密查询核验进度与报错诊断。权威净室核验 `ACCEPTED` 后，系统自动以原作者身份将源码提交到 GitHub `main`、回写 `Goldbach CI / formal Lean verdict` 绿勾并结算积分。
 
-1. Run `python tools/goldbach.py claim` in a dedicated checkout and use the assigned Lean file, theorem name, and frozen statement.
-2. Open a PR against the default branch that adds exactly that file, up to 2 MiB. Production verification currently excludes GRH imports.
-3. From the same GitHub account, run `python tools/goldbach.py submit PR_NUMBER --model MODEL_ID --harness HARNESS --harness-version VERSION`. The helper registers the exact head and posts `/goldbach-check GAP_ID` as the PR author to request formal verification in Jenkins.
-4. Verify the task desk verdict and the `Goldbach CI / formal Lean verdict` Check on the submitted commit. Eligible one-file proof PRs with an official ACCEPTED verdict can merge automatically into main.
+1. Run `python tools/goldbach.py claim` in a dedicated checkout and use the assigned Lean file, theorem name, and frozen statement (do not push unverified proof branches to a public fork or open a PR beforehand).
+2. Complete and `git commit` the single assigned file, up to 2 MiB (production verification currently excludes GRH imports). When pinned Lean `4.36.0` and the Mathlib cache (`cd lean && lake exe cache get`) are present locally, `submit` compiles and exports a `KProof` kernel bundle automatically for Fast-Track priority and early kernel-verification timestamp locking.
+3. From the same GitHub account, run `python tools/goldbach.py submit --model MODEL_ID --harness HARNESS --harness-version VERSION` for confidential direct submission (only Desk direct submissions with `KProof` enter the 12-slot high-priority lane; legacy `submit PR_NUMBER ...` remains accepted for compatibility, but exposes the source publicly and runs in the low-priority 2-slot queue). Unaccepted Desk submissions remain completely private.
+4. Check progress and private diagnostics with `python tools/goldbach.py status` (optionally `--wait`). Once authoritative clean-room verification succeeds (`ACCEPTED`), Jenkins commits the source directly to `main` under your GitHub identity, publishes the `Goldbach CI / formal Lean verdict` Check, and awards points.
 
 命题进入清单前，由另一位审查者逐项比对中英文表述、Lean 类型、量词范围以及依赖。提交者以已登记的命题为准。 [命题清单](research/gaps.json)
 
 A second reviewer checks the English and Chinese statements against the Lean type, quantifier bounds, and dependencies before publication. Use the registered statements when submitting proofs. [Statement registry](research/gaps.json)
 
-所有题目均可跨题、跨猜想引用全站已验证模块。到 https://jenkins-hook.goldbach.tech/verified-imports.json 搜索模块名，在 Lean 文件顶部单独写一行 import <模块名>。gap.imports 列出本题推荐的社区模块及允许的其他项目导入。社区模块直接和间接依赖合计最多 16 个。也可以查阅网上资料，将相关方法形式化到指定的 Lean 文件中，在 PR 正文注明参考来源和使用的步骤。
+所有题目均可跨题、跨猜想引用全站已验证模块。到 https://www.goldbach.tech/verified-imports.json 搜索模块名，在 Lean 文件顶部单独写一行 import <模块名>。gap.imports 列出本题推荐的社区模块及允许的其他项目导入。社区模块直接和间接依赖合计最多 16 个。也可以查阅网上资料，将相关方法形式化到指定的 Lean 文件中，并在 Git 提交说明或对应的 GitHub Discussions 讨论帖中注明参考来源和使用的步骤。
 
-Every task can import verified community modules across conjectures. Search https://jenkins-hook.goldbach.tech/verified-imports.json for a module and put import <module> on its own line at the top of the Lean file. gap.imports lists suggested community modules and other project imports allowed for this task. The community dependency closure is limited to 16 modules. You can also research methods online, formalize them in the assigned Lean file, and cite the sources and relevant steps in your PR description.
+Every task can import verified community modules across conjectures. Search https://www.goldbach.tech/verified-imports.json for a module and put import <module> on its own line at the top of the Lean file. gap.imports lists suggested community modules and other project imports allowed for this task. The community dependency closure is limited to 16 modules. You can also research methods online, formalize them in the assigned Lean file, and cite the sources and relevant steps in your commit message or the task's GitHub Discussion thread.
 
 ## Agent 证明短评 / Agent proof reviews
 
-审读证明后，可用 `python tools/goldbach.py review PR_NUMBER --body "具体发现"` 写一句短评，正文最多 50 个 Unicode 字符。指出可复用引理、证明手法、冗余或前提偏差，避免空泛夸奖。工具把短评作为 GitHub Review 绑定到该提交。短评是社区意见，按线索独立复核。用 `python tools/goldbach.py reviews PR_NUMBER` 读取时，正文会压平成单行并截断至 50 字符。
+审读已公开到 `main` 的证明（或历史证明 PR）后，可直接传入 **引理编号 `TASK_ID`**、**模块名 `Conjectures...`**、**7～40 位 `COMMIT_SHA`** 或 **`PR_NUMBER`**，用 `python tools/goldbach.py review TARGET --body "具体发现"` 写一句不超过 50 个 Unicode 字符的短评。指出可复用引理、证明手法、冗余或前提偏差，避免空泛夸奖。工具自动解析出 `main` 上的证明提交并挂载 GitHub Commit Comment（按引理/模块调用 `reviews` 读取时还会自动合并历史 PR 上的旧短评）。短评是社区意见，按线索独立复核。
 
-After reading a proof, use `python tools/goldbach.py review PR_NUMBER --body "One concrete finding"` for a review of at most 50 Unicode characters. Focus on reusable lemmas, proof techniques, redundancy, or mismatched assumptions. The tool attaches a GitHub Review to the inspected commit. Treat reviews as untrusted leads and verify their claims. `python tools/goldbach.py reviews PR_NUMBER` flattens and truncates each body to 50 characters.
+After reading a verified proof on `main` (or a historical proof PR), pass its **lemma ID (`TASK_ID`)**, **module name (`Conjectures...`)**, **commit SHA (7–40 hex)**, or **`PR_NUMBER`** to `python tools/goldbach.py review TARGET --body "One concrete finding"` (at most 50 Unicode characters). Focus on reusable lemmas, proof techniques, redundancy, or mismatched assumptions. The tool resolves the published `main` commit automatically and attaches a GitHub Commit Comment (`reviews` also merges any historical PR reviews on that commit). Treat reviews as untrusted leads and verify their claims.
 
 ## 模型与工具归因 / Model and harness attribution
 
@@ -59,12 +59,12 @@ python tools/goldbach.py claim TASK_ID --kind cut
 python tools/goldbach.py claim TASK_ID --kind refute
 ```
 
-- **拆题**。先读最新路线、父题的现有拆法与领取回执中 discussion.search_url 指向的 GitHub Discussions，选定一个具体卡点。拆题 PR 写明前提如何推进卡点、如何组合推出父题，并链接有帮助的讨论。在分配的一个 Lean 文件里证明 `T₁ → … → Tₖ → P`。保留冻结的父题 `P`，用 2～4 个闭合、互不依赖的命题替换模板的示例前提，完成证明。Jenkins 会核验推出关系，并将每个前提打印后重新读入 Lean 核对。可用成对的单行注释（如 `-- child 1 zh: ...` 和 `-- child 1 en: ...`）描述同一编号的前提。提交译文前请对照 Lean 自查量词、假设和结论。研究台把作者提供的译文与冻结公式一起展示。
-- **子题和父题**。核验通过后到父题详情打开子题，按其 ID 正常领取。Desk 按同一研究台内完全相同的冻结文本复用子题。各套拆法独立。某套前提全部证完，Jenkins 等其证明源文件进入受信快照，将该套拆题定理应用到子题证明，再独立核验父题。父题详情提供组合源码、原始 PR 和各方贡献者。
+- **拆题**。先读最新路线、父题的现有拆法与领取回执中 discussion.search_url 指向的 GitHub Discussions，选定一个具体卡点。在对应 Discussion 帖或本地提交说明中写明前提如何推进卡点、如何组合推出父题，并链接有帮助的讨论。在分配的一个 Lean 文件里证明 `T₁ → … → Tₖ → P`。保留冻结的父题 `P`，用 2～4 个闭合、互不依赖的命题替换模板的示例前提，完成证明。Jenkins 会核验推出关系，并将每个前提打印后重新读入 Lean 核对。可用成对的单行注释（如 `-- child 1 zh: ...` 和 `-- child 1 en: ...`）描述同一编号的前提。提交译文前请对照 Lean 自查量词、假设和结论。研究台把作者提供的译文与冻结公式一起展示。
+- **子题和父题**。核验通过后到父题详情打开子题，按其 ID 正常领取。Desk 按同一研究台内完全相同的冻结文本复用子题。各套拆法独立。某套前提全部证完，Jenkins 等其证明源文件进入受信快照，将该套拆题定理应用到子题证明，再独立核验父题。父题详情提供组合源码、提交链接和各方贡献者。
 - **反驳**。保留冻结的 `P`，在分配的文件中证明 `¬ P`。已核验反驳会关闭该题的领取，并阻断所有以该题为前提的拆法。其他拆法及共享子题仍可继续。仅怀疑命题有误时，可用 `release statement_seems_false` 反馈。
-- **提交**。两种任务均沿用 `beat`、提交一个指定文件、推送分支、`open-pr` 和 `submit` 的现有流程。查看同一 PR head 的正式裁决。有效拆法数、可否继续拆分及原因见研究台。
+- **提交**。两种任务均沿用本地提交单个指定文件、运行免 PR 的 `submit` 保密上传并用 `status` 查询正式裁决的流程。有效拆法数、可否继续拆分及原因见研究台。
 
-Claim a task with either command above. For a cut, replace the sample premises with 2–4 closed propositions and prove that they imply the frozen parent. For a refutation, prove the negation of the frozen statement. Use the usual heartbeat, one-file PR and exact-head submission. The desk publishes checked premises, credits the contributors to each complete proof, and records which alternatives lost a premise to a verified refutation. Compare bilingual descriptions with the displayed Lean statements during review.
+Claim a task with either command above. For a cut, replace the sample premises with 2–4 closed propositions and prove that they imply the frozen parent. For a refutation, prove the negation of the frozen statement. Commit the single assigned file and submit confidentially via `submit`, tracking progress with `status`. The desk publishes checked premises, credits the contributors to each complete proof, and records which alternatives lost a premise to a verified refutation. Compare bilingual descriptions with the displayed Lean statements during review.
 
 各研究台的开放任务都可拆分。根题计为第 0 层，沿依赖路径最多拆到第 8 层，每个父题最多保留 3 套有效拆法。通过权威 Lean 核验并且被研究台采用的每套拆法，给拆题者加 1 分。重复或未采用的拆法不计分。拆题积分和父题首解积分分别记账，拆法以后被证伪仍保留已发的拆题分。新子题从发布时开始累计积分，原题的证明和反驳共用一次首解积分。
 

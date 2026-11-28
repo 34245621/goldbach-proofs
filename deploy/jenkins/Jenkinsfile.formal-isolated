@@ -20,9 +20,13 @@ with socket.socket(socket.AF_UNIX) as connection:
     # Allow 16 dependency builds, the submission build, and the independent check.
     connection.settimeout(7500)
     connection.connect("/runner/runner.sock")
-    connection.sendall(("formal " + job + "\\n").encode())
+    connection.sendall(("formal " + job + " keepalive\\n").encode())
     with connection.makefile("rb") as response:
-        status = response.readline(8)
+        while True:
+            status = response.readline(16)
+            if status != b"running\\n":
+                break
+            print("Formal check still running for job " + job, flush=True)
 if status == bytes([49, 10]):
     raise SystemExit("Lean verifier rejected the proof")
 if status != bytes([48, 10]):

@@ -7,9 +7,8 @@ import re
 import subprocess
 from pathlib import Path
 from urllib.parse import urlencode
-from urllib.request import build_opener
 
-from desk_verdict import NoRedirect
+from desk_verdict import open_with_retry
 
 from github_revision import REPO, SHA, StaleDelivery, pull_request
 from proof_blob import proof_blob
@@ -58,8 +57,7 @@ def generated_task(module):
         raise ValueError("Invalid generated module")
     desk = os.environ.get("GOLDBACH_DESK_URL", "https://www.movan.tech/goldbach/api/desk")
     url = desk.rstrip("/") + "/task?" + urlencode({"module": module})
-    with build_opener(NoRedirect()).open(url, timeout=15) as response:
-        data = response.read(262145)
+    _, data = open_with_retry(url)
     if len(data) > 262144:
         raise ValueError("Oversized Desk task descriptor")
     receipt = json.loads(data)
@@ -70,7 +68,7 @@ def generated_task(module):
 
 
 def guard(base, work, *args):
-    subprocess.run([
+    result = subprocess.run([
         "docker", "run", "--rm", "--pull", "never", "--runtime", "runsc",
         "--network", "none", "--read-only", "--cap-drop", "ALL",
         "--security-opt", "no-new-privileges", "--memory", "512m",
@@ -78,7 +76,8 @@ def guard(base, work, *args):
         "--mount", f"type=bind,source={work},target=/input",
         "--entrypoint", "node", "goldbach-site-agent:site-check",
         "/base/.github/scripts/outside-guard.mjs", *args,
-    ], check=True, timeout=30)
+    ], stdout=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", timeout=30)
+    report_guard_result(result)
 
 
 def prepare(app, number, expected_head, base, work):
@@ -122,6 +121,78 @@ def prepare(app, number, expected_head, base, work):
     guard(base, work, "gap-of-file", "/input/gaps.json", file, "/input")
     (work / "task.kind").write_text(kind)
     (work / "proof.lean").write_bytes(proof_blob(app, blob, size))
+    allow_verified_imports(base, work)
+    guard(base, work, "imports", "/input/proof.lean", "/input/imports.json", "/input/build-imports.json")
+    check_grh_imports(json.loads((work / "build-imports.json").read_text(encoding="utf-8")))
+    guard(base, work, "closure", "/base", "/input/build-imports.json", file, "/input")
+    check_grh_imports((work / "base-imports.txt").read_text(encoding="utf-8").splitlines())
+    return file
+
+
+MAX_SOURCE_BYTES = 2 * 1024 * 1024
+
+
+def prepare_bundle(bundle_dir, base, work):
+    ticket = json.loads((bundle_dir / "ticket.json").read_text(encoding="utf-8"))
+    file = ticket.get("file", "")
+    module = ticket.get("module", "")
+    kind = ticket.get("kind", "prove")
+    gap_id = ticket.get("gap", "")
+    expected_source = ticket.get("source_sha256", "")
+    expected_kproof = ticket.get("kproof_sha256")
+    expected_statement = ticket.get("statement_sha256", "")
+    if (not isinstance(file, str) or not isinstance(module, str)
+            or not PROOF_MODULE.fullmatch(module) or file != "lean/" + module_path(module)
+            or kind not in {"prove", "cut", "refute"}):
+        raise ValueError("Invalid registered bundle task target")
+
+    source_path = bundle_dir / "proof.lean"
+    if not source_path.is_file() or source_path.is_symlink():
+        raise ValueError("Missing uploaded proof source")
+    proof_bytes = source_path.read_bytes()
+    if len(proof_bytes) == 0 or len(proof_bytes) > MAX_SOURCE_BYTES:
+        raise ProofRefused("proof file must be non-empty and at most 2 MiB")
+    if hashlib.sha256(proof_bytes).hexdigest() != expected_source:
+        raise ValueError("Uploaded proof source hash differs from registered ticket")
+
+    research = base / "research"
+    gaps = json.loads((research / "gaps.json").read_text(encoding="utf-8"))["gaps"]
+    for problem in json.loads((research / "problems.json").read_text(encoding="utf-8")).values():
+        gaps.extend(problem["gaps"])
+    if module.startswith("Conjectures.Cuts.") and not any(g["file"] == file for g in gaps):
+        receipt = generated_task(module)
+        if receipt["kind"] != kind:
+            raise ValueError("Bundle task kind differs from Desk task descriptor")
+        (work / "gaps.json").write_text(json.dumps({"gaps": [receipt["gap"]]}), encoding="utf-8")
+    else:
+        (work / "gaps.json").write_text(json.dumps({"gaps": gaps}), encoding="utf-8")
+
+    os.chown(work, 1000, 1000)
+    guard(base, work, "gap-of-file", "/input/gaps.json", file, "/input")
+    if (work / "gap.id").read_text().strip() != gap_id:
+        raise ValueError("Bundle file does not match its registered gap ID")
+    if hashlib.sha256((work / "statement.txt").read_bytes()).hexdigest() != expected_statement:
+        raise ValueError("Bundle statement hash differs from registered lease")
+
+    (work / "pr.module").write_text(module + "\n", encoding="utf-8")
+    (work / "task.kind").write_text(kind, encoding="utf-8")
+    (work / "proof.lean").write_bytes(proof_bytes)
+
+    kproof_src = bundle_dir / "proof.kproof"
+    if expected_kproof:
+        if not kproof_src.is_file() or kproof_src.is_symlink():
+            raise ValueError("Missing uploaded kproof artifact")
+        with kproof_src.open("rb") as stream:
+            actual_kproof = hashlib.file_digest(stream, "sha256").hexdigest()
+        if actual_kproof != expected_kproof:
+            raise ValueError("Uploaded kproof hash differs from registered ticket")
+        try:
+            os.link(kproof_src, work / "proof.kproof")
+        except OSError:
+            import shutil
+            shutil.copyfile(kproof_src, work / "proof.kproof")
+        os.chmod(work / "proof.kproof", 0o644)
+
     allow_verified_imports(base, work)
     guard(base, work, "imports", "/input/proof.lean", "/input/imports.json", "/input/build-imports.json")
     check_grh_imports(json.loads((work / "build-imports.json").read_text(encoding="utf-8")))

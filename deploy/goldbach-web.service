@@ -15,8 +15,8 @@ LoadCredential=fullchain.pem:/etc/letsencrypt/live/www.movan.tech/fullchain.pem
 LoadCredential=privkey.pem:/etc/letsencrypt/live/www.movan.tech/privkey.pem
 ExecStart=/usr/bin/python3 /opt/goldbach-web/server.py
 Restart=on-failure
-MemoryMax=100M
-CPUQuota=35%
+MemoryMax=512M
+CPUQuota=200%
 
 [Install]
 WantedBy=multi-user.target

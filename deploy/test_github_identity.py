@@ -61,3 +61,25 @@ class GithubOwnershipTests(unittest.TestCase):
                 with self.assertRaises(identity.GithubProofError) as caught:
                     identity.verify_gist(self.gist, self.challenge, "Example")
                 self.assertEqual(caught.exception.status, status)
+
+    def test_lease_recovery_purpose_is_domain_separated(self):
+        recover_text = identity.proof_text(self.challenge, "Example", purpose="lease_recover")
+        self.assertNotEqual(recover_text, self.file["content"])
+        with patch.object(identity.urllib.request, "build_opener") as opener:
+            opener.return_value.open.return_value = io.BytesIO(json.dumps(self.data).encode())
+            with self.assertRaises(identity.GithubProofError) as caught:
+                identity.verify_gist(self.url, self.challenge, "example", purpose="lease_recover")
+            self.assertEqual(caught.exception.status, 422)
+
+        self.file["content"] = recover_text
+        with patch.object(identity.urllib.request, "build_opener") as opener:
+            opener.return_value.open.return_value = io.BytesIO(json.dumps(self.data).encode())
+            self.assertEqual(
+                identity.verify_gist(self.url, self.challenge, "example", purpose="lease_recover"),
+                (871, "example"),
+            )
+        with patch.object(identity.urllib.request, "build_opener") as opener:
+            opener.return_value.open.return_value = io.BytesIO(json.dumps(self.data).encode())
+            with self.assertRaises(identity.GithubProofError) as caught:
+                identity.verify_gist(self.url, self.challenge, "example", purpose="zhihu_link")
+            self.assertEqual(caught.exception.status, 422)

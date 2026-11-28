@@ -20,12 +20,17 @@ if not re.fullmatch(r"[1-9][0-9]{0,9}", pr):
 if not re.fullmatch(r"[0-9a-f]{40}", sha):
     raise SystemExit("Invalid commit SHA")
 with socket.socket(socket.AF_UNIX) as connection:
-    # Allow 16 dependency builds, the submission build, and the independent check.
     connection.settimeout(7500)
     connection.connect("/runner/runner.sock")
-    connection.sendall(("proof " + pr + " " + sha + "\\n").encode())
+    connection.sendall(("proof " + pr + " " + sha + " keepalive\\n").encode())
     with connection.makefile("rb") as response:
-        status = response.readline(8)
+        while True:
+            status = response.readline(16)
+            if status != b"running\\n":
+                break
+            print("Advisory check still running for " + sha, flush=True)
+if status == bytes([49, 10]):
+    raise SystemExit("Advisory file guard refused the proof")
 if status != bytes([48, 10]):
     raise SystemExit("Isolated Lean proof check failed: " + repr(status))
 print("Isolated Lean proof check passed for " + sha)

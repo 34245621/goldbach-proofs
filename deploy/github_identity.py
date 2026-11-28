@@ -24,13 +24,23 @@ def new_challenge():
     return secrets.token_urlsafe(32)
 
 
-def proof_text(challenge, handle):
+PROOF_TEMPLATES = {
+    "zhihu_link": "Goldbach Research: link GitHub @{handle} to my Zhihu profile. Challenge: {challenge}",
+    "lease_recover": "Goldbach Research: release unsubmitted desk lease for GitHub @{handle}. Challenge: {challenge}",
+    "contributor_auth": "Goldbach Research: authorize private submissions for GitHub @{handle}. Challenge: {challenge}",
+}
+
+
+def proof_text(challenge, handle, *, purpose="zhihu_link"):
+    template = PROOF_TEMPLATES.get(purpose)
+    if template is None:
+        raise ValueError(f"Unknown GitHub proof purpose: {purpose}")
     if not (isinstance(handle, str) and len(handle) <= 39
             and re.fullmatch(HANDLE, handle, re.I | re.ASCII)):
         raise GithubProofError("invalid_github_handle", 400)
     if not isinstance(challenge, str) or not re.fullmatch(r"[A-Za-z0-9_-]{43}", challenge):
         raise GithubProofError("invalid_challenge", 400)
-    return f"Goldbach Research: link GitHub @{handle.lower()} to my Zhihu profile. Challenge: {challenge}"
+    return template.format(handle=handle.lower(), challenge=challenge)
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -38,9 +48,9 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def verify_gist(gist, challenge, handle):
+def verify_gist(gist, challenge, handle, *, purpose="zhihu_link"):
     """Return the stable numeric ID and lowercase login. The caller owns expiry and consumption."""
-    expected = proof_text(challenge, handle)
+    expected = proof_text(challenge, handle, purpose=purpose)
     match = GIST.fullmatch(gist.strip()) if isinstance(gist, str) and len(gist) <= 200 else None
     if not match:
         raise GithubProofError("invalid_gist", 400)

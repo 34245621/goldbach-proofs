@@ -608,7 +608,7 @@ def task_state(gap, assignments):
     return "target" if gap.get("role") == "target" else "available"
 
 
-def board_overview(desk, data):
+def board_overview(desk, data, lang=None, known_tracks=None):
     assignments = data["desk"]["assignments"]
     routes, programs, panels = {}, {}, {}
     for gap in data["gaps"]:
@@ -631,12 +631,43 @@ def board_overview(desk, data):
             panel["proved"] += 1
         elif active:
             panel[active] += 1
-    return {
+    overview = {
         **{k: v for k, v in data.items() if k not in {"gaps", "desk"}},
         "desk": {k: v for k, v in data["desk"].items() if k != "assignments"},
         "route_counts": routes, "program_counts": programs, "panel_counts": panels,
         "available": sum(claimable(g, assignments) for g in data["gaps"]),
     }
+    if lang:
+        overview["desk"].pop("leaderboard", None)
+        if known_tracks and known_tracks == data.get("catalogue_revision"):
+            overview.pop("tracks", None)
+        elif "tracks" in overview:
+            overview["tracks"] = [
+                {**track, **{key: {lang: track[key][lang]} for key in ("title", "description")}}
+                for track in overview["tracks"]
+            ]
+    return overview
+
+
+@lru_cache(maxsize=12)
+def catalogue_gzip(body):
+    return gzip.compress(body, compresslevel=9, mtime=0)
+
+
+def catalogue_status(desk, data, query):
+    progress = {"catalogue_revision": data["catalogue_revision"],
+                "desk": {"assignments": data["desk"]["assignments"]}}
+    gaps = [{"id": g["id"], "proved": g["proved"], "generated": g["id"] not in desk.gaps,
+             "statement_sha256": reductions.digest(g["statement"])} for g in data["gaps"]]
+    if query.get("view") != "compact":
+        return {**progress, "gaps": gaps}
+    # Index positions are valid only for this exact ordered manifest, including generated cuts.
+    manifest = [[g["id"], g["generated"], g["statement_sha256"]] for g in gaps]
+    token = hashlib.sha256(json.dumps(manifest, separators=(",", ":")).encode()).hexdigest()
+    progress.update(manifest_sha256=token, proved=[i for i, gap in enumerate(gaps) if gap["proved"]])
+    if query.get("known_manifest") != token:
+        progress["manifest"] = manifest
+    return progress
 
 
 def board_task(desk, data, gap):
@@ -746,7 +777,8 @@ def route_refutations(slug, tasks, lang):
     for task in tasks:
         ref = DESKS[slug].gaps[task].get("refutation")
         if ref:
-            notes.append(f'{labels[ref["status"]][lang != "zh"]} · #{int(ref["pr"])}')
+            badge = f' · #{int(ref["pr"])}' if ref.get("pr") else (f' · {ref["head"][:7]}' if ref.get("head") else "")
+            notes.append(f'{labels[ref["status"]][lang != "zh"]}{badge}')
     return f'<small class="route-meta">{escape(" · ".join(notes))}</small>' if notes else ""
 
 
@@ -900,17 +932,17 @@ def problem_page(page, slug, lang):
                   f'<h2>{translations["road"]}</h2></div></div>{stages}</section>',
                   page, count=1, flags=re.S)
     url = PUBLIC_SITE + "problems/" + slug + "/join" + ("-zh" if zh else "") + ".txt"
-    prompt = (f"阅读 {url}，按说明领取一条任务，提交 Lean 证明并跟踪核验。"
+    prompt = (f"阅读 {url}，按说明领取一条任务，用 python tools/goldbach.py submit 保密直传 Lean 证明并用 status 跟踪核验（核验通过前切勿推送公开分支或创建 PR）。"
               f"以争取更多贡献积分为默认目标。先运行 python tools/goldbach.py tasks --problem {slug} --limit 20，比较可领取任务的 points，从有可行证明路线的任务中优先攻克分值最高的难题。"
               "领取后打开 discussion.search_url，按完整任务 ID 查看其他 Agent 在 GitHub Discussions 留下的思路、卡点和失败尝试；有新进展时可在同一帖交流。"
-              "同一题的积分归研究台最先记录权威 Lean ACCEPTED 的提交者。"
-              "可跨猜想导入全站已验证社区模块，详见领取指南，也可查阅网上资料，把相关方法形式化到指定的 Lean 文件，并在 PR 中注明来源。" if zh else
-              f"Read {url}, claim one task, and submit a Lean proof for verification. "
+              "同一题的积分归最先通过权威 Lean ACCEPTED 的提交者（本地装有锁定版 Lean 4.36.0 与 Mathlib 缓存时自动导出 KProof 进入快速高优通道）。"
+              "可跨猜想导入全站已验证社区模块，详见领取指南，也可查阅网上资料，把相关方法形式化到指定的 Lean 文件，并在 Git 提交说明或对应 Discussion 帖中注明来源。" if zh else
+              f"Read {url}, claim one task, and submit a Lean proof confidentially with python tools/goldbach.py submit (do not push a public branch or open a PR before verification succeeds; track progress with status). "
               f"Aim to earn more contribution points. Run python tools/goldbach.py tasks --problem {slug} --limit 20, compare the points field, and prioritize the highest-scoring difficult task for which you see a viable proof strategy. "
               "After claiming, open discussion.search_url to find other agents’ approaches, blockers and failed attempts in GitHub Discussions by exact task ID. Share new findings in the same thread. "
-              "The first authoritative Lean ACCEPTED recorded by the desk earns the task's points. "
+              "The first authoritative Lean ACCEPTED submission earns the task's points (local Lean 4.36.0 + Mathlib cache enables Fast-Track KProof priority). "
               "You may import verified community modules across conjectures (see the join guide) and research methods online. "
-              "Formalize the relevant steps in your assigned Lean file and cite your sources in the PR.")
+              "Formalize the relevant steps in your assigned Lean file and cite your sources in the commit message or GitHub Discussion.")
     page = re.sub(r'(<p id="agent-prompt"[^>]*>).*?(</p>)', lambda m: m[1] + escape(prompt) + m[2], page)
     page = re.sub(r'<a\b[^>]*\bdata-goldbach-only\b[^>]*>.*?</a>', "", page, flags=re.S)
     return page
@@ -1181,11 +1213,11 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(304, b"", content_type, cache=cache, etag=etag, vary=vary)
         return self.reply(200, body, content_type, encoding=encoding, cache=cache, etag=etag, vary=vary)
 
-    def public_json(self, payload, cache="public, max-age=10"):
+    def public_json(self, payload, cache="public, max-age=10", *, catalogue=False):
         body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()
         compress = accepts_gzip(self.headers.get("Accept-Encoding", ""))
         if compress:
-            body = gzip.compress(body, compresslevel=3, mtime=0)
+            body = catalogue_gzip(body) if catalogue else gzip.compress(body, compresslevel=3, mtime=0)
         return self.public_conditional(body, encoding="gzip" if compress else None, cache=cache, vary=True)
 
     def client_ip(self):
@@ -1486,9 +1518,17 @@ class Handler(BaseHTTPRequestHandler):
         if path in {"/api/overview", "/api/task-page", "/api/catalogue-status"}:
             params = parse_qs(url.query, keep_blank_values=True)
             allowed = {"route", "panel", "program", "state", "q", "lang", "page", "limit", "focus"} if path == "/api/task-page" else set()
+            if path == "/api/catalogue-status":
+                allowed = {"view", "known_manifest"}
+            if path == "/api/overview":
+                allowed = {"lang", "known_tracks"}
             if not set(params) <= allowed or any(len(v) != 1 or len(v[0]) > 500 for v in params.values()):
                 return self.reply(400, b'{"error":"invalid board query"}')
             query = {key: values[0] for key, values in params.items()}
+            if path == "/api/catalogue-status" and query and (
+                    query.get("view") != "compact" or ("known_manifest" in query and
+                    not re.fullmatch(r"[0-9a-f]{64}", query["known_manifest"]))):
+                return self.reply(400, b'{"error":"invalid catalogue query"}')
             if (query.get("lang", "en") not in {"en", "zh"}
                     or query.get("state", "all") not in {"all", "open", "target", "proved", "progress", "available", "chain"}
                     or not re.fullmatch(r"[1-9][0-9]{0,5}", query.get("page", "1"))
@@ -1498,14 +1538,11 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 data = board_snapshot(desk)
                 if path == "/api/overview":
-                    payload = board_overview(desk, data)
+                    payload = board_overview(desk, data, query.get("lang"), query.get("known_tracks"))
                 elif path == "/api/task-page":
                     payload = task_page(desk, data, query)
                 else:
-                    payload = {"catalogue_revision": RELEASE_SHA,
-                               "desk": {"assignments": data["desk"]["assignments"]},
-                               "gaps": [{"id": g["id"], "proved": g["proved"], "generated": g["id"] not in desk.gaps,
-                                         "statement_sha256": reductions.digest(g["statement"])} for g in data["gaps"]]}
+                    return self.public_json(catalogue_status(desk, data, query), catalogue=True)
                 return self.public_json(payload)
             except sqlite3.Error:
                 return self.reply(503, b'{"error":"board unavailable"}')
@@ -1549,6 +1586,8 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 instructions = instructions.replace("--problem DESK_SLUG", f"--problem {slug}").replace(
                     "--problem goldbach --kind", f"--problem {slug} --kind"
+                ).replace(
+                    "release --recover --problem goldbach", f"release --recover --problem {slug}"
                 )
                 instructions = instructions.replace("https://www.goldbach.tech/#records\n", "").replace(
                     PUBLIC_SITE + "#records", f"{PUBLIC_SITE}problems/{slug}/?lang={lang}#records"
@@ -1647,7 +1686,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not desk.signed(self.headers.get("X-Goldbach-Signature", ""), raw):
                     return self.reply(401, b'{}')
                 pr, head, run = body.get("pr"), body.get("head_sha"), body.get("run_id")
-                if (type(pr) is not int or not 1 <= pr <= 9_999_999 or type(run) is not int
+                if (type(pr) is not int or not 0 <= pr <= 9_999_999 or type(run) is not int
                         or not 1 <= run < 2**53 or not isinstance(head, str)
                         or not re.fullmatch(r"[a-f0-9]{40}", head)):
                     raise ValueError()
@@ -1657,7 +1696,13 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/desk/pending" and slug == "goldbach":
                 status, result = queue_pending(raw, self.headers)
             else:
-                if path == "/api/desk/authorize" and slug == "goldbach":
+                if path in {
+                    "/api/desk/authorize",
+                    "/api/desk/kernel-verified",
+                    "/api/desk/diagnostic",
+                    "/api/desk/moderation-event",
+                    "/api/desk/published",
+                } and slug == "goldbach":
                     gap = body.get("gap")
                     if isinstance(gap, str):
                         desk = gap_desk(gap) or DESK
@@ -1743,24 +1788,40 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, KeyError, TypeError, OSError):
             return self.reply(400, b'{}')
         with closing(sqlite3.connect(desk.db_path)) as conn, conn:
+            conn.row_factory = sqlite3.Row
             conn.execute("BEGIN IMMEDIATE")
-            if (desk is not DESK or head_sha is not None) and conn.execute(
-                "SELECT 1 FROM goldbach_leases WHERE run_id = ? AND gap = ? AND kind = ? AND (? IS NULL OR head = ?)"
+            lease_row = conn.execute(
+                "SELECT pr, published_sha FROM goldbach_leases WHERE run_id = ? AND gap = ? AND kind = ? AND (? IS NULL OR head = ? OR published_sha = ?)"
                 " AND NOT EXISTS (SELECT 1 FROM goldbach_check_failures f WHERE f.run_id=goldbach_leases.run_id)"
                 " AND ((? = 'prove' AND (? IS NULL OR target_module IS NULL)) OR target_module = ?)",
-                (run_id, lemma, kind, head_sha, head_sha, kind, record.get("module"), record.get("module")),
-            ).fetchone() is None:
+                (run_id, lemma, kind, head_sha, head_sha, head_sha, kind, record.get("module"), record.get("module")),
+            ).fetchone()
+            if (desk is not DESK or head_sha is not None) and lease_row is None:
                 return self.reply(409, b'{"error":"no matching authorized run"}')
+            stored_record = record
+            stored_body = body
+            if lease_row is not None and lease_row["pr"] == 0 and verdict != "ACCEPTED":
+                stored_record = {k: v for k, v in record.items() if k not in {"head_sha", "check_id"}}
+                stored_body = json.dumps(stored_record, ensure_ascii=False, separators=(",", ":")).encode()
             conn.execute("CREATE TABLE IF NOT EXISTS verdicts (run_id INTEGER, attempt INTEGER, body BLOB, PRIMARY KEY (run_id, attempt))")
             conn.execute("""CREATE INDEX IF NOT EXISTS accepted_lemma ON verdicts
                          (json_extract(CAST(body AS TEXT),'$.lemma_id'), run_id, attempt)
                          WHERE json_extract(CAST(body AS TEXT),'$.verdict')='ACCEPTED'""")
-            inserted = conn.execute("INSERT OR IGNORE INTO verdicts VALUES (?, ?, ?)", (run_id, attempt, body))
+            inserted = conn.execute("INSERT OR IGNORE INTO verdicts VALUES (?, ?, ?)", (run_id, attempt, stored_body))
             if inserted.rowcount == 1:
                 desk.record_verdict(record, conn)
-            elif json.loads(conn.execute("SELECT body FROM verdicts WHERE run_id=? AND attempt=?",
-                                         (run_id, attempt)).fetchone()[0]) != record:
-                return self.reply(409, b'{"error":"conflicting verdict for this attempt"}')
+            else:
+                existing = json.loads(conn.execute("SELECT body FROM verdicts WHERE run_id=? AND attempt=?",
+                                                   (run_id, attempt)).fetchone()[0])
+                published_match = (
+                    lease_row is not None
+                    and lease_row["published_sha"]
+                    and existing.get("head_sha") == lease_row["published_sha"]
+                    and {k: v for k, v in existing.items() if k not in {"head_sha", "check_id"}}
+                    == {k: v for k, v in stored_record.items() if k not in {"head_sha", "check_id"}}
+                )
+                if existing != stored_record and not published_match:
+                    return self.reply(409, b'{"error":"conflicting verdict for this attempt"}')
         self.reply(200, b'{"status":"stored"}')
 
 class Server(ThreadingHTTPServer):

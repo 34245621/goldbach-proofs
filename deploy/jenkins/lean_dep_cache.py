@@ -35,26 +35,66 @@ def key(context_digest, module, source, earlier_keys):
     return digest.hexdigest()
 
 
-def compile_cached(cache, module, cache_key, artifact, build):
+def store_cached(cache, module, cache_key, artifact, *, kproof_artifact=None):
     import fcntl
 
     stored = cache / (cache_key + ".olean")
+    stored_kproof = cache / (cache_key + ".kproof") if kproof_artifact is not None else None
+    if stored.is_file() and (stored_kproof is None or stored_kproof.is_file()):
+        return False
+    wrote = False
+    with (cache / (cache_key + ".lock")).open("a+b") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if not stored.is_file():
+            with tempfile.NamedTemporaryFile(dir=cache) as pending:
+                shutil.copyfile(artifact, pending.name)
+                os.chmod(pending.name, 0o444)
+                os.link(Path(pending.name), stored)
+            wrote = True
+        if stored_kproof is not None and kproof_artifact.is_file() and not stored_kproof.is_file():
+            with tempfile.NamedTemporaryFile(dir=cache) as pending:
+                shutil.copyfile(kproof_artifact, pending.name)
+                os.chmod(pending.name, 0o444)
+                os.link(Path(pending.name), stored_kproof)
+            wrote = True
+    if wrote:
+        logging.info("Lean dependency cache stored accepted module: %s", module)
+    return wrote
+
+
+def compile_cached(cache, module, cache_key, artifact, build, *, kproof_artifact=None, build_kproof=None):
+    import fcntl
+
+    stored = cache / (cache_key + ".olean")
+    stored_kproof = cache / (cache_key + ".kproof") if kproof_artifact is not None else None
     # Entries are published atomically and never modified. Warm readers can run
     # concurrently, while the lock below serializes builds of the same key.
-    if stored.is_file():
+    if stored.is_file() and (stored_kproof is None or stored_kproof.is_file()):
         shutil.copyfile(stored, artifact)
+        if stored_kproof is not None:
+            shutil.copyfile(stored_kproof, kproof_artifact)
         logging.info("Lean dependency cache hit: %s", module)
         return
     with (cache / (cache_key + ".lock")).open("a+b") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        if stored.is_file():
+        if not stored.is_file():
+            logging.info("Lean dependency cache miss: %s", module)
+            build()
+            with tempfile.NamedTemporaryFile(dir=cache) as pending:
+                shutil.copyfile(artifact, pending.name)
+                os.chmod(pending.name, 0o444)
+                # Link only a complete artifact, leaving no partially written cache entry.
+                os.link(Path(pending.name), stored)
+        else:
             shutil.copyfile(stored, artifact)
             logging.info("Lean dependency cache hit: %s", module)
-            return
-        logging.info("Lean dependency cache miss: %s", module)
-        build()
-        with tempfile.NamedTemporaryFile(dir=cache) as pending:
-            shutil.copyfile(artifact, pending.name)
-            os.chmod(pending.name, 0o444)
-            # Link only a complete artifact, leaving no partially written cache entry.
-            os.link(Path(pending.name), stored)
+        if stored_kproof is not None:
+            if not stored_kproof.is_file() and build_kproof is not None:
+                build_kproof()
+                if kproof_artifact.is_file():
+                    with tempfile.NamedTemporaryFile(dir=cache) as pending:
+                        shutil.copyfile(kproof_artifact, pending.name)
+                        os.chmod(pending.name, 0o444)
+                        os.link(Path(pending.name), stored_kproof)
+            elif stored_kproof.is_file():
+                shutil.copyfile(stored_kproof, kproof_artifact)
