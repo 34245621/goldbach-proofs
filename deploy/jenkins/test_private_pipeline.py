@@ -63,6 +63,18 @@ class PrivateSubmissionPipelineTests(unittest.TestCase):
         verified = receive_webhook.verify_upload_ticket(SECRET, signed, now)
         self.assertEqual(verified["submission_id"], "a" * 40)
 
+        from deploy.desk import sign_upload_ticket, verify_upload_ticket
+        long_ticket = dict(ticket_data, statement="∀ n : ℕ, " * 900 + "True")
+        legacy = make_upload_ticket(SECRET, long_ticket)
+        self.assertGreater(len(legacy), 4096)
+        compact = sign_upload_ticket(SECRET, long_ticket)
+        self.assertLess(len(compact), 4096)
+        for verify in (verify_upload_ticket, receive_webhook.verify_upload_ticket):
+            for ticket in (legacy, compact):
+                self.assertEqual(verify(SECRET, ticket, now), long_ticket)
+                self.assertIsNone(verify(SECRET, ticket, now + 601))
+                self.assertIsNone(verify(b"wrong-key", ticket, now))
+
         compressed = receive_webhook.pack_submission_bundle(lean_bytes, kproof_bytes)
         with tempfile.TemporaryDirectory() as folder:
             dest = Path(folder)

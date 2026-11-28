@@ -44,7 +44,7 @@ class BundleError(ValueError):
 
 
 def verify_upload_ticket(secret, token, now):
-    if not secret or not isinstance(token, str) or "." not in token or len(token) > 4096:
+    if not secret or not isinstance(token, str) or "." not in token or len(token) > 60 * 1024:
         return None
     encoded, supplied_sig = token.rsplit(".", 1)
     if not re.fullmatch(r"[A-Za-z0-9_-]+", encoded) or not re.fullmatch(r"[a-f0-9]{64}", supplied_sig):
@@ -54,8 +54,14 @@ def verify_upload_ticket(secret, token, now):
         return None
     padding = "=" * (-len(encoded) % 4)
     try:
-        data = json.loads(base64.urlsafe_b64decode(encoded + padding))
-    except (ValueError, UnicodeError):
+        raw = base64.urlsafe_b64decode(encoded + padding)
+        if raw.startswith(b"Z"):
+            decoder = zlib.decompressobj()
+            raw = decoder.decompress(raw[1:], 1024 * 1024)
+            if not decoder.eof or decoder.unused_data:
+                return None
+        data = json.loads(raw)
+    except (ValueError, UnicodeError, zlib.error):
         return None
     if (not isinstance(data, dict)
             or data.get("v") != 1

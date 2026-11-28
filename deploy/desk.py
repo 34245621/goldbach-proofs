@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import ipaddress
 import json
+import zlib
 import os
 import re
 import secrets
@@ -1002,14 +1003,16 @@ def verify_contributor_pass(secret, supplied, now):
 
 
 def sign_upload_ticket(secret, payload):
-    raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    if len(raw) > 2700:
+        raw = b"Z" + zlib.compress(raw)
     encoded = base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
     sig = hmac.new(secret, encoded.encode("ascii"), hashlib.sha256).hexdigest()
     return f"{encoded}.{sig}"
 
 
 def verify_upload_ticket(secret, token, now):
-    if not isinstance(token, str) or "." not in token or len(token) > 4096:
+    if not isinstance(token, str) or "." not in token or len(token) > 60 * 1024:
         return None
     encoded, supplied_sig = token.rsplit(".", 1)
     if not re.fullmatch(r"[A-Za-z0-9_-]+", encoded) or not re.fullmatch(r"[a-f0-9]{64}", supplied_sig):
@@ -1019,8 +1022,14 @@ def verify_upload_ticket(secret, token, now):
         return None
     padding = "=" * (-len(encoded) % 4)
     try:
-        data = json.loads(base64.urlsafe_b64decode(encoded + padding))
-    except (ValueError, UnicodeError):
+        raw = base64.urlsafe_b64decode(encoded + padding)
+        if raw.startswith(b"Z"):
+            decoder = zlib.decompressobj()
+            raw = decoder.decompress(raw[1:], 1024 * 1024)
+            if not decoder.eof or decoder.unused_data:
+                return None
+        data = json.loads(raw)
+    except (ValueError, UnicodeError, zlib.error):
         return None
     if not isinstance(data, dict) or type(data.get("expires_at")) is not int or data["expires_at"] <= now:
         return None
