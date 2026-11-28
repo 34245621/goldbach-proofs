@@ -1,15 +1,18 @@
+import io
 import sqlite3
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from urllib.error import HTTPError
 
 from build_checks import enqueue_formal_checks, refusal_summary
 from check_outbox import database
+from desk_verdict import signed_request
 from formal_proof import judge
 from desk_outbox import drain, enqueue_runner_failures, initialize
-from prepare_proof import ProofRefused, guard, report_guard_result
+from prepare_proof import ProofRefused, generated_task, guard, report_guard_result
 
 
 class ProofRefusalTests(unittest.TestCase):
@@ -122,3 +125,59 @@ class ProofRefusalTests(unittest.TestCase):
             self.assertIn("line 64: token is not allowed", check["summary"])
             outbox.close()
             jobs.close()
+
+    def test_desk_requests_retry_transient_timeout_and_502_but_not_409(self):
+        class FakeResponse:
+            status = 200
+
+            def __init__(self, payload):
+                self._payload = payload
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self, limit=-1):
+                return self._payload[:limit] if limit >= 0 else self._payload
+
+        class FakeOpener:
+            def __init__(self, outcomes):
+                self.outcomes = list(outcomes)
+                self.calls = 0
+
+            def open(self, request, timeout=None):
+                self.calls += 1
+                outcome = self.outcomes.pop(0)
+                if isinstance(outcome, Exception):
+                    raise outcome
+                return outcome
+
+        transient = FakeOpener([
+            TimeoutError("timed out"),
+            HTTPError("https://example.org", 502, "Bad Gateway", {}, io.BytesIO(b"")),
+            FakeResponse(b'{"authorized":true}'),
+        ])
+        with patch("desk_verdict.build_opener", return_value=transient), patch("desk_verdict.time.sleep") as sleep:
+            reply = signed_request("https://example.org/api/desk/authorize", b"secret", b"{}")
+        self.assertEqual(reply, {"authorized": True})
+        self.assertEqual(transient.calls, 3)
+        self.assertEqual(sleep.call_count, 2)
+
+        conflict = FakeOpener([
+            HTTPError("https://example.org", 409, "Conflict", {}, io.BytesIO(b"")),
+        ])
+        with patch("desk_verdict.build_opener", return_value=conflict), patch("desk_verdict.time.sleep") as sleep:
+            with self.assertRaises(HTTPError) as raised:
+                signed_request("https://example.org/api/desk/authorize", b"secret", b"{}")
+        self.assertEqual(raised.exception.code, 409)
+        self.assertEqual(conflict.calls, 1)
+        sleep.assert_not_called()
+
+        task_reply = b'{"kind":"prove","gap":{"module":"Conjectures.Cuts.Task0123456789abcdef01234567"}}'
+        task_opener = FakeOpener([TimeoutError("timed out"), FakeResponse(task_reply)])
+        with patch("desk_verdict.build_opener", return_value=task_opener), patch("desk_verdict.time.sleep"):
+            receipt = generated_task("Conjectures.Cuts.Task0123456789abcdef01234567")
+        self.assertEqual(receipt["kind"], "prove")
+        self.assertEqual(task_opener.calls, 2)
